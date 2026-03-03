@@ -1,0 +1,31 @@
+# Скомпилированные классы и сборки
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+
+# Настройки IDE (IntelliJ IDEA, Eclipse, VS Code)
+.idea/
+*.iml
+*.iws
+.settings/
+.classpath
+.project
+.vscode/
+
+# Секретные конфигурации Spring (добавьте свои суффиксы, если нужно)
+application-prod.properties
+application-secret.properties
+application-secret.yml
+application.properties
+*.jks
+
+# Логи
+*.log
+logs/
+
+# Временные файлы ОС
+.DS_Store
+Thumbs.db
