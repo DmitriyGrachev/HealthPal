@@ -19,7 +19,7 @@ out/
 application-prod.properties
 application-secret.properties
 application-secret.yml
-application.properties
+application-dev.properties
 *.jks
 
 # Логи
