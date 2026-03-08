@@ -1,23 +1,11 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.model.user.User;
-import com.fit.fitnessapp.model.workout.Workout;
 import com.fit.fitnessapp.repository.UserRepository;
-import com.fit.fitnessapp.repository.WorkoutRepository;
+import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutJpaRepository;
 import com.fit.fitnessapp.service.diet.FatSecretService;
 import lombok.AllArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.PromptTemplate;
-import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -25,7 +13,7 @@ public class FitnessAiService {
 
     private final ChatClient chatClient;
     private final UserRepository userRepository;
-    private final WorkoutRepository workoutRepository;
+    private final WorkoutJpaRepository workoutJpaRepository;
     private final FatSecretService fatSecretService; // Assuming this exists
 
 

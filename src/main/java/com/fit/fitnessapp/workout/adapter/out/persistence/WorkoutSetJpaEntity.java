@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.model.workout;
+package com.fit.fitnessapp.workout.adapter.out.persistence;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -6,7 +6,7 @@ import lombok.Data;
 @Entity
 @Data
 @Table(name = "workout_sets")
-public class WorkoutSet {
+public class WorkoutSetJpaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,5 +17,5 @@ public class WorkoutSet {
 
     @ManyToOne
     @JoinColumn(name = "exercise_id")
-    private WorkoutExercise exercise;
+    private WorkoutExerciseJpaEntity exercise;
 }

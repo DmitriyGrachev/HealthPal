@@ -37,7 +37,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/import/**").hasRole("VIP")
                         .requestMatchers("/fatsecret/callback").permitAll() // Callback оставляем открытым!
-                        .requestMatchers("/ai/**").permitAll()
+                        .requestMatchers("/ai/**","/api/v1/workouts/**").permitAll()
                         .requestMatchers("/auth/**").permitAll() // Вход и регистрация доступны всем
                         //.requestMatchers("/connect/**", "/callback/**").permitAll() // FatSecret OAuth endpoints
                         .anyRequest().authenticated() // Всё остальное - только с токеном

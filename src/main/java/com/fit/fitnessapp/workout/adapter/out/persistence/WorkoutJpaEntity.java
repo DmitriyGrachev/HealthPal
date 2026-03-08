@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.model.workout;
+package com.fit.fitnessapp.workout.adapter.out.persistence;
 import com.fit.fitnessapp.model.user.User;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -11,7 +11,7 @@ import java.util.List;
 @Entity
 @Data
 @Table(name = "workouts")
-public class Workout {
+public class WorkoutJpaEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -19,11 +19,8 @@ public class Workout {
     private Long jefitId; // ID из файла (чтобы не дублировать)
     private LocalDateTime date;
 
-    @OneToMany(mappedBy = "workout", cascade = CascadeType.ALL)
-    private List<WorkoutExercise> exercises = new ArrayList<>();
+    @OneToMany(mappedBy = "workoutJpaEntity", cascade = CascadeType.ALL)
+    private List<WorkoutExerciseJpaEntity> exercises = new ArrayList<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    @ToString.Exclude
-    private User user;;
+    private Long userId;
 }
