@@ -2,7 +2,6 @@ package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.repository.UserRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutJpaRepository;
-import com.fit.fitnessapp.service.diet.FatSecretService;
 import lombok.AllArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -10,11 +9,13 @@ import org.springframework.stereotype.Service;
 @Service
 @AllArgsConstructor
 public class FitnessAiService {
-
+/*
     private final ChatClient chatClient;
     private final UserRepository userRepository;
     private final WorkoutJpaRepository workoutJpaRepository;
     private final FatSecretService fatSecretService; // Assuming this exists
+
+ */
 
 
     /**
