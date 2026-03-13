@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Table(name = "fatsecret_food")
-public class FatsecretFoodEntry { // [cite: 21]
+public class FatsecretFoodEntry {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

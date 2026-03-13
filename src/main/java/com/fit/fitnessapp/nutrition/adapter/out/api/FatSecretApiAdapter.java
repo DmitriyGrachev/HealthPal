@@ -103,6 +103,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             service.signRequest(scribeToken, request);
             Response response = service.execute(request);
 
+            System.out.println(response.getBody().toString());
             if (!response.isSuccessful()) {
                 throw new RuntimeException("FatSecret API error: " + response.getBody());
             }
@@ -127,6 +128,8 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
             service.signRequest(scribeToken, request);
             Response response = service.execute(request);
+
+            System.out.println(response.getBody().toString());
 
             if (!response.isSuccessful()) {
                 throw new RuntimeException("FatSecret API error: " + response.getBody());
