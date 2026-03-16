@@ -1,20 +1,24 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionPersistencePort;
 import com.fit.fitnessapp.nutrition.application.util.TimeEntryUtil;
-import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
-import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
-import com.fit.fitnessapp.nutrition.domain.NutritionDay;
-import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
+import com.fit.fitnessapp.nutrition.domain.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.NoSuchElementException;
 
 @Service
-public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionUseCase {
+public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionUseCase, NutritionQueryUseCase {
+
+    private static final Logger log = LoggerFactory.getLogger(NutritionService.class);
 
     private final FatSecretApiPort apiPort;
     private final NutritionPersistencePort persistencePort;
@@ -63,20 +67,48 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
                 .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));
 
         long currentDaysInMonth = LocalDate.now().toEpochDay();
-
         NutritionMonth nutritionMonth = apiPort.fetchAndParseFoodEntriesForCurrentMonth(
                 token, userId, currentDaysInMonth);
 
-        int today = LocalDate.now().getDayOfMonth();
+        // Для каждого summary — дергаем подробный день и сохраняем его
+        for (NutritionDaySummary summary : nutritionMonth.days()) {
+            try {
+                long dayEpoch = summary.date().toEpochDay();
+                // Получаем подробный NutritionDay из API
+                NutritionDay fullDay = apiPort.fetchAndParseFoodEntries(token, userId, dayEpoch);
+                // Сохраняем детали (идемпотентный upsert внутри persistencePort)
+                persistencePort.saveNutritionDay(fullDay);
+            } catch (Exception ex) {
+                // Логируем и продолжаем: не хотим прерывать синк всего месяца из-за одного дня
+                log.warn("Failed to fetch/save full day for date {}: {}", summary.date(), ex.getMessage(), ex);
 
-
-        //If anythuday is missing before and today - exception thrown
-        if(today != nutritionMonth.days().size()){
-            throw new IllegalArgumentException("Some of days of this periaod are not filled up, please fill then up");
+            }
         }
 
-        persistencePort.saveNutritionMonth(nutritionMonth); // ✅
-
         return nutritionMonth;
+    }
+    @Override
+    public NutritionDay getDay(Long userId, LocalDate date) {
+        return persistencePort.getDayByDate(userId, date)
+                .orElseThrow(() -> new NoSuchElementException(
+                        "No nutrition data for date " + date + ". Try syncing first."));
+    }
+
+    @Override
+    public List<NutritionDaySummary> getCurrentMonthSummary(Long userId) {
+        LocalDate from = LocalDate.now().withDayOfMonth(1);
+        LocalDate to = LocalDate.now();
+        return persistencePort.getMonthSummary(userId, from, to);
+    }
+
+    @Override
+    public List<NutritionDaySummary> getDateRange(Long userId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("'from' date must be before 'to' date");
+        }
+        if (from.plusDays(90).isBefore(to)) {
+            throw new IllegalArgumentException("Date range cannot exceed 90 days");
+        }
+        return persistencePort.getMonthSummary(userId, from, to);
     }
 }

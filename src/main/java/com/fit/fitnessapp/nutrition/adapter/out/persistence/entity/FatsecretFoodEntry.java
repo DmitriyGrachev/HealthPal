@@ -3,18 +3,23 @@ package com.fit.fitnessapp.nutrition.adapter.out.persistence.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-
 @Entity
-@Getter
-@Setter
-@Table(name = "fatsecret_food")
+@Table(name = "fatsecret_food", indexes = {
+        @Index(name = "idx_external_entry_id", columnList = "external_entry_id")
+})
+@Getter @Setter
 public class FatsecretFoodEntry {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "external_food_id")
     private Long externalFoodId;
+
+    @Column(name = "external_entry_id", unique = false) // unique не глобально — уникальность в пределах day
     private Long externalEntryId;
+
     private String name;
     private String mealType;
     private int calories;

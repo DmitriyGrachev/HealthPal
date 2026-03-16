@@ -1,15 +1,19 @@
 package com.fit.fitnessapp.nutrition.adapter.in.web;
 
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
+import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
 import com.fit.fitnessapp.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/nutrition")
@@ -18,20 +22,19 @@ public class NutritionController {
 
     private final ConnectFatSecretUseCase connectUseCase;
     private final SyncNutritionUseCase syncUseCase;
+    private final NutritionQueryUseCase queryUseCase;  // ← был пропущен
     private final CurrentUserService currentUserService;
 
     @GetMapping("/connect")
     public ResponseEntity<String> getAuthUrl() {
         Long userId = currentUserService.getCurrentUserId();
-        String authUrl = connectUseCase.getAuthorizationUrl(userId);
-        return ResponseEntity.ok(authUrl);
+        return ResponseEntity.ok(connectUseCase.getAuthorizationUrl(userId));
     }
 
     @GetMapping("/callback")
     public ResponseEntity<String> processCallback(
             @RequestParam("oauth_token") String oauthToken,
-            @RequestParam("oauth_verifier") String oauthVerifier
-    ) {
+            @RequestParam("oauth_verifier") String oauthVerifier) {
         connectUseCase.processCallback(oauthToken, oauthVerifier);
         return ResponseEntity.ok("FatSecret account connected successfully!");
     }
@@ -39,15 +42,33 @@ public class NutritionController {
     @PostMapping("/sync/today")
     public ResponseEntity<NutritionDay> syncToday() {
         Long userId = currentUserService.getCurrentUserId();
-        // Используем Use Case для синхронизации сегодняшнего дня
-        NutritionDay nutritionDay = syncUseCase.syncDay(userId, LocalDate.now());
-
-        return ResponseEntity.ok(nutritionDay);
+        return ResponseEntity.ok(syncUseCase.syncDay(userId, LocalDate.now()));
     }
+
     @PostMapping("/sync/current-month")
-    public ResponseEntity<NutritionMonth> syncCurrentMonth() { // ✅
+    public ResponseEntity<NutritionMonth> syncCurrentMonth() {
         Long userId = currentUserService.getCurrentUserId();
-        NutritionMonth nutritionMonth = syncUseCase.syncMonth(userId);
-        return ResponseEntity.ok(nutritionMonth);
+        return ResponseEntity.ok(syncUseCase.syncMonth(userId));
+    }
+
+    @GetMapping("/day")
+    public ResponseEntity<NutritionDay> getDay(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        Long userId = currentUserService.getCurrentUserId();
+        return ResponseEntity.ok(queryUseCase.getDay(userId, date));
+    }
+
+    @GetMapping("/month/summary")
+    public ResponseEntity<List<NutritionDaySummary>> getCurrentMonthSummary() {
+        Long userId = currentUserService.getCurrentUserId();
+        return ResponseEntity.ok(queryUseCase.getCurrentMonthSummary(userId));
+    }
+
+    @GetMapping("/range")
+    public ResponseEntity<List<NutritionDaySummary>> getDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        Long userId = currentUserService.getCurrentUserId();
+        return ResponseEntity.ok(queryUseCase.getDateRange(userId, from, to));
     }
 }
