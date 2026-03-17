@@ -14,7 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class NutritionSyncScheduler {
-
+/*
     private final SyncNutritionUseCase syncUseCase;
     private final NutritionPersistencePort persistencePort;
 
@@ -38,5 +38,7 @@ public class NutritionSyncScheduler {
 
         log.info("Daily sync finished. success={}, failed={}", success, failed);
     }
+
+ */
 }
 

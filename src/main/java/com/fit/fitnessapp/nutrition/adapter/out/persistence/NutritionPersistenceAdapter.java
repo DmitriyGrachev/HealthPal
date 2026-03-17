@@ -6,6 +6,7 @@ import com.fit.fitnessapp.nutrition.adapter.out.persistence.entity.FatsecretJpaD
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatSecretConnectionJpaRepository;
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatsecretDayJpaRepository;
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatsecretFoodEntryJpaRepository;
+import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionPersistencePort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class NutritionPersistenceAdapter implements NutritionPersistencePort {
+public class NutritionPersistenceAdapter implements NutritionCommandPort {
 
     private final FatSecretConnectionJpaRepository connectionRepository;
     private final FatsecretDayJpaRepository dayRepository;
@@ -189,41 +190,6 @@ public class NutritionPersistenceAdapter implements NutritionPersistencePort {
     private String computeHashForSummary(NutritionDaySummary s) {
         String payload = s.userId() + "|" + s.dateInt() + "|" + s.calories() + "|" + s.protein() + "|" + s.fat() + "|" + s.carbohydrate();
         return DigestUtils.sha256Hex(payload);
-    }
-
-    @Override
-    public List<Long> getAllConnectedUserIds() {
-        return connectionRepository.findAll()
-                .stream()
-                .map(FatSecretConnectionJpaEntity::getUserId)
-                .toList();
-    }
-
-    @Override
-    public Optional<NutritionDay> getDayByDate(Long userId, LocalDate date) {
-        return dayRepository.findByUserIdAndDate(userId, date)
-                .map(jpaDay -> {
-                    List<FoodEntry> entries = jpaDay.getEntries().stream()
-                            .map(this::toDomainEntry)
-                            .toList();
-                    return new NutritionDay(userId, jpaDay.getDate(), entries);
-                });
-    }
-
-    @Override
-    public List<NutritionDaySummary> getMonthSummary(Long userId, LocalDate from, LocalDate to) {
-        return dayRepository.findByUserIdAndDateBetweenOrderByDate(userId, from, to)
-                .stream()
-                .map(jpaDay -> new NutritionDaySummary(
-                        userId,
-                        jpaDay.getDate(),
-                        jpaDay.getDateInt(),
-                        jpaDay.getCalories(),
-                        jpaDay.getProtein(),
-                        jpaDay.getFat(),
-                        jpaDay.getCarbohydrate()
-                ))
-                .toList();
     }
 
     // Добавить приватный маппер entity → domain
