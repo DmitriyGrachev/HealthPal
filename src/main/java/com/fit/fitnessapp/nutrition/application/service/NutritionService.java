@@ -1,20 +1,17 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
-import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
-import com.fit.fitnessapp.nutrition.application.util.TimeEntryUtil;
 import com.fit.fitnessapp.nutrition.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
@@ -39,8 +36,9 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         nutritionCommandPort.saveToken(authResult.userId(), authResult.token());
     }
 
+    @Async
     @Override
-    public NutritionDay syncDay(Long userId, LocalDate date) {
+    public void syncDay(Long userId, LocalDate date) {
         // 1. Достаем токен пользователя из БД
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret. Please login first."));
@@ -53,12 +51,11 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
         // 4. Сохраняем агрегированный день в базу данных (включая все съеденные продукты)
         nutritionCommandPort.saveNutritionDay(nutritionDay);
-
-        return nutritionDay;
     }
 
+    @Async
     @Override
-    public NutritionMonth syncMonth(Long userId) {
+    public void syncMonth(Long userId) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));
 
@@ -80,6 +77,5 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
             }
         }
 
-            return nutritionMonth;
-        }
+    }
 }

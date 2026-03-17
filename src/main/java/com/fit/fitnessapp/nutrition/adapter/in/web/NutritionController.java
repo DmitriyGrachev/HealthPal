@@ -39,18 +39,6 @@ public class NutritionController {
         return ResponseEntity.ok("FatSecret account connected successfully!");
     }
 
-    @PostMapping("/sync/today")
-    public ResponseEntity<NutritionDay> syncToday() {
-        Long userId = currentUserService.getCurrentUserId();
-        return ResponseEntity.ok(syncUseCase.syncDay(userId, LocalDate.now()));
-    }
-
-    @PostMapping("/sync/current-month")
-    public ResponseEntity<NutritionMonth> syncCurrentMonth() {
-        Long userId = currentUserService.getCurrentUserId();
-        return ResponseEntity.ok(syncUseCase.syncMonth(userId));
-    }
-
     @GetMapping("/day")
     public ResponseEntity<NutritionDay> getDay(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -70,5 +58,21 @@ public class NutritionController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         Long userId = currentUserService.getCurrentUserId();
         return ResponseEntity.ok(queryUseCase.getDateRange(userId, from, to));
+    }
+
+    @PostMapping("/sync/today")
+    public ResponseEntity<Void> syncToday() {
+        Long userId = currentUserService.getCurrentUserId();
+        syncUseCase.syncDay(userId, LocalDate.now());
+        //  202 Accepted
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/sync/current-month")
+    public ResponseEntity<Void> syncCurrentMonth() {
+        Long userId = currentUserService.getCurrentUserId();
+        syncUseCase.syncMonth(userId);
+        //202 Accepted.
+        return ResponseEntity.accepted().build();
     }
 }
