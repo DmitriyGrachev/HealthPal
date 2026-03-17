@@ -14,4 +14,5 @@ public interface FatsecretDayJpaRepository extends JpaRepository<FatsecretJpaDay
 
     List<FatsecretJpaDay> findByUserIdAndDateBetweenOrderByDate(
             Long userId, LocalDate from, LocalDate to);
+    List<FatsecretJpaDay> findByUserIdAndDateIn(Long userId, List<LocalDate> dates);
 }

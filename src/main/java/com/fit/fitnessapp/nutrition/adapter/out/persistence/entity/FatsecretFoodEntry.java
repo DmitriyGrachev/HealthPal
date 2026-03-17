@@ -11,7 +11,8 @@ import lombok.Setter;
 public class FatsecretFoodEntry {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "fatsecret_food_seq")
+    @SequenceGenerator(name = "fatsecret_food_seq", sequenceName = "fatsecret_food_id_seq", allocationSize = 50)
     private Long id;
 
     @Column(name = "external_food_id")

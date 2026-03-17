@@ -15,7 +15,8 @@ import java.util.List;
 public class FatsecretJpaDay {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "fatsecret_day_seq")
+    @SequenceGenerator(name = "fatsecret_day_seq", sequenceName = "fatsecret_day_id_seq", allocationSize = 50)
     private Long id;
 
     @Column(name = "user_id", nullable = false)
