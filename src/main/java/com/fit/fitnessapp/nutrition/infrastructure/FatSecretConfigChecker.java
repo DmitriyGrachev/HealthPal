@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.conf;
+package com.fit.fitnessapp.nutrition.infrastructure;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;

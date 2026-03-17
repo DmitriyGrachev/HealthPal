@@ -3,8 +3,6 @@ package com.fit.fitnessapp.nutrition.adapter.out.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.api.FatSecretLegacyApi;
-import com.fit.fitnessapp.nutrition.adapter.out.persistence.entity.FatSecretAuthState;
-import com.fit.fitnessapp.nutrition.adapter.out.persistence.entity.FatsecretJpaDay;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.util.TimeEntryUtil;
 import com.fit.fitnessapp.nutrition.domain.*;
