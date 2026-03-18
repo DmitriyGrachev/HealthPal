@@ -31,18 +31,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // Для JWT отключаем CSRF
-                .cors(AbstractHttpConfigurer::disable) // Пока отключаем, на проде настроишь
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // STATELESS!
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/import/**").hasRole("VIP")
-                        .requestMatchers("/fatsecret/callback").permitAll() // Callback оставляем открытым!
-                        .requestMatchers("/ai/**").permitAll()
-                        .requestMatchers("/auth/**").permitAll() // Вход и регистрация доступны всем
-                        //.requestMatchers("/connect/**", "/callback/**").permitAll() // FatSecret OAuth endpoints
-                        .anyRequest().authenticated() // Всё остальное - только с токеном
+                        .requestMatchers("/api/v1/nutrition/callback").permitAll()
+                        //.requestMatchers("/ai/**","/api/v1/workouts/**").permitAll()
+                        .requestMatchers("/auth/**").permitAll()
+                        .anyRequest().authenticated()
                 )
-                // Добавляем наш фильтр перед стандартным
                 .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

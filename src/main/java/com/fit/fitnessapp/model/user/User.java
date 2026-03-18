@@ -1,10 +1,9 @@
 package com.fit.fitnessapp.model.user;
 
 import com.fit.fitnessapp.model.fatsecret.Profile;
-import com.fit.fitnessapp.model.workout.Workout;
+import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutJpaEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -37,10 +36,6 @@ public class User implements UserDetails {
 
     @CreationTimestamp
     private LocalDateTime registeredAt;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @ToString.Exclude
-    private List<Workout> workouts = new ArrayList<>();
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Profile profile;
