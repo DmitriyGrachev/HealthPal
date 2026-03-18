@@ -7,7 +7,6 @@ import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatSecret
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatsecretDayJpaRepository;
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.repository.FatsecretFoodEntryJpaRepository;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
-import com.fit.fitnessapp.nutrition.application.port.out.NutritionPersistencePort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
