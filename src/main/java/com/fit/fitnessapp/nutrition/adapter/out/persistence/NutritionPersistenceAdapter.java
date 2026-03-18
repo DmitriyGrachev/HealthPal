@@ -190,18 +190,4 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         String payload = s.userId() + "|" + s.dateInt() + "|" + s.calories() + "|" + s.protein() + "|" + s.fat() + "|" + s.carbohydrate();
         return DigestUtils.sha256Hex(payload);
     }
-
-    // Добавить приватный маппер entity → domain
-    private FoodEntry toDomainEntry(FatsecretFoodEntry e) {
-        return new FoodEntry(
-                e.getExternalFoodId(),
-                e.getExternalEntryId(),
-                e.getName(),
-                e.getMealType(),
-                e.getCalories(),
-                e.getProtein(),
-                e.getFat(),
-                e.getCarbohydrate()
-        );
-    }
 }
