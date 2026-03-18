@@ -1,47 +1,87 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.security.CurrentUserService;
-import org.springframework.http.ResponseEntity;
+
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+
 @RestController
-@RequestMapping("/api/v1/ai")
+@RequestMapping("/api/ai")
 public class AiController {
 
-    private final FitnessAiService fitnessAiService;
-    private final CurrentUserService currentUserService;
+    private final AiService aiService;
+    private final AiProperties aiProperties;
 
-    public AiController(FitnessAiService fitnessAiService, CurrentUserService currentUserService) {
-        this.fitnessAiService = fitnessAiService;
-        this.currentUserService = currentUserService;
+    public AiController(AiService aiService, AiProperties aiProperties) {
+        this.aiService = aiService;
+        this.aiProperties = aiProperties;
     }
 
-    /*@PostMapping("/ask")
-    public ResponseEntity<AiResponseDto> askTrainer(@RequestBody AiRequestDto request) {
-        // 1. Get authenticated user ID securely
-        Long userId = currentUserService.getCurrentUserId();
-
-        // 2. Call Service
-        String answer = fitnessAiService.getPersonalizedAdvice(userId, request.question());
-
-        // 3. Return Response
-        return ResponseEntity.ok(new AiResponseDto(answer));
-    }
-    @GetMapping("/ai/insights")
-    public String getInsights(@RequestParam String query) {
-        Long userId = currentUserService.getCurrentUserId();
-
-        return chatClient.prompt()
-                .user(query)
-                .system("Ты персональный фитнес-коуч. Отвечай на русском, коротко и мотивирующе.")
-                .call()
-                .content();
-    }
-
+    /**
+     * POST /api/ai/chat
+     * Обычный запрос. Провайдер передаётся через query-param (по умолчанию — из конфига).
+     *
+     * Пример: POST /api/ai/chat?provider=google
+     * Body: { "message": "Расскажи про Spring AI" }
      */
+    @PostMapping("/chat")
+    public ChatResponse chat(
+            @RequestBody ChatRequest request,
+            @RequestParam(required = false) String provider
+    ) {
+        var resolvedProvider = resolveProvider(provider);
+        var response = aiService.chat(request.message(), resolvedProvider);
+        return new ChatResponse(response, resolvedProvider.getKey());
+    }
 
-    // Simple DTOs (Java 17 Records)
-    public record AiRequestDto(String question) {}
-    public record AiResponseDto(String answer) {}
+    /**
+     * POST /api/ai/chat/stream
+     * Стриминг ответа (SSE). Удобно для фронтенда.
+     *
+     * Пример: POST /api/ai/chat/stream?provider=openai
+     */
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> stream(
+            @RequestBody CustomChatRequest request,
+            @RequestParam(required = false) String provider
+    ) {
+        return aiService.stream(request.message(), request.systemPrompt(), resolveProvider(provider));
+    }
+
+    /**
+     * POST /api/ai/chat/custom
+     * Запрос с кастомным системным промптом.
+     */
+    @PostMapping("/chat/custom")
+    public ChatResponse chatWithSystem(
+            @RequestBody CustomChatRequest request,
+            @RequestParam(required = false) String provider
+    ) {
+        var resolvedProvider = resolveProvider(provider);
+        var response = aiService.chatWithSystem(
+                request.systemPrompt(),
+                request.message(),
+                resolvedProvider
+        );
+        return new ChatResponse(response, resolvedProvider.getKey());
+    }
+
+    // ─── Вспомогательные типы (Records) ──────────────────────────────────────
+
+    public record ChatRequest(String message) {}
+
+    public record CustomChatRequest(String systemPrompt, String message) {}
+
+    public record ChatResponse(String content, String provider) {}
+
+    // ─── Приватные хелперы ────────────────────────────────────────────────────
+
+    private AiProvider resolveProvider(String providerParam) {
+        if (providerParam != null && !providerParam.isBlank()) {
+            return AiProvider.fromKey(providerParam);
+        }
+        return AiProvider.fromKey(aiProperties.defaultProvider());
+    }
 }
-
