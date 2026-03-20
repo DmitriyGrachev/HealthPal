@@ -8,7 +8,8 @@ import lombok.Data;
 @Table(name = "workout_sets")
 public class WorkoutSetJpaEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "set_seq")
+    @SequenceGenerator(name = "set_seq", sequenceName = "set_seq", allocationSize = 100)
     private Long id;
 
     private int setIndex;

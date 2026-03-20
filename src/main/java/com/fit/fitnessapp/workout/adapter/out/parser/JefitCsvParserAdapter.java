@@ -150,7 +150,8 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
             List<Exercise> domainExercises = new ArrayList<>();
             for (TempExercise te : tw.exercises) {
                 if (!te.sets.isEmpty()) {
-                    domainExercises.add(new Exercise(te.name, te.sets));
+                    // Передаём te.id как jefitLogId
+                    domainExercises.add(new Exercise(te.id, te.name, te.sets));
                 }
             }
             if (!domainExercises.isEmpty()) {

@@ -10,17 +10,23 @@ import java.util.List;
 
 @Entity
 @Data
-@Table(name = "workouts")
+@Table(
+        name = "workouts",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_workout_jefit_user",
+                columnNames = {"jefitId", "userId"}
+        )
+)
 public class WorkoutJpaEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "workout_seq")
+    @SequenceGenerator(name = "workout_seq", sequenceName = "workout_seq", allocationSize = 50)
     private Long id;
 
-    private Long jefitId; // ID из файла (чтобы не дублировать)
+    private Long jefitId;
     private LocalDateTime date;
-
-    @OneToMany(mappedBy = "workoutJpaEntity", cascade = CascadeType.ALL)
-    private List<WorkoutExerciseJpaEntity> exercises = new ArrayList<>();
-
     private Long userId;
+
+    @OneToMany(mappedBy = "workoutJpaEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<WorkoutExerciseJpaEntity> exercises = new ArrayList<>();
 }

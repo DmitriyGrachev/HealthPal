@@ -8,13 +8,20 @@ import java.util.List;
 
 @Entity
 @Data
-@Table(name = "workout_exercises")
+@Table(
+        name = "workout_exercises",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_exercise_jefit_log",
+                columnNames = {"jefitLogId"}
+        )
+)
 public class WorkoutExerciseJpaEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "exercise_seq")
+    @SequenceGenerator(name = "exercise_seq", sequenceName = "exercise_seq", allocationSize = 50)
     private Long id;
 
-    private Long jefitLogId; // ID лога из файла
+    private Long jefitLogId;
     private String exerciseName;
 
     @ManyToOne
