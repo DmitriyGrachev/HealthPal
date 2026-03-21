@@ -1,5 +1,6 @@
-package com.fit.fitnessapp.workout.adapter.out.persistence;
+package com.fit.fitnessapp.workout.adapter.out.persistence.repository;
 
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

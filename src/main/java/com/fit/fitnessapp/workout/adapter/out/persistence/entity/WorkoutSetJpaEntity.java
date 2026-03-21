@@ -1,10 +1,13 @@
-package com.fit.fitnessapp.workout.adapter.out.persistence;
+package com.fit.fitnessapp.workout.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
-@Data
+@Getter
+@Setter
 @Table(name = "workout_sets")
 public class WorkoutSetJpaEntity {
     @Id

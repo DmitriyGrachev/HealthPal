@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.model.user;
 
 import com.fit.fitnessapp.model.fatsecret.Profile;
-import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutJpaEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

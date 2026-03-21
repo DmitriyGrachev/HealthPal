@@ -1,13 +1,16 @@
-package com.fit.fitnessapp.workout.adapter.out.persistence;
+package com.fit.fitnessapp.workout.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Data
+@Getter
+@Setter
 @Table(
         name = "workout_exercises",
         uniqueConstraints = @UniqueConstraint(
