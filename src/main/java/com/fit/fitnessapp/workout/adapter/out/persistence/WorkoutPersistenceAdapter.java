@@ -13,6 +13,7 @@ import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
@@ -72,6 +74,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             WorkoutJpaEntity workout = existingWorkouts.getOrDefault(
                     session.externalId(), new WorkoutJpaEntity()
             );
+            log.debug("CURRENT DATE FOR WORKOOUTS : {}", session.date());
             workout.setJefitId(session.externalId());
             workout.setDate(session.date());
             workout.setUserId(userId);

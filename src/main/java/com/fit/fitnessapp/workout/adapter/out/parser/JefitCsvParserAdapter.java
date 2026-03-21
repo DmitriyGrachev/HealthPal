@@ -4,16 +4,19 @@ import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 
+@Slf4j
 @Component
 public class JefitCsvParserAdapter implements WorkoutParserPort {
 
@@ -24,6 +27,7 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
 
     @Override
     public List<WorkoutSession> parse(InputStream stream) {
+        log.debug("START PARSING");
         Map<Long, TempWorkout> tempWorkouts = new HashMap<>();
         Map<Long, TempExercise> tempExercises = new HashMap<>();
 
@@ -61,6 +65,18 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                 String[] data = line.split(delimiter + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
                 for (int i = 0; i < data.length; i++) data[i] = data[i].trim().replace("\"", "");
 
+                if (currentSection.contains("WORKOUT SESSIONS")) {
+                    log.debug("DATE PARSED : {} ", Arrays.stream(data).toList());
+                }
+
+                //TODO
+                /*
+                Данные лежат у тебя в памяти, в мапе tempWorkouts. Теперь тебе нужно их сохранить в базу данных через твой Spring Data JPA (в таблицу workouts).
+
+Представь, что в tempWorkouts накопилось 5000 записей.
+
+Как ты будешь сохранять их в БД? Напиши словами или куском кода. Спойлер: если ты просто пройдешься циклом for и вызовешь repository.save(workout) 5000 раз, твой пет-проект заставит базу данных попотеть. Почему, и как сделать лучше?
+                 */
                 try {
                     if (currentSection.contains("WORKOUT SESSIONS")) {
                         parseSession(headers, data, tempWorkouts);
@@ -85,19 +101,35 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
         int idIdx = findIndex(headers, "_id");
         if (idIdx == -1) idIdx = findIndex(headers, "rowid");
 
-        int timeIdx = findIndex(headers, "TIMESTAMP");
-        if (timeIdx == -1) timeIdx = findIndex(headers, "starttime");
+        int timeIdx = findIndex(headers, "starttime");
+        if (timeIdx == -1) timeIdx = findIndex(headers, "endtime");
 
-        if (idIdx == -1 || timeIdx == -1 || data.length <= timeIdx) return;
+        // 1. Быстрый выход (Early Return). Не кидаем Exception, просто игнорируем битую строку.
+        if (idIdx == -1 || timeIdx == -1 || data.length <= timeIdx) {
+            log.warn("Skipping invalid row: missing headers or data length mismatch. Data length: {}", data.length);
+            return;
+        }
 
         try {
             Long logId = Long.parseLong(data[idIdx]);
-            String dateStr = data[timeIdx];
-            if (dateStr.length() > 19) dateStr = dateStr.substring(0, 19);
-            LocalDateTime date = LocalDateTime.parse(dateStr, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            long timestamp = Long.parseLong(data[timeIdx]);
+
+            if (timestamp < 10_000_000_000L) {
+                timestamp *= 1000;
+            }
+
+            LocalDateTime date = LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(timestamp),
+                    ZoneId.of("Europe/Kiev")
+            );
 
             tempWorkouts.put(logId, new TempWorkout(logId, date));
-        } catch (Exception ignored) {}
+
+        } catch (NumberFormatException e) {
+            log.error("Failed to parse numbers in row. ID str: '{}', Time str: '{}'", data[idIdx], data[timeIdx], e);
+        } catch (Exception e) {
+            log.error("Unexpected error while processing row. Data: {}", Arrays.toString(data), e);
+        }
     }
 
     private void parseExerciseLog(String[] headers, String[] data, Map<Long, TempWorkout> tempWorkouts, Map<Long, TempExercise> tempExercises) {
@@ -145,8 +177,10 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
     }
 
     private List<WorkoutSession> buildDomainObjects(Map<Long, TempWorkout> tempWorkouts) {
+
         List<WorkoutSession> sessions = new ArrayList<>();
         for (TempWorkout tw : tempWorkouts.values()) {
+            log.debug("START BUILDING, CHECK DATE: {}", tw.date);
             List<Exercise> domainExercises = new ArrayList<>();
             for (TempExercise te : tw.exercises) {
                 if (!te.sets.isEmpty()) {
