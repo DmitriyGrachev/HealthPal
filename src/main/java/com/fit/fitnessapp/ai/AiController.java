@@ -1,7 +1,7 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.security.CurrentUserService;
-import org.springframework.http.ResponseEntity;
+import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.application.service.CurrentUserService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiController {
 
     private final FitnessAiService fitnessAiService;
-    private final CurrentUserService currentUserService;
+    private final CurrentUserApi currentUserService;
 
     public AiController(FitnessAiService fitnessAiService, CurrentUserService currentUserService) {
         this.fitnessAiService = fitnessAiService;

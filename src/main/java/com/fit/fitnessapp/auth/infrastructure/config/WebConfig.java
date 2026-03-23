@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.conf;
+package com.fit.fitnessapp.auth.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;

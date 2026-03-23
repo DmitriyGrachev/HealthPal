@@ -1,7 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence;
 
 
-import com.fit.fitnessapp.repository.UserRepository;
+import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;

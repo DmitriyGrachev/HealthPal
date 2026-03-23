@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.utils;
+package com.fit.fitnessapp.auth.infrastructure.utils;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

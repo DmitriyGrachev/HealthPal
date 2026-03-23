@@ -1,10 +1,9 @@
 package com.fit.fitnessapp.model.fatsecret;
 
-import com.fit.fitnessapp.model.user.User;
+import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.ToString;
 
 @Entity
 @Table(name = "profiles")

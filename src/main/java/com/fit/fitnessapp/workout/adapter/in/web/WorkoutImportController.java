@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.in.web;
 
-import com.fit.fitnessapp.security.CurrentUserService;
+import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.application.service.CurrentUserService;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class WorkoutImportController {
 
     private final ImportWorkoutUseCase importUseCase;
-    private final CurrentUserService currentUserService;
+    private final CurrentUserApi currentUserService;
 
     @PostMapping("/import/{format}")
     public ResponseEntity<String> importFile(

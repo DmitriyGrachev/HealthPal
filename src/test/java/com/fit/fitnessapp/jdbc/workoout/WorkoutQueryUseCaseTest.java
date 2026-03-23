@@ -1,14 +1,13 @@
 package com.fit.fitnessapp.jdbc.workoout;
 
-import com.fit.fitnessapp.model.user.User;
-import com.fit.fitnessapp.repository.UserRepository;
+import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
+import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
-import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

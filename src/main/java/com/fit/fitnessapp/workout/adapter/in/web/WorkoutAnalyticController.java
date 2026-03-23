@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.in.web;
 
-import com.fit.fitnessapp.security.CurrentUserService;
+import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.application.service.CurrentUserService;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ import java.util.List;
 public class WorkoutAnalyticController {
 
     private final WorkoutQueryUseCase workoutQueryUseCase;
-    private final CurrentUserService currentUserService;
+    private final CurrentUserApi currentUserService;
 
     private enum SUMMARY_PERIOD {
         THIS_WEEK, LAST_TWO_WEEKS, THIS_MONTH

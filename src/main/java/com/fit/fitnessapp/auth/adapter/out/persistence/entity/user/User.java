@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.model.user;
+package com.fit.fitnessapp.auth.adapter.out.persistence.entity.user;
 
 import com.fit.fitnessapp.model.fatsecret.Profile;
 import jakarta.persistence.*;

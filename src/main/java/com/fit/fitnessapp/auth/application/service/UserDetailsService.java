@@ -1,6 +1,6 @@
-package com.fit.fitnessapp.service;
+package com.fit.fitnessapp.auth.application.service;
 
-import com.fit.fitnessapp.repository.UserRepository;
+import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
