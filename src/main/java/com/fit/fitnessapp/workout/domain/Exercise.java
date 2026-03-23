@@ -2,7 +2,5 @@ package com.fit.fitnessapp.workout.domain;
 
 import java.util.List;
 
-public record Exercise(
-        String name,
-        List<Set> sets
-) {}
+// Exercise.java
+public record Exercise(Long jefitLogId, String name, List<Set> sets) {}

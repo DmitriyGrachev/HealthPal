@@ -1,57 +1,111 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence;
 
-import com.fit.fitnessapp.model.user.User;
-import com.fit.fitnessapp.repository.UserRepository;
+
+import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.application.port.out.UserPersistencePort;
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
+import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutExerciseJpaRepository;
+import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
+import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutSetJpaRepository;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
+import com.fit.fitnessapp.workout.domain.Exercise;
+import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
-
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
 
     private final WorkoutJpaRepository workoutJpaRepository;
-    private final UserRepository userRepository;
+    private final WorkoutExerciseJpaRepository exerciseJpaRepository;
+    private final WorkoutSetJpaRepository setJpaRepository;
+    private final CurrentUserApi currentUserApi;
 
     @Override
     public void saveAll(List<WorkoutSession> sessions, Long userId) {
-        // Достаем пользователя (это старая сущность, пока оставим так)
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        currentUserApi.findUserById(userId);
+
+        List<Long> incomingJefitIds = sessions.stream()
+                .map(WorkoutSession::externalId)
+                .toList();
+
+        // Запрос 1: workouts + exercises
+        List<WorkoutJpaEntity> foundWorkouts = workoutJpaRepository
+                .findWithExercisesByJefitIdInAndUserId(incomingJefitIds, userId);
+
+        // Запрос 2: exercises + sets
+        if (!foundWorkouts.isEmpty()) {
+            List<Long> workoutDbIds = foundWorkouts.stream()
+                    .map(WorkoutJpaEntity::getId)
+                    .toList();
+            exerciseJpaRepository.findExercisesWithSetsByWorkoutIdIn(workoutDbIds);
+        }
+
+        Map<Long, WorkoutJpaEntity> existingWorkouts = foundWorkouts.stream()
+                .collect(Collectors.toMap(WorkoutJpaEntity::getJefitId, Function.identity()));
+
+        Map<Long, WorkoutExerciseJpaEntity> existingExercises = foundWorkouts.stream()
+                .flatMap(w -> w.getExercises().stream())
+                .filter(e -> e.getJefitLogId() != null)
+                .collect(Collectors.toMap(WorkoutExerciseJpaEntity::getJefitLogId, Function.identity()));
+
+        // ── Bulk DELETE старых сетов одним запросом ─────────────────────────
+        if (!existingExercises.isEmpty()) {
+            setJpaRepository.deleteAllByExerciseIdIn(existingExercises.keySet());
+            // Чистим коллекции в памяти — Hibernate уже не будет их трогать
+            existingExercises.values().forEach(ex -> ex.getSets().clear());
+        }
+
+        // ── Upsert ──────────────────────────────────────────────────────────
+        List<WorkoutJpaEntity> toSave = new ArrayList<>();
 
         for (WorkoutSession session : sessions) {
-            // Маппинг из чистой Java (Record) в "грязный" JPA Entity
-            WorkoutJpaEntity workoutJpaEntityEntity = new WorkoutJpaEntity();
-            workoutJpaEntityEntity.setJefitId(session.externalId());
-            workoutJpaEntityEntity.setDate(session.date());
-            workoutJpaEntityEntity.setUserId(user.getId());
+            WorkoutJpaEntity workout = existingWorkouts.getOrDefault(
+                    session.externalId(), new WorkoutJpaEntity()
+            );
+            log.debug("CURRENT DATE FOR WORKOOUTS : {}", session.date());
+            workout.setJefitId(session.externalId());
+            workout.setDate(session.date());
+            workout.setUserId(userId);
 
-            // Маппинг упражнений
-            for (com.fit.fitnessapp.workout.domain.Exercise domainExercise : session.exercises()) {
-                WorkoutExerciseJpaEntity exerciseEntity = new WorkoutExerciseJpaEntity();
+            for (Exercise domainExercise : session.exercises()) {
+                Long logId = domainExercise.jefitLogId();
+                WorkoutExerciseJpaEntity exerciseEntity = (logId != null && existingExercises.containsKey(logId))
+                        ? existingExercises.get(logId)
+                        : new WorkoutExerciseJpaEntity();
+
+                if (exerciseEntity.getId() == null) {
+                    exerciseEntity.setJefitLogId(logId);
+                    workout.getExercises().add(exerciseEntity);
+                }
                 exerciseEntity.setExerciseName(domainExercise.name());
-                // В старом коде у тебя был jefitLogId в упражнении, но в домене мы его упростили.
-                // Если он критичен, добавь его в record Exercise.
-                exerciseEntity.setWorkoutJpaEntity(workoutJpaEntityEntity);
+                exerciseEntity.setWorkoutJpaEntity(workout);
 
-                // Маппинг подходов
-                for (com.fit.fitnessapp.workout.domain.Set domainSet : domainExercise.sets()) {
+                for (Set domainSet : domainExercise.sets()) {
                     WorkoutSetJpaEntity setEntity = new WorkoutSetJpaEntity();
                     setEntity.setSetIndex(domainSet.setIndex());
                     setEntity.setReps(domainSet.reps());
                     setEntity.setWeight(domainSet.weightKg());
                     setEntity.setExercise(exerciseEntity);
-
                     exerciseEntity.getSets().add(setEntity);
                 }
-                workoutJpaEntityEntity.getExercises().add(exerciseEntity);
             }
-
-            // Сохраняем всю пачку (JPA CascadeType.ALL сделает магию)
-            workoutJpaRepository.save(workoutJpaEntityEntity);
+            toSave.add(workout);
         }
+
+        workoutJpaRepository.saveAll(toSave);
     }
 }
+

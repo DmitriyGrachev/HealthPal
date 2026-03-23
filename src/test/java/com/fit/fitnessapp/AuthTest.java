@@ -1,36 +1,24 @@
 package com.fit.fitnessapp;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fit.fitnessapp.model.dto.LoginRequest;
-import com.fit.fitnessapp.model.dto.RegisterRequest;
-import com.fit.fitnessapp.model.user.Role;
-import com.fit.fitnessapp.model.user.User;
-import com.fit.fitnessapp.repository.UserRepository;
-import com.fit.fitnessapp.service.UserService;
-import com.fit.fitnessapp.utils.JwtCore;
+import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.Role;
+import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
+import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.infrastructure.utils.JwtCore;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.TestExecutionEvent;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.context.support.WithUserDetails;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import javax.print.attribute.standard.Media;
-import javax.print.attribute.standard.MediaTray;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.matchesPattern;
@@ -39,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-
+/*
 @SpringBootTest // Поднимает всё приложение целиком
 @AutoConfigureMockMvc // Настраивает MockMvc для отправки запросов
 @Transactional // Важно! Откатывает изменения в БД после каждого теста

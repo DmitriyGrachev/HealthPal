@@ -1,9 +1,6 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.repository.UserRepository;
-import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutJpaRepository;
 import lombok.AllArgsConstructor;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 @Service
