@@ -1,7 +1,9 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence;
 
 
+import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.application.port.out.UserPersistencePort;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
@@ -29,12 +31,11 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
     private final WorkoutJpaRepository workoutJpaRepository;
     private final WorkoutExerciseJpaRepository exerciseJpaRepository;
     private final WorkoutSetJpaRepository setJpaRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserApi currentUserApi;
 
     @Override
     public void saveAll(List<WorkoutSession> sessions, Long userId) {
-        userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        currentUserApi.findUserById(userId);
 
         List<Long> incomingJefitIds = sessions.stream()
                 .map(WorkoutSession::externalId)

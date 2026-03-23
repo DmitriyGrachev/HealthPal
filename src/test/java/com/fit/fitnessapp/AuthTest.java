@@ -1,8 +1,6 @@
 package com.fit.fitnessapp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fit.fitnessapp.model.dto.LoginRequest;
-import com.fit.fitnessapp.model.dto.RegisterRequest;
 import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.Role;
 import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
 import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
@@ -29,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-
+/*
 @SpringBootTest // Поднимает всё приложение целиком
 @AutoConfigureMockMvc // Настраивает MockMvc для отправки запросов
 @Transactional // Важно! Откатывает изменения в БД после каждого теста

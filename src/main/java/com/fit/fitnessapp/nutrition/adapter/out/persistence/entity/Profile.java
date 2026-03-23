@@ -1,6 +1,5 @@
-package com.fit.fitnessapp.model.fatsecret;
+package com.fit.fitnessapp.nutrition.adapter.out.persistence.entity;
 
-import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,8 +20,5 @@ public class Profile {
     private String last_weight_kg;//"89.1000",
     private String weight_measure; //"Kg"
 
-    @OneToOne
-    @MapsId // Связывает ID профиля с ID пользователя
-    @JoinColumn(name = "user_id")
-    private User user;
+    private Long userId;
 }

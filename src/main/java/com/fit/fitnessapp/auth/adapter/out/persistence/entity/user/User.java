@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.auth.adapter.out.persistence.entity.user;
 
-import com.fit.fitnessapp.model.fatsecret.Profile;
+import com.fit.fitnessapp.nutrition.adapter.out.persistence.entity.Profile;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -35,9 +35,6 @@ public class User implements UserDetails {
 
     @CreationTimestamp
     private LocalDateTime registeredAt;
-
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Profile profile;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
