@@ -5,20 +5,33 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "profiles")
+@Table(name = "profile")
 @Getter
 @Setter
 public class Profile {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String goal_weight_kg; //"85.0000",
-    private String height_cm;// "186.00",
-    private String height_measure;// "Cm",
-    private String last_weight_date_int;// "20497",
-    private String last_weight_kg;//"89.1000",
-    private String weight_measure; //"Kg"
-
+    @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
+
+    @Column(name = "goal_weight_kg")
+    private Double goalWeightKg;
+
+    @Column(name = "height_cm")
+    private Double heightCm;
+
+    @Column(name = "height_measure", length = 20)
+    private String heightMeasure;
+
+    @Column(name = "last_weight_date_int")
+    private Integer lastWeightDateInt;
+
+    @Column(name = "last_weight_kg")
+    private Double lastWeightKg;
+
+    @Column(name = "weight_measure", length = 20)
+    private String weightMeasure;
 }
