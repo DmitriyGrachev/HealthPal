@@ -8,6 +8,7 @@ import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
 import com.fit.fitnessapp.nutrition.domain.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -50,9 +51,14 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
         nutritionCommandPort.saveNutritionDay(nutritionDay);
 
+        log.info(String.valueOf(nutritionDay));
         double fat = nutritionDay.entries().stream().mapToDouble(FoodEntry::fat).sum();
+        log.info(String.valueOf(fat));
         double carbs = nutritionDay.entries().stream().mapToDouble(FoodEntry::carbohydrate).sum();
+        log.info(String.valueOf(carbs));
         double protein = nutritionDay.entries().stream().mapToDouble(FoodEntry::protein).sum();
+        log.info(String.valueOf(protein));
+
 
         eventPublisher.publishEvent(new NutritionSyncedEvent(
                 userId, date, nutritionDay.getTotalCalories(), protein, fat, carbs
