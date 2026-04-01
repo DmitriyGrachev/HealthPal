@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "fatsecret_connections")
+@Table(name = "fatsecret_connection")
 @Getter
 @Setter
 public class FatSecretConnectionJpaEntity {

@@ -13,7 +13,7 @@ import java.util.List;
 @Getter
 @Setter
 @Table(
-        name = "workouts",
+        name = "workout",
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_workout_jefit_user",
                 columnNames = {"jefitId", "userId"}
