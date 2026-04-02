@@ -4,17 +4,16 @@ package com.fit.fitnessapp.ai;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 @RestController
 @RequestMapping("/api/ai")
-public class AiController {
+public class AiControllerTemp {
 
     private final AiService aiService;
     private final AiProperties aiProperties;
 
-    public AiController(AiService aiService, AiProperties aiProperties) {
+    public AiControllerTemp(AiService aiService, AiProperties aiProperties) {
         this.aiService = aiService;
         this.aiProperties = aiProperties;
     }
