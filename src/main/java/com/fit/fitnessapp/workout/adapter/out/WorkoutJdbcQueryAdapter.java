@@ -2,11 +2,13 @@ package com.fit.fitnessapp.workout.adapter.out;
 
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryDto;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
+import com.fit.fitnessapp.workout.application.infrastructure.WorkoutWeeklyStatsDto;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,6 +85,70 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase {
                         .date(rs.getTimestamp("week").toLocalDateTime())
                         .build()
         );
+    }
+    @Override
+    public WorkoutWeeklyStatsDto getWeeklyStats(Long userId, LocalDate weekStart, LocalDate weekEnd) {
+        String sql = """
+            WITH daily_stats AS (
+                SELECT 
+                    w.date::date as workout_date,
+                    TRIM(TO_CHAR(w.date, 'DAY')) as day_name,
+                    COALESCE(SUM(ws.weight * ws.reps), 0) as daily_volume
+                FROM workouts w
+                LEFT JOIN workout_exercises we ON w.id = we.workout_id
+                LEFT JOIN workout_sets ws ON we.id = ws.exercise_id
+                WHERE w.user_id = :userId 
+                  AND w.date >= :startDate 
+                  AND w.date < :endDatePlusOne
+                GROUP BY w.id, w.date
+            )
+            SELECT 
+                COUNT(workout_date) as total_sessions,
+                COALESCE(SUM(daily_volume), 0) as total_volume
+            FROM daily_stats
+            """;
+
+        String volumeByDaySql = """
+            SELECT 
+                TRIM(TO_CHAR(w.date, 'DAY')) as day_name,
+                COALESCE(SUM(ws.weight * ws.reps), 0) as daily_volume
+            FROM workouts w
+            LEFT JOIN workout_exercises we ON w.id = we.workout_id
+            LEFT JOIN workout_sets ws ON we.id = ws.exercise_id
+            WHERE w.user_id = :userId 
+              AND w.date >= :startDate 
+              AND w.date < :endDatePlusOne
+            GROUP BY day_name
+            """;
+
+        Map<String, Object> params = Map.of(
+                "userId", userId,
+                "startDate", weekStart.atStartOfDay(), // '2026-04-01 00:00'
+                "endDatePlusOne", weekEnd.plusDays(1).atStartOfDay() // Строго меньше следующего дня
+        );
+
+        // 1. Считаем общие цифры
+        WorkoutWeeklyStatsDto.WorkoutWeeklyStatsDtoBuilder builder = WorkoutWeeklyStatsDto.builder()
+                .weekStart(weekStart)
+                .weekEnd(weekEnd);
+
+        jdbc.query(sql, params, rs -> {
+            builder.totalSessions(rs.getInt("total_sessions"));
+            builder.totalVolumeKg(rs.getDouble("total_volume"));
+        });
+
+        // 2. Собираем мапу объемов по дням недели
+        Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {
+            Map<String, Double> map = new java.util.HashMap<>();
+            while (rs.next()) {
+                map.put(rs.getString("day_name").toUpperCase(), rs.getDouble("daily_volume"));
+            }
+            return map;
+        });
+
+        builder.volumeByDay(volumeByDay != null ? volumeByDay : Map.of());
+
+        return builder.build();
     }
 
 }
