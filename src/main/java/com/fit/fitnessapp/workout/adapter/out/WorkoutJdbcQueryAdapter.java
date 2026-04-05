@@ -1,8 +1,9 @@
 package com.fit.fitnessapp.workout.adapter.out;
 
+import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryDto;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
-import com.fit.fitnessapp.workout.application.infrastructure.WorkoutWeeklyStatsDto;
+import com.fit.fitnessapp.workout.WorkoutWeeklyStatsDto;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -10,14 +11,12 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase {
+public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeeklyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
 

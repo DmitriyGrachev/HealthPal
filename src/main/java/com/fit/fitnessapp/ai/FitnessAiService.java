@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai;
 
+import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -68,6 +69,66 @@ public class FitnessAiService {
 
         } catch (Exception e) {
             log.error("❌ Ошибка при обращении к нейросети", e);
+            throw e;
+        }
+    }
+    @ApplicationModuleListener
+    @Transactional
+    public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
+        log.info("🤖 Модуль AI поймал событие WeeklyReport! Начинаем анализ для юзера {} за {}", event.userId(), event.weekStart());
+
+        // 1. Проверяем дубли
+        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.weekStart(), InsightType.weekly).isPresent()) {
+            log.info("Еженедельный инсайт за {} уже существует. Пропускаем.", event.weekStart());
+            return;
+        }
+
+        // 2. Формируем мощный промпт
+        String prompt = String.format("""
+            Выступи в роли профессионального фитнес-диетолога и тренера.
+            Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
+            
+            ПИТАНИЕ ЗА НЕДЕЛЮ:
+            Средние макросы в день: Калории: %.1f, Белки: %.1f, Жиры: %.1f, Углеводы: %.1f.
+            Всего калорий за неделю: %d.
+            Разбивка по дням: %s
+            
+            ТРЕНИРОВКИ ЗА НЕДЕЛЮ:
+            Всего тренировок: %d. Общий поднятый тоннаж: %.1f кг.
+            Тоннаж по дням: %s
+            
+            Задача: Найди причинно-следственные связи. Если в день тренировки (когда был тоннаж) углеводов и калорий мало — укажи на недовосстановление.
+            Дай 3-4 конкретные рекомендации. Отвечай кратко, профессионально, используя маркированные списки.
+            """,
+                event.weekStart(), event.weekEnd(),
+                event.nutrition().avgCalories(), event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
+                event.nutrition().totalCalories(),
+                event.nutrition().dailyBreakdown().toString(),
+                event.workout().totalSessions(),
+                event.workout().totalVolumeKg(),
+                event.workout().volumeByDay().toString()
+        );
+
+        try {
+            String aiResponse = chatClient.prompt().user(prompt).call().content();
+            log.info("💡 Сгенерирован WEEKLY AI Insight: \n{}", aiResponse);
+
+            // 3. Сохраняем в метадату статистику, чтобы потом строить графики
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("total_volume", event.workout().totalVolumeKg());
+            meta.put("total_sessions", event.workout().totalSessions());
+            meta.put("avg_calories", event.nutrition().avgCalories());
+
+            AiInsightEntity insight = new AiInsightEntity();
+            insight.setUserId(event.userId());
+            insight.setDate(event.weekStart()); // Сохраняем по дате начала недели
+            insight.setInsightType(InsightType.weekly);
+            insight.setInsightText(aiResponse);
+            insight.setMetadata(meta);
+            insightRepository.save(insight);
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при обращении к нейросети (Weekly)", e);
             throw e;
         }
     }

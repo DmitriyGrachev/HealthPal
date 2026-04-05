@@ -1,10 +1,17 @@
 package com.fit.fitnessapp.ai;
 
+import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
+
+@Slf4j
 @Service
 public class AiService {
 

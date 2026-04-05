@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.workout.application.infrastructure;
+package com.fit.fitnessapp.workout;
 
 import lombok.Builder;
 import lombok.Getter;
