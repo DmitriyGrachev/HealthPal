@@ -1,73 +1,68 @@
 🏋️‍♂️ HealthPal (Fitness AI)
-HealthPal is an advanced backend for a fitness application that doesn’t just collect workout and nutrition statistics — it leverages Generative AI to uncover non-obvious correlations and deliver deep, personalized insights.
+HealthPal is an advanced fitness application backend that goes beyond basic workout and nutrition tracking. It leverages Generative AI to discover non-obvious correlations and deliver deep, personalized insights.
+
 The project is built using modern Enterprise development patterns: Modular Monolith (Spring Modulith), Hexagonal Architecture (Ports & Adapters), CQRS, and Transactional Outbox.
 
 🏗 Application Architecture
-The project is designed to handle high loads and scale effortlessly. Business logic is strictly separated into isolated domains (modules).
+The project is designed to withstand high loads and scale easily. Business logic is strictly divided into isolated domains (modules).
+
 Key Architectural Patterns:
+Spring Modulith: Strict module isolation. Modules communicate with each other exclusively through public interfaces (APIs) located in root packages or via events.
 
-Spring Modulith: Strict module isolation. Modules communicate with each other only through public interfaces (APIs) located in root packages or via events.
-Hexagonal Architecture: Each module is divided into domain, application (with port.in and port.out), adapter.in (REST controllers), and adapter.out (Persistence and external APIs) layers.
-Event-Driven & Transactional Outbox: When saving data (e.g., nutrition sync), modules do not call AI directly. Instead, they publish events. Spring Modulith automatically stores these events in a database table within the same transaction, guaranteeing 100% event delivery to the AI module even if servers crash.
-CQRS-lite: Write operations use Spring Data JPA (Hibernate) to preserve domain integrity, while heavy analytics (weekly/monthly statistics) are implemented with raw SQL via JdbcTemplate for maximum performance.
+Hexagonal Architecture: Each module is structured with domain, application (containing port.in and port.out), adapter.in (REST controllers), and adapter.out (Persistence, external APIs) layers.
 
+Event-Driven & Transactional Outbox: When saving data (e.g., nutrition synchronization), modules do not call the AI directly. Instead, they publish events. Spring Modulith automatically persists these events in a database table within the same transaction, guaranteeing 100% event delivery to the AI module, even in the event of a server crash.
 
-📦 Module Structure (Current Functionality)
+CQRS (Basic Implementation): Write operations are handled via Spring Data JPA (Hibernate) to maintain domain integrity, while heavy analytics (weekly/monthly statistics gathering) are implemented using raw SQL via JdbcTemplate for maximum performance.
+
+📦 Module Structure (Current Features)
 
 🔐 auth Module
-Handles registration, authentication, and JWT token issuance.
+Handles user registration, authentication, and JWT token issuance.
 Provides a public API (CurrentUserApi, UserApi) for other modules.
 
 🍏 nutrition Module
-Integration with FatSecret API (OAuth 1.0a).
-Pulls nutrition logs, parses products, and calculates daily macronutrients (proteins, fats, carbs).
-Publishes NutritionSyncedEvent.
+Integration with the FatSecret API (OAuth 1.0a).
+Fetches nutrition logs, parses food items, and calculates daily macronutrients (protein, fats, carbs).
+Publishes the NutritionSyncedEvent.
 
 🏋️‍♂️ workout Module
-Imports workout data from third-party apps (CSV parsing from Jefit).
-Stores training sessions, exercises, sets, and weights.
+Imports workout data from third-party apps (parsing CSV files from Jefit).
+Stores workout sessions, exercises, sets, and weights.
 
 📊 analytics Module (Orchestrator)
-Cron jobs for analytics collection.
-Once a week, it gathers data from the nutrition and workout modules (via their public Read APIs) and creates an aggregated WeeklyReportRequestedEvent.
+Utilizes scheduled cron jobs for data aggregation.
+Retrieves data from the nutrition and workout modules (via their public Read-APIs) once a week to generate an aggregated WeeklyReportRequestedEvent.
 
 🧠 ai Module
-Asynchronous event consumer. Listens for nutrition updates and weekly reports.
-Uses Spring AI (integration with Google Gemini / LLMs) to analyze correlations (e.g.: "Your bench press is stagnating due to consistently low carbohydrate intake on training days").
-Saves AI insights to PostgreSQL using the JSONB data type for metadata.
-
-
+Acts as an asynchronous event consumer, listening for nutrition updates and weekly reports.
+Utilizes Spring AI (integrated with Google Gemini / LLMs) to analyze correlations (e.g., "Your bench press is stagnating due to a systematic lack of carbohydrates on training days").
+Persists AI-generated insights in PostgreSQL, using the JSONB data type for metadata storage.
 
 🛠 Technology Stack
-
 Core: Java 17, Spring Boot 3.4.2
 Architecture: Spring Modulith, Hexagonal Architecture
-Database: PostgreSQL 16, Flyway (migrations)
+Database: PostgreSQL 16, Flyway (Migrations)
 AI Integration: Spring AI (Google GenAI / OpenAI)
 Security: Spring Security, JWT
 External APIs: ScribeJava (OAuth 1.0a for FatSecret)
 Utilities: Lombok, MapStruct (planned), Caffeine Cache
 
-
 🚀 Roadmap (Future Plans)
-The project is actively evolving. The following features are planned:
-🤖 Advanced AI & Optimization
+The project is under active development. The following features are planned:
 
-Smart Model Fallback: Protection against 429 Rate Limit. A pool of multiple LLM providers with automatic switching if the primary model is unavailable.
-Token Optimization: SQL-level data aggregation before sending to the LLM (sending only the Top-5 products instead of the full list) to reduce request costs.
-Science-Based RAG: Integration of a vector database (pgvector). Loading scientific articles and fitness podcasts to generate insights with scientific backing.
-Monthly Pattern Recognition: Meta-analysis of weekly insights to detect long-term progress trends.
+🤖 Advanced AI & Optimization
+Smart Model Fallback: Protection against 429 Too Many Requests limits. Implementing a pool of several LLM providers with automatic fallback if the primary neural network is unavailable.
+Token Optimization: SQL-level data aggregation before sending requests to the LLM (e.g., sending only the Top-5 consumed foods instead of the entire list) to reduce API costs.
+Science-Based RAG: Integration of a vector database (pgvector). Ingesting scientific fitness articles and podcasts to generate scientifically backed insights.
+Monthly Pattern Recognition: Meta-analysis of weekly insights to identify long-term progress trends.
 
 🧑‍⚕️ User Context
-
-User Notes (State Journal): Ability to add context (injuries, vacation, stress) so the AI can adjust its recommendations accordingly.
-Profile Sync: Pulling dynamic TDEE and goals (weight loss / bulking) from FatSecret.
-Step Integration (NEAT): Receiving data from Apple Health/Google Fit to assess daily activity levels.
+User Notes (State Journal): Ability to input context (injuries, vacations, stress levels) so the AI can adjust its recommendations accordingly.
+Profile Synchronization: Fetching dynamic TDEE and user goals (weight loss/muscle gain) directly from FatSecret.
+Step Tracking Integration (NEAT): Ingesting data from Apple Health/Google Fit to evaluate daily non-exercise activity thermogenesis.
 
 ⚙️ Infrastructure & DevOps
-
-Caching: Implementing Caffeine/Redis to optimize chart and dashboard delivery to the frontend.
-Docker & CI/CD: Packaging the application into containers (docker-compose.yml with DB and services) and setting up GitHub Actions.
-
-
-Developed with focus on Clean Architecture and meaningful AI integrations.
+Caching: Implementing Caffeine/Redis to optimize the delivery of charts and dashboards to the frontend.
+Docker & CI/CD: Containerizing the application (docker-compose.yml including the database and services) and configuring GitHub Actions.
+Developed with a focus on Clean Architecture and meaningful AI integrations.
