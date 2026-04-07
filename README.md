@@ -1,75 +1,73 @@
-# 🏋️‍♂️ HealthPal (Fitness AI)
+🏋️‍♂️ HealthPal (Fitness AI)
+HealthPal is an advanced backend for a fitness application that doesn’t just collect workout and nutrition statistics — it leverages Generative AI to uncover non-obvious correlations and deliver deep, personalized insights.
+The project is built using modern Enterprise development patterns: Modular Monolith (Spring Modulith), Hexagonal Architecture (Ports & Adapters), CQRS, and Transactional Outbox.
 
-**HealthPal** — это продвинутый бэкенд для фитнес-приложения, который не просто собирает статистику тренировок и питания, но и использует **Generative AI** для поиска неочевидных корреляций и предоставления глубоких персонализированных инсайтов.
+🏗 Application Architecture
+The project is designed to handle high loads and scale effortlessly. Business logic is strictly separated into isolated domains (modules).
+Key Architectural Patterns:
 
-Проект построен с использованием современных Enterprise-паттернов разработки: **Модульный монолит (Spring Modulith)**, **Гексагональная архитектура (Ports & Adapters)**, **CQRS** и **Transactional Outbox**.
+Spring Modulith: Strict module isolation. Modules communicate with each other only through public interfaces (APIs) located in root packages or via events.
+Hexagonal Architecture: Each module is divided into domain, application (with port.in and port.out), adapter.in (REST controllers), and adapter.out (Persistence and external APIs) layers.
+Event-Driven & Transactional Outbox: When saving data (e.g., nutrition sync), modules do not call AI directly. Instead, they publish events. Spring Modulith automatically stores these events in a database table within the same transaction, guaranteeing 100% event delivery to the AI module even if servers crash.
+CQRS-lite: Write operations use Spring Data JPA (Hibernate) to preserve domain integrity, while heavy analytics (weekly/monthly statistics) are implemented with raw SQL via JdbcTemplate for maximum performance.
 
----
 
-## 🏗 Архитектура приложения
+📦 Module Structure (Current Functionality)
 
-Проект спроектирован так, чтобы выдерживать высокие нагрузки и легко масштабироваться. Бизнес-логика строго разделена на изолированные домены (модули).
+🔐 auth Module
+Handles registration, authentication, and JWT token issuance.
+Provides a public API (CurrentUserApi, UserApi) for other modules.
 
-### Ключевые архитектурные паттерны:
-* **Spring Modulith:** Жесткая изоляция модулей. Модули общаются друг с другом только через публичные интерфейсы (API), расположенные в корневых пакетах, или через события.
-* **Гексагональная архитектура:** Каждый модуль имеет слои `domain`, `application` (с `port.in` и `port.out`), `adapter.in` (REST-контроллеры) и `adapter.out` (Persistence, внешние API).
-* **Event-Driven & Transactional Outbox:** При сохранении данных (например, синхронизации питания) модули не вызывают AI напрямую. Они публикуют события (Events). Spring Modulith автоматически сохраняет эти события в таблицу БД в рамках той же транзакции, гарантируя **100% доставку события** до модуля AI даже при падении серверов.
-* **CQRS-lite:** Операции записи происходят через Spring Data JPA (Hibernate) для сохранения целостности домена, а тяжелая аналитика (сбор статистики за неделю/месяц) реализована на чистом SQL через `JdbcTemplate` для максимальной производительности.
+🍏 nutrition Module
+Integration with FatSecret API (OAuth 1.0a).
+Pulls nutrition logs, parses products, and calculates daily macronutrients (proteins, fats, carbs).
+Publishes NutritionSyncedEvent.
 
----
+🏋️‍♂️ workout Module
+Imports workout data from third-party apps (CSV parsing from Jefit).
+Stores training sessions, exercises, sets, and weights.
 
-## 📦 Структура модулей (Текущий функционал)
+📊 analytics Module (Orchestrator)
+Cron jobs for analytics collection.
+Once a week, it gathers data from the nutrition and workout modules (via their public Read APIs) and creates an aggregated WeeklyReportRequestedEvent.
 
-1.  🔐 **Модуль `auth`**
-    * Отвечает за регистрацию, авторизацию и выдачу JWT токенов.
-    * Предоставляет публичный API (`CurrentUserApi`, `UserApi`) для других модулей.
-2.  🍏 **Модуль `nutrition`**
-    * Интеграция с **FatSecret API** (OAuth 1.0a).
-    * Выкачивание логов питания, парсинг продуктов и расчет суточных макронутриентов (БЖУ).
-    * Публикует `NutritionSyncedEvent`.
-3.  🏋️‍♂️ **Модуль `workout`**
-    * Импорт данных о тренировках из сторонних приложений (парсинг CSV файлов из Jefit).
-    * Хранение тренировочных сессий, упражнений, подходов и весов.
-4.  📊 **Модуль `analytics` (Оркестратор)**
-    * Крон-джобы для сбора аналитики.
-    * Раз в неделю собирает данные из модулей `nutrition` и `workout` (через их публичные Read-API) и формирует агрегированный `WeeklyReportRequestedEvent`.
-5.  🧠 **Модуль `ai`**
-    * Асинхронный потребитель событий. Слушает обновления питания и еженедельные отчеты.
-    * Использует **Spring AI** (интеграция с Google Gemini / LLMs) для анализа корреляций (например: *"Ваш жим лежа стагнирует из-за систематического недоедания углеводов в дни тренировок"*).
-    * Сохраняет AI-инсайты в PostgreSQL, используя тип данных `JSONB` для метадаты.
+🧠 ai Module
+Asynchronous event consumer. Listens for nutrition updates and weekly reports.
+Uses Spring AI (integration with Google Gemini / LLMs) to analyze correlations (e.g.: "Your bench press is stagnating due to consistently low carbohydrate intake on training days").
+Saves AI insights to PostgreSQL using the JSONB data type for metadata.
 
----
 
-## 🛠 Технологический стек
 
-* **Ядро:** Java 17, Spring Boot 3.4.2
-* **Архитектура:** Spring Modulith, Hexagonal Architecture
-* **База данных:** PostgreSQL 16, Flyway (миграции)
-* **AI интеграция:** Spring AI (Google GenAI / OpenAI)
-* **Безопасность:** Spring Security, JWT
-* **Внешние API:** ScribeJava (OAuth 1.0a для FatSecret)
-* **Утилиты:** Lombok, MapStruct (планируется), Caffeine Cache
+🛠 Technology Stack
 
----
+Core: Java 17, Spring Boot 3.4.2
+Architecture: Spring Modulith, Hexagonal Architecture
+Database: PostgreSQL 16, Flyway (migrations)
+AI Integration: Spring AI (Google GenAI / OpenAI)
+Security: Spring Security, JWT
+External APIs: ScribeJava (OAuth 1.0a for FatSecret)
+Utilities: Lombok, MapStruct (planned), Caffeine Cache
 
-## 🚀 Roadmap (Планы по развитию)
 
-Проект активно развивается. Запланированы следующие фичи:
+🚀 Roadmap (Future Plans)
+The project is actively evolving. The following features are planned:
+🤖 Advanced AI & Optimization
 
-### 🤖 Продвинутый AI и Оптимизация
-* **Smart Model Fallback:** Защита от `429 Rate Limit`. Пул из нескольких LLM провайдеров с автоматическим переключением в случае недоступности основной нейросети.
-* **Token Optimization:** Агрегация данных на уровне SQL перед отправкой в LLM (отправка только Топ-5 продуктов вместо всего списка) для снижения стоимости запросов.
-* **Science-Based RAG:** Интеграция векторной базы данных (`pgvector`). Загрузка научных статей и подкастов по фитнесу для генерации инсайтов с научным обоснованием.
-* **Monthly Pattern Recognition:** Мета-анализ еженедельных инсайтов для выявления долгосрочных тенденций прогресса.
+Smart Model Fallback: Protection against 429 Rate Limit. A pool of multiple LLM providers with automatic switching if the primary model is unavailable.
+Token Optimization: SQL-level data aggregation before sending to the LLM (sending only the Top-5 products instead of the full list) to reduce request costs.
+Science-Based RAG: Integration of a vector database (pgvector). Loading scientific articles and fitness podcasts to generate insights with scientific backing.
+Monthly Pattern Recognition: Meta-analysis of weekly insights to detect long-term progress trends.
 
-### 🧑‍⚕️ Контекст Пользователя
-* **User Notes (Журнал состояний):** Возможность добавлять контекст (травмы, отпуск, стресс), чтобы ИИ корректировал свои рекомендации.
-* **Синхронизация профиля:** Выкачивание динамического TDEE и целей (похудение/масса) из FatSecret.
-* **Интеграция шагов (NEAT):** Прием данных из Apple Health/Google Fit для оценки повседневной активности.
+🧑‍⚕️ User Context
 
-### ⚙️ Инфраструктура и DevOps
-* **Кэширование:** Внедрение Caffeine/Redis для оптимизации выдачи графиков и дашбордов на фронтенд.
-* **Docker & CI/CD:** Упаковка приложения в контейнеры (`docker-compose.yml` с БД и сервисами) и настройка GitHub Actions.
+User Notes (State Journal): Ability to add context (injuries, vacation, stress) so the AI can adjust its recommendations accordingly.
+Profile Sync: Pulling dynamic TDEE and goals (weight loss / bulking) from FatSecret.
+Step Integration (NEAT): Receiving data from Apple Health/Google Fit to assess daily activity levels.
 
----
-*Developed with focus on Clean Architecture and meaningful AI integrations.*
+⚙️ Infrastructure & DevOps
+
+Caching: Implementing Caffeine/Redis to optimize chart and dashboard delivery to the frontend.
+Docker & CI/CD: Packaging the application into containers (docker-compose.yml with DB and services) and setting up GitHub Actions.
+
+
+Developed with focus on Clean Architecture and meaningful AI integrations.
