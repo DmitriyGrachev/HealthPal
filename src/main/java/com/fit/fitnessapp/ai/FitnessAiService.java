@@ -2,31 +2,28 @@ package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
-import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FitnessAiService {
 
-    private final SmartAiRouter smartAiRouter;
+    private final MoeOrchestrator moeOrchestrator;
     private final AiInsightRepository insightRepository;
 
     @ApplicationModuleListener
-    @Transactional
     public void onNutritionSynced(NutritionSyncedEvent event) {
         log.info("🤖 Модуль AI поймал событие! Начинаем анализ для юзера {} за {}", event.userId(), event.date());
 
-        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.date(), InsightType.daily).isPresent()) {
+        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.date(), InsightType.DAILY).isPresent()) {
             log.info("Ежедневный инсайт за {} уже существует. Пропускаем.", event.date());
             return;
         }
@@ -39,7 +36,7 @@ public class FitnessAiService {
         );
 
         try {
-            String aiResponse = smartAiRouter.callWithFallback(prompt);
+            String aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
 
             log.info("💡 Сгенерирован AI Insight: \n{}", aiResponse);
 
@@ -51,79 +48,93 @@ public class FitnessAiService {
                     "carbs", event.totalCarbohydrate()
             ));
 
-            AiInsightEntity insight = new AiInsightEntity();
-            insight.setUserId(event.userId());
-            insight.setDate(event.date());
-            insight.setInsightType(InsightType.daily);
-            insight.setInsightText(aiResponse);
-            insight.setMetadata(meta);
+            AiInsightEntity insight = AiInsightEntity.builder()
+                    .userId(event.userId())
+                    .date(event.date())
+                    .insightType(InsightType.DAILY)
+                    .insightText(aiResponse)
+                    .metadata(meta)
+                    .build();
 
             insightRepository.save(insight);
 
         } catch (Exception e) {
-            // Сюда мы попадем, только если упали ВООБЩЕ ВСЕ модели, включая резервный Gemini
-            log.error("❌ Ошибка при обращении к нейросетям. Событие останется в Outbox для повторной попытки.", e);
+            log.error("❌ Ошибка при обращении к нейросетям.", e);
             throw e;
         }
     }
-    @ApplicationModuleListener
-    @Transactional
-    public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
-        log.info("🤖 Модуль AI поймал событие WeeklyReport! Начинаем анализ для юзера {} за {}", event.userId(), event.weekStart());
 
-        // 1. Проверяем дубли
-        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.weekStart(), InsightType.weekly).isPresent()) {
+    @ApplicationModuleListener
+    public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
+        log.info("🤖 Модуль AI поймал WeeklyReport! Юзер: {}, Неделя с: {}", event.userId(), event.weekStart());
+
+        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.weekStart(), InsightType.WEEKLY).isPresent()) {
             log.info("Еженедельный инсайт за {} уже существует. Пропускаем.", event.weekStart());
             return;
         }
 
-        // 2. Формируем мощный промпт
+        String nutritionText = formatNutritionBreakdown(event.nutrition().dailyBreakdown());
+        String workoutText = formatWorkoutVolume(event.workout().volumeByDay());
+
         String prompt = String.format("""
             Выступи в роли профессионального фитнес-диетолога и тренера.
             Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
             
-            ПИТАНИЕ ЗА НЕДЕЛЮ:
-            Средние макросы в день: Калории: %.1f, Белки: %.1f, Жиры: %.1f, Углеводы: %.1f.
-            Всего калорий за неделю: %d.
-            Разбивка по дням: %s
+            ПИТАНИЕ ЗА НЕДЕЛЮ (Всего калорий: %d, Средние: %.1f ккал, Б: %.1f, Ж: %.1f, У: %.1f):
+            %s
             
-            ТРЕНИРОВКИ ЗА НЕДЕЛЮ:
-            Всего тренировок: %d. Общий поднятый тоннаж: %.1f кг.
-            Тоннаж по дням: %s
+            ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
+            %s
             
-            Задача: Найди причинно-следственные связи. Если в день тренировки (когда был тоннаж) углеводов и калорий мало — укажи на недовосстановление.
-            Дай 3-4 конкретные рекомендации. Отвечай кратко, профессионально, используя маркированные списки.
+            Задача: Найди причинно-следственные связи. Дай 3-4 конкретные рекомендации. Отвечай кратко.
             """,
                 event.weekStart(), event.weekEnd(),
-                event.nutrition().avgCalories(), event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
-                event.nutrition().totalCalories(),
-                event.nutrition().dailyBreakdown().toString(),
-                event.workout().totalSessions(),
-                event.workout().totalVolumeKg(),
-                event.workout().volumeByDay().toString()
+                event.nutrition().totalCalories(), event.nutrition().avgCalories(),
+                event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
+                nutritionText,
+                event.workout().totalSessions(), event.workout().totalVolumeKg(),
+                workoutText
         );
 
         try {
-            String aiResponse = smartAiRouter.callWithFallback(prompt);
+            String aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
+
             log.info("💡 Сгенерирован WEEKLY AI Insight: \n{}", aiResponse);
 
-            // 3. Сохраняем в метадату статистику, чтобы потом строить графики
             Map<String, Object> meta = new HashMap<>();
             meta.put("total_volume", event.workout().totalVolumeKg());
             meta.put("total_sessions", event.workout().totalSessions());
             meta.put("avg_calories", event.nutrition().avgCalories());
 
-            AiInsightEntity insight = new AiInsightEntity();
-            insight.setUserId(event.userId());
-            insight.setDate(event.weekStart());
-            insight.setInsightType(InsightType.weekly);
-            insight.setInsightText(aiResponse);
-            insight.setMetadata(meta);
+            AiInsightEntity insight = AiInsightEntity.builder()
+                    .userId(event.userId())
+                    .date(event.weekStart())
+                    .insightType(InsightType.WEEKLY)
+                    .insightText(aiResponse)
+                    .metadata(meta)
+                    .build();
+
             insightRepository.save(insight);
 
         } catch (Exception e) {
             log.error("❌ Ошибка при обращении к нейросети (Weekly)", e);
             throw e;
         }
+    }
+
+    private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {
+        if (breakdown == null || breakdown.isEmpty()) return "Нет данных по питанию.";
+        return breakdown.entrySet().stream()
+                .map(e -> String.format("- %s: %d ккал (Белки: %.1fг, Жиры: %.1fг, Углеводы: %.1fг)",
+                        e.getKey(), e.getValue().calories(),
+                        e.getValue().protein(), e.getValue().fat(), e.getValue().carbs()))
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String formatWorkoutVolume(Map<String, Double> volumeByDay) {
+        if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
+        return volumeByDay.entrySet().stream()
+                .map(e -> String.format("- %s: %.1f кг", e.getKey(), e.getValue()))
+                .collect(Collectors.joining("\n"));
     }
 }

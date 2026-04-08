@@ -24,7 +24,7 @@ public class AiController {
         LocalDate today = LocalDate.now();
 
         // Ищем именно DAILY инсайт
-        Optional<AiInsightEntity> insightOpt = insightRepository.findByUserIdAndDateAndInsightType(userId, today, InsightType.daily);
+        Optional<AiInsightEntity> insightOpt = insightRepository.findByUserIdAndDateAndInsightType(userId, today, InsightType.DAILY);
 
         if (insightOpt.isEmpty()) {
             return ResponseEntity.ok(Map.of("message", "Инсайт еще не сгенерирован. Подождите окончания ночной синхронизации или запустите вручную."));

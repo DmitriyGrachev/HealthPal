@@ -14,8 +14,6 @@ import org.springframework.context.annotation.Primary;
 public class AiClientConfig {
 
     // ─── OpenRouter ───────────────────────────────────────────────────────────
-    // Инжектируем по конкретному классу — Spring находит бин однозначно
-    // base-url подменён на openrouter.ai в application.properties
     @Bean("openRouterChatClient")
     public ChatClient openRouterChatClient(OpenAiChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel)
@@ -29,12 +27,5 @@ public class AiClientConfig {
         return ChatClient.builder(googleGenAiChatModel)
                 .defaultSystem("You are a helpful assistant powered by Google Gemini.")
                 .build();
-    }
-
-    // ─── Default (используется там где нет @Qualifier) ────────────────────────
-    @Bean
-    @Primary
-    public ChatClient defaultChatClient(@Qualifier("openRouterChatClient") ChatClient client) {
-        return client;
     }
 }

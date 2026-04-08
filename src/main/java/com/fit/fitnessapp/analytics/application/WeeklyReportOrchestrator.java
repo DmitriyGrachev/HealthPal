@@ -30,12 +30,9 @@ public class WeeklyReportOrchestrator {
     private final WorkoutWeeklyApi workoutApi;
     private final UserApi userApi;
     private final ApplicationEventPublisher eventPublisher;
+    private final WeeklyReportTransactionService weeklyReportTransactionService;
 
-    @Lazy
-    @Autowired
-    private WeeklyReportOrchestrator self;
-
-    // Запускаем каждый понедельник в 09:00
+    // Every monday в 09:00
     @Scheduled(cron = "0 0 9 * * MON")
     public void generateWeeklyReports() {
         log.info("Запуск генерации еженедельных отчетов...");
@@ -47,49 +44,12 @@ public class WeeklyReportOrchestrator {
 
         for (Long userId : userIds) {
             try {
-                // Вызываем транзакционный метод (this. нельзя, т.к. проигнорируется @Transactional, поэтому нужен self-inject, но для простоты пусть пока так)
-                self.generateForUser(userId, weekStart, weekEnd);
+                weeklyReportTransactionService.generateForUser(userId, weekStart, weekEnd);
 
             } catch (Exception e) {
                 log.error("Ошибка генерации отчета для юзера {}: {}", userId, e.getMessage());
             }
         }
         log.info("Генерация еженедельных отчетов завершена.");
-    }
-
-    //Each user has his own transaction
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void generateForUser(Long userId, LocalDate weekStart, LocalDate weekEnd) {
-        log.info("Сбор данных для юзера {} за период {} - {}", userId, weekStart, weekEnd);
-
-        NutritionWeeklyStatsDto nDto = nutritionApi.getWeeklyStats(userId, weekStart, weekEnd);
-        WorkoutWeeklyStatsDto wDto = workoutApi.getWeeklyStats(userId, weekStart, weekEnd);
-
-        WeeklyReportRequestedEvent event = buildEvent(userId, weekStart, weekEnd, nDto, wDto);
-        eventPublisher.publishEvent(event); // Летит в БД Outbox
-    }
-
-    private WeeklyReportRequestedEvent buildEvent(Long userId, LocalDate start, LocalDate end,
-                                                  NutritionWeeklyStatsDto nDto, WorkoutWeeklyStatsDto wDto) {
-
-        Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown = nDto.getDailyBreakdown().entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> new WeeklyReportRequestedEvent.DailyMacrosSnapshot(
-                                e.getValue().getCalories(), e.getValue().getProtein(),
-                                e.getValue().getFat(), e.getValue().getCarbs()
-                        )
-                ));
-
-        WeeklyReportRequestedEvent.NutritionSnapshot nutrition = new WeeklyReportRequestedEvent.NutritionSnapshot(
-                nDto.getTotalCalories(), nDto.getAvgCalories(), nDto.getAvgProtein(),
-                nDto.getAvgFat(), nDto.getAvgCarbs(), dailyBreakdown
-        );
-
-        WeeklyReportRequestedEvent.WorkoutSnapshot workout = new WeeklyReportRequestedEvent.WorkoutSnapshot(
-                wDto.getTotalSessions(), wDto.getTotalVolumeKg(), wDto.getVolumeByDay()
-        );
-
-        return new WeeklyReportRequestedEvent(userId, start, end, nutrition, workout);
     }
 }
