@@ -17,6 +17,7 @@ public class AiController {
     private final CurrentUserApi currentUserApi;
     private final AiInsightRepository insightRepository;
 
+
     @GetMapping("/insights/today")
     public ResponseEntity<?> getTodayInsight() {
         Long userId = currentUserApi.getCurrentUserId();
@@ -34,5 +35,12 @@ public class AiController {
                 "type", insightOpt.get().getInsightType().name(),
                 "insight", insightOpt.get().getInsightText()
         ));
+    }
+    //TODO
+    @PostMapping("/insights/generate")
+    public ResponseEntity<?> generateInsight() {
+        Long userId = currentUserApi.getCurrentUserId();
+
+        return ResponseEntity.accepted().build();
     }
 }

@@ -18,7 +18,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FitnessAiService {
 
-    private final ChatClient chatClient;
+    private final SmartAiRouter smartAiRouter;
     private final AiInsightRepository insightRepository;
 
     @ApplicationModuleListener
@@ -26,7 +26,6 @@ public class FitnessAiService {
     public void onNutritionSynced(NutritionSyncedEvent event) {
         log.info("🤖 Модуль AI поймал событие! Начинаем анализ для юзера {} за {}", event.userId(), event.date());
 
-        // 1. Проверяем, есть ли уже DAILY инсайт за эту дату
         if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.date(), InsightType.daily).isPresent()) {
             log.info("Ежедневный инсайт за {} уже существует. Пропускаем.", event.date());
             return;
@@ -40,16 +39,11 @@ public class FitnessAiService {
         );
 
         try {
-            String aiResponse = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
+            String aiResponse = smartAiRouter.callWithFallback(prompt);
 
             log.info("💡 Сгенерирован AI Insight: \n{}", aiResponse);
 
-            // 2. Готовим метаданные для поля JSONB
             Map<String, Object> meta = new HashMap<>();
-            meta.put("prompt_tokens_used", "unknown"); // В будущем можно вытаскивать из Spring AI метрики
             meta.put("macros_at_generation_time", Map.of(
                     "calories", event.totalCalories(),
                     "protein", event.totalProtein(),
@@ -57,18 +51,18 @@ public class FitnessAiService {
                     "carbs", event.totalCarbohydrate()
             ));
 
-            // 3. Сохраняем в БД
             AiInsightEntity insight = new AiInsightEntity();
             insight.setUserId(event.userId());
             insight.setDate(event.date());
-            insight.setInsightType(InsightType.daily); // Указываем тип!
+            insight.setInsightType(InsightType.daily);
             insight.setInsightText(aiResponse);
-            insight.setMetadata(meta); // Кладем Map, Hibernate сам сделает JSONB!
+            insight.setMetadata(meta);
 
             insightRepository.save(insight);
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при обращении к нейросети", e);
+            // Сюда мы попадем, только если упали ВООБЩЕ ВСЕ модели, включая резервный Gemini
+            log.error("❌ Ошибка при обращении к нейросетям. Событие останется в Outbox для повторной попытки.", e);
             throw e;
         }
     }
@@ -110,7 +104,7 @@ public class FitnessAiService {
         );
 
         try {
-            String aiResponse = chatClient.prompt().user(prompt).call().content();
+            String aiResponse = smartAiRouter.callWithFallback(prompt);
             log.info("💡 Сгенерирован WEEKLY AI Insight: \n{}", aiResponse);
 
             // 3. Сохраняем в метадату статистику, чтобы потом строить графики
@@ -121,7 +115,7 @@ public class FitnessAiService {
 
             AiInsightEntity insight = new AiInsightEntity();
             insight.setUserId(event.userId());
-            insight.setDate(event.weekStart()); // Сохраняем по дате начала недели
+            insight.setDate(event.weekStart());
             insight.setInsightType(InsightType.weekly);
             insight.setInsightText(aiResponse);
             insight.setMetadata(meta);
