@@ -4,11 +4,14 @@ import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
+import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
 import com.fit.fitnessapp.nutrition.domain.*;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -21,6 +24,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
     private final FatSecretApiPort apiPort;
     private final NutritionCommandPort nutritionCommandPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public String getAuthorizationUrl(Long userId) {
@@ -36,25 +40,35 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         nutritionCommandPort.saveToken(authResult.userId(), authResult.token());
     }
 
-    @Async
     @Override
+    @Transactional
     public void syncDay(Long userId, LocalDate date) {
-        // 1. Достаем токен пользователя из БД
         FatSecretToken token = nutritionCommandPort.getToken(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret. Please login first."));
+                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret."));
 
-        // 2. Считаем дни от Epoch (FatSecret API требует дату в виде дней от 1970 года)
         long daysSinceEpoch = date.toEpochDay();
-
-        // 3. Вызываем API FatSecret. Адаптер сам сделает HTTP-запрос и распарсит JSON
         NutritionDay nutritionDay = apiPort.fetchAndParseFoodEntries(token, userId, daysSinceEpoch);
 
-        // 4. Сохраняем агрегированный день в базу данных (включая все съеденные продукты)
         nutritionCommandPort.saveNutritionDay(nutritionDay);
+
+        log.info(String.valueOf(nutritionDay));
+        double fat = nutritionDay.entries().stream().mapToDouble(FoodEntry::fat).sum();
+        log.info(String.valueOf(fat));
+        double carbs = nutritionDay.entries().stream().mapToDouble(FoodEntry::carbohydrate).sum();
+        log.info(String.valueOf(carbs));
+        double protein = nutritionDay.entries().stream().mapToDouble(FoodEntry::protein).sum();
+        log.info(String.valueOf(protein));
+
+
+        eventPublisher.publishEvent(new NutritionSyncedEvent(
+                userId, date, nutritionDay.getTotalCalories(), protein, fat, carbs
+        ));
+
+        log.info(" Модуль Nutrition: Данные сохранены, событие NutritionSyncedEvent опубликовано!");
     }
 
-    @Async
     @Override
+    @Transactional
     public void syncMonth(Long userId) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));

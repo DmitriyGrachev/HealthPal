@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.auth.adapter.out.persistence;
 
+import com.fit.fitnessapp.auth.UserApi;
 import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.Role;
 import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
 import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
@@ -10,11 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class UserPersistenceAdapter implements UserPersistencePort {
+public class UserPersistenceAdapter implements UserPersistencePort, UserApi {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -33,5 +35,9 @@ public class UserPersistenceAdapter implements UserPersistencePort {
         user.setEmail(registerRequest.email());
         user.setRoles(Set.of(Role.USER));
         userRepository.save(user);
+    }
+    @Override
+    public List<Long> getAllUserIds() {
+        return userRepository.findAll().stream().map(User::getId).toList();
     }
 }

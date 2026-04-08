@@ -10,4 +10,7 @@ public interface NutritionQueryUseCase {
     NutritionDay getDay(Long userId, LocalDate date);
     List<NutritionDaySummary> getCurrentMonthSummary(Long userId);
     List<NutritionDaySummary> getDateRange(Long userId, LocalDate from, LocalDate to);
+
+    //for analytics
+    //NutritionWeeklyStatsDto getWeeklyStats(Long userId, LocalDate weekStart, LocalDate weekEnd);
 }

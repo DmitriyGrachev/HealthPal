@@ -4,7 +4,6 @@ package com.fit.fitnessapp.workout.application.port.in;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryDto;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public interface WorkoutQueryUseCase {
@@ -13,4 +12,6 @@ public interface WorkoutQueryUseCase {
     List<WorkoutSummaryWeeklyDto> getAllWorkoutSummaryThisWeek(Long userId);
     List<WorkoutSummaryWeeklyDto> getWorkoutSummaryLastTwoWeeks(Long userId);
     List<WorkoutSummaryWeeklyDto> getWorkoutSummaryThisMonth(Long userId);
+
+    //WorkoutWeeklyStatsDto getWeeklyStats(Long userId, LocalDate weekStart, LocalDate weekEnd);
 }

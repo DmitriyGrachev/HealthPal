@@ -7,18 +7,19 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.4.2</version>
-        <relativePath/> </parent>
+        <relativePath/>
+    </parent>
 
     <groupId>com.fit</groupId>
     <artifactId>FitnessApp</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>FitnessApp</name>
-    <description>FitnessApp Backend with Spring AI</description>
+    <description>FitnessApp Backend with Spring AI and Modulith</description>
 
     <properties>
         <java.version>17</java.version>
-        <spring-ai.version>1.0.0</spring-ai.version>
-        <kotlin.version>2.2.20</kotlin.version>
+        <spring-ai.version>1.1.2</spring-ai.version>
+        <spring-modulith.version>1.1.3</spring-modulith.version>
     </properties>
 
     <dependencyManagement>
@@ -26,49 +27,52 @@
             <dependency>
                 <groupId>org.springframework.modulith</groupId>
                 <artifactId>spring-modulith-bom</artifactId>
-                <version>1.1.3</version> <type>pom</type>
+                <version>${spring-modulith.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
                 <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Modulith -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-events-jdbc</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-events-jackson</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
-        <!-- AI -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-google-genai</artifactId>
-            <version>1.1.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
-        <!-- WEB -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-
-        <!--SPRING DATA JPA/JDBC postgres -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -83,13 +87,19 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- SECURITY -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-
-        <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
@@ -107,16 +117,7 @@
             <artifactId>jjwt-api</artifactId>
             <version>0.11.5</version>
         </dependency>
-        <!-- Flyway -->
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-        <!-- HELPERS -->
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -132,8 +133,6 @@
             <artifactId>scribejava-httpclient-apache</artifactId>
             <version>8.3.3</version>
         </dependency>
-
-        <!-- CACHE -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
@@ -143,8 +142,12 @@
             <artifactId>caffeine</artifactId>
             <version>3.1.8</version>
         </dependency>
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.9.0</version>
+        </dependency>
 
-        <!-- TESTS -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -156,7 +159,6 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
 
     <build>
         <plugins>
