@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.nutrition.adapter.out.persistence;
 
+import com.fit.fitnessapp.nutrition.NutritionMonthlyApi;
+import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
@@ -16,7 +18,7 @@ import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, NutritionWeeklyApi {
+public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, NutritionWeeklyApi, NutritionMonthlyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -156,6 +158,70 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
         });
 
         builder.dailyBreakdown(dailyBreakdown != null ? dailyBreakdown : Map.of());
+
+        return builder.build();
+    }
+    @Override
+    public NutritionMonthlyStatsDto getMonthlyStats(Long userId, LocalDate monthStart, LocalDate monthEnd) {
+        Map<String, Object> params = Map.of(
+                "userId", userId,
+                "startDate", monthStart,
+                "endDate", monthEnd
+        );
+
+        // 1. Агрегация за весь месяц
+        String aggSql = """
+            SELECT 
+                COALESCE(SUM(calories), 0) as total_cal,
+                COALESCE(AVG(calories), 0) as avg_cal,
+                COALESCE(AVG(protein), 0) as avg_prot,
+                COALESCE(AVG(fat), 0) as avg_fat,
+                COALESCE(AVG(carbohydrate), 0) as avg_carb
+            FROM fatsecret_day
+            WHERE user_id = :userId AND date >= :startDate AND date <= :endDate
+        """;
+
+        NutritionMonthlyStatsDto.NutritionMonthlyStatsDtoBuilder builder = jdbc.queryForObject(aggSql, params, (rs, rowNum) ->
+                NutritionMonthlyStatsDto.builder()
+                        .monthStart(monthStart)
+                        .monthEnd(monthEnd)
+                        .totalCalories(rs.getInt("total_cal"))
+                        .avgCalories(rs.getDouble("avg_cal"))
+                        .avgProtein(rs.getDouble("avg_prot"))
+                        .avgFat(rs.getDouble("avg_fat"))
+                        .avgCarbs(rs.getDouble("avg_carb"))
+        );
+
+        // 2. Группировка по неделям (используем LinkedHashMap, чтобы сохранить хронологию)
+        String weeklySql = """
+            SELECT 
+                DATE_TRUNC('week', date) as week_start,
+                SUM(calories) as total_cal,
+                AVG(calories) as avg_cal,
+                AVG(protein) as avg_prot,
+                AVG(fat) as avg_fat,
+                AVG(carbohydrate) as avg_carb
+            FROM fatsecret_day
+            WHERE user_id = :userId AND date >= :startDate AND date <= :endDate
+            GROUP BY DATE_TRUNC('week', date)
+            ORDER BY week_start ASC
+        """;
+
+        Map<String, NutritionMonthlyStatsDto.WeeklyMacrosDto> weeklyBreakdown = new LinkedHashMap<>();
+
+        jdbc.query(weeklySql, params, rs -> {
+            String weekStartStr = rs.getDate("week_start").toLocalDate().toString();
+            weeklyBreakdown.put("Неделя с " + weekStartStr, NutritionMonthlyStatsDto.WeeklyMacrosDto.builder()
+                    .totalCalories(rs.getInt("total_cal"))
+                    .avgCalories(rs.getDouble("avg_cal"))
+                    .avgProtein(rs.getDouble("avg_prot"))
+                    .avgFat(rs.getDouble("avg_fat"))
+                    .avgCarbs(rs.getDouble("avg_carb"))
+                    .build());
+        });
+
+        assert builder != null;
+        builder.weeklyBreakdown(weeklyBreakdown);
 
         return builder.build();
     }
