@@ -2,6 +2,7 @@ package com.fit.fitnessapp.nutrition;
 
 import lombok.Builder;
 import lombok.Data;
+
 import java.time.LocalDate;
 import java.util.Map;
 
@@ -10,23 +11,22 @@ import java.util.Map;
 public class NutritionMonthlyStatsDto {
     private LocalDate monthStart;
     private LocalDate monthEnd;
-
-    // Глобальные метрики за весь месяц
     private int totalCalories;
     private double avgCalories;
     private double avgProtein;
     private double avgFat;
     private double avgCarbs;
+    private int daysTracked;
 
-    private Map<String, WeeklyMacrosDto> weeklyBreakdown;
+    // "2026-04-01" -> macros
+    private Map<String, DailyMacrosDto> dailyBreakdown;
 
     @Data
     @Builder
-    public static class WeeklyMacrosDto {
-        private int totalCalories;
-        private double avgCalories;
-        private double avgProtein;
-        private double avgFat;
-        private double avgCarbs;
+    public static class DailyMacrosDto {
+        private int calories;
+        private double protein;
+        private double fat;
+        private double carbs;
     }
 }

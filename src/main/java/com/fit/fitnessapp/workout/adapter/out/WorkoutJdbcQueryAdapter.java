@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.out;
 
+import com.fit.fitnessapp.workout.WorkoutMonthlyApi;
+import com.fit.fitnessapp.workout.WorkoutMonthlyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryDto;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
@@ -16,7 +18,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeeklyApi {
+public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeeklyApi, WorkoutMonthlyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -149,5 +151,70 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
 
         return builder.build();
     }
+    @Override
+    public WorkoutMonthlyStatsDto getMonthlyStats(Long userId, LocalDate monthStart, LocalDate monthEnd) {
+
+        String aggSql = """
+        WITH daily_stats AS (
+            SELECT 
+                CAST(w.date AS DATE)                         AS workout_date,
+                COALESCE(SUM(ws.weight * ws.reps), 0)        AS daily_volume
+            FROM workouts w
+            LEFT JOIN workout_exercises we ON w.id = we.workout_id
+            LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
+            WHERE w.user_id = :userId
+              AND w.date >= :startDate
+              AND w.date < :endDatePlusOne
+            GROUP BY w.id, w.date
+        )
+        SELECT 
+            COUNT(workout_date)             AS total_sessions,
+            COALESCE(SUM(daily_volume), 0)  AS total_volume,
+            COALESCE(AVG(daily_volume), 0)  AS avg_volume
+        FROM daily_stats
+        """;
+
+        String volumeByDaySql = """
+        SELECT 
+            CAST(CAST(w.date AS DATE) AS TEXT)           AS day_key,
+            COALESCE(SUM(ws.weight * ws.reps), 0)        AS daily_volume
+        FROM workouts w
+        LEFT JOIN workout_exercises we ON w.id = we.workout_id
+        LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
+        WHERE w.user_id = :userId
+          AND w.date >= :startDate
+          AND w.date < :endDatePlusOne
+        GROUP BY CAST(w.date AS DATE)
+        ORDER BY CAST(w.date AS DATE)
+        """;
+
+        Map<String, Object> params = Map.of(
+                "userId", userId,
+                "startDate", monthStart.atStartOfDay(),
+                "endDatePlusOne", monthEnd.plusDays(1).atStartOfDay()
+        );
+
+        WorkoutMonthlyStatsDto.WorkoutMonthlyStatsDtoBuilder builder = WorkoutMonthlyStatsDto.builder()
+                .monthStart(monthStart)
+                .monthEnd(monthEnd);
+
+        jdbc.query(aggSql, params, rs -> {
+            builder.totalSessions(rs.getInt("total_sessions"));
+            builder.totalVolumeKg(rs.getDouble("total_volume"));
+            builder.avgVolumePerSession(rs.getDouble("avg_volume"));
+        });
+
+        Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {
+            Map<String, Double> map = new java.util.LinkedHashMap<>();
+            while (rs.next()) {
+                map.put(rs.getString("day_key"), rs.getDouble("daily_volume"));
+            }
+            return map;
+        });
+
+        builder.volumeByDay(volumeByDay != null ? volumeByDay : Map.of());
+        return builder.build();
+    }
+
 
 }
