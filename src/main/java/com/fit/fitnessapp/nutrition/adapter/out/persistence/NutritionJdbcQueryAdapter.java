@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.nutrition.adapter.out.persistence;
 
+import com.fit.fitnessapp.nutrition.NutritionMonthlyApi;
+import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
@@ -16,7 +18,7 @@ import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, NutritionWeeklyApi {
+public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, NutritionWeeklyApi, NutritionMonthlyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -159,4 +161,73 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
 
         return builder.build();
     }
+    @Override
+    public NutritionMonthlyStatsDto getMonthlyStats(Long userId, LocalDate monthStart, LocalDate monthEnd) {
+
+        String aggSql = """
+        SELECT 
+            COALESCE(SUM(calories), 0)  AS total_cal,
+            COALESCE(AVG(calories), 0)  AS avg_cal,
+            COALESCE(AVG(protein), 0)   AS avg_prot,
+            COALESCE(AVG(fat), 0)       AS avg_fat,
+            COALESCE(AVG(carbohydrate), 0) AS avg_carb,
+            COUNT(*)                    AS days_tracked
+        FROM fatsecret_day
+        WHERE user_id = :userId
+          AND date >= :startDate
+          AND date < :endDatePlusOne
+        """;
+
+        String dailySql = """
+        SELECT 
+            CAST(date AS TEXT) AS day_key,
+            COALESCE(calories, 0)    AS cal,
+            COALESCE(protein, 0)     AS prot,
+            COALESCE(fat, 0)         AS fat,
+            COALESCE(carbohydrate, 0) AS carb
+        FROM fatsecret_day
+        WHERE user_id = :userId
+          AND date >= :startDate
+          AND date < :endDatePlusOne
+        ORDER BY date
+        """;
+
+        Map<String, Object> params = Map.of(
+                "userId", userId,
+                "startDate", monthStart,
+                "endDatePlusOne", monthEnd.plusDays(1)
+        );
+
+        NutritionMonthlyStatsDto.NutritionMonthlyStatsDtoBuilder builder = NutritionMonthlyStatsDto.builder()
+                .monthStart(monthStart)
+                .monthEnd(monthEnd);
+
+        jdbc.query(aggSql, params, rs -> {
+            builder.totalCalories(rs.getInt("total_cal"));
+            builder.avgCalories(rs.getDouble("avg_cal"));
+            builder.avgProtein(rs.getDouble("avg_prot"));
+            builder.avgFat(rs.getDouble("avg_fat"));
+            builder.avgCarbs(rs.getDouble("avg_carb"));
+            builder.daysTracked(rs.getInt("days_tracked"));
+        });
+
+        Map<String, NutritionMonthlyStatsDto.DailyMacrosDto> dailyBreakdown = jdbc.query(dailySql, params, rs -> {
+            Map<String, NutritionMonthlyStatsDto.DailyMacrosDto> map = new java.util.LinkedHashMap<>();
+            while (rs.next()) {
+                map.put(rs.getString("day_key"),
+                        NutritionMonthlyStatsDto.DailyMacrosDto.builder()
+                                .calories(rs.getInt("cal"))
+                                .protein(rs.getDouble("prot"))
+                                .fat(rs.getDouble("fat"))
+                                .carbs(rs.getDouble("carb"))
+                                .build()
+                );
+            }
+            return map;
+        });
+
+        builder.dailyBreakdown(dailyBreakdown != null ? dailyBreakdown : Map.of());
+        return builder.build();
+    }
+
 }
