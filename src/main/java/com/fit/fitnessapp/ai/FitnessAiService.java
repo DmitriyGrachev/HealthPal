@@ -2,7 +2,12 @@ package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
+import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
+import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
+import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
+import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
+import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.modulith.events.ApplicationModuleListener;
@@ -10,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -20,6 +26,9 @@ public class FitnessAiService {
 
     private final MoeOrchestrator moeOrchestrator;
     private final AiInsightRepository insightRepository;
+    private final UserNoteUseCase userNoteUseCase;
+    private final ProfileUseCase profileUseCase;
+    private final WeightHistoryUseCase weightHistoryUseCase;
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
@@ -75,6 +84,7 @@ public class FitnessAiService {
             return;
         }
 
+        String userContext = getUserContextForReport(event.userId(), event.weekStart(), event.weekEnd());
         String nutritionText = formatNutritionBreakdown(event.nutrition().dailyBreakdown());
         String workoutText = formatWorkoutVolume(event.workout().volumeByDay());
 
@@ -82,15 +92,19 @@ public class FitnessAiService {
             Выступи в роли профессионального фитнес-диетолога и тренера.
             Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
             
+            КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+            %s
+            
             ПИТАНИЕ ЗА НЕДЕЛЮ (Всего калорий: %d, Средние: %.1f ккал, Б: %.1f, Ж: %.1f, У: %.1f):
             %s
             
             ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
             %s
             
-            Задача: Найди причинно-следственные связи. Дай 3-4 конкретные рекомендации. Отвечай кратко.
+            Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай 3-4 конкретные рекомендации. Отвечай кратко.
             """,
                 event.weekStart(), event.weekEnd(),
+                userContext,
                 event.nutrition().totalCalories(), event.nutrition().avgCalories(),
                 event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
                 nutritionText,
@@ -124,21 +138,6 @@ public class FitnessAiService {
         }
     }
 
-    private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {
-        if (breakdown == null || breakdown.isEmpty()) return "Нет данных по питанию.";
-        return breakdown.entrySet().stream()
-                .map(e -> String.format("- %s: %d ккал (Белки: %.1fг, Жиры: %.1fг, Углеводы: %.1fг)",
-                        e.getKey(), e.getValue().calories(),
-                        e.getValue().protein(), e.getValue().fat(), e.getValue().carbs()))
-                .collect(Collectors.joining("\n"));
-    }
-
-    private String formatWorkoutVolume(Map<String, Double> volumeByDay) {
-        if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
-        return volumeByDay.entrySet().stream()
-                .map(e -> String.format("- %s: %.1f кг", e.getKey(), e.getValue()))
-                .collect(Collectors.joining("\n"));
-    }
     @ApplicationModuleListener
     public void onMonthlyReportRequested(MonthlyReportRequestedEvent event) {
         log.info("🤖 AI поймал MonthlyReport! Юзер: {}, Месяц: {} - {}",
@@ -150,34 +149,39 @@ public class FitnessAiService {
             return;
         }
 
+        String userContext = getUserContextForReport(event.userId(), event.monthStart(), event.monthEnd());
         String nutritionText = formatNutritionMonthlyBreakdown(
                 event.nutrition().dailyBreakdown(),
                 event.monthStart(),
                 event.monthEnd()
         );
-        String workoutText   = formatWorkoutMonthlyVolume(event.workout().volumeByDay());
+        String workoutText = formatWorkoutMonthlyVolume(event.workout().volumeByDay());
 
         String prompt = String.format("""
         Выступи в роли профессионального фитнес-диетолога и тренера.
         Проанализируй прогресс пользователя за полный месяц (%s — %s).
- 
+  
+        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+        %s
+  
         ПИТАНИЕ ЗА МЕСЯЦ:
         - Всего калорий: %d ккал
         - Среднее в день: %.1f ккал | Белки: %.1f г | Жиры: %.1f г | Углеводы: %.1f г
         - Дней с данными: %d
         Разбивка по дням:
         %s
- 
+  
         ТРЕНИРОВКИ ЗА МЕСЯЦ:
         - Всего тренировок: %d
         - Общий тоннаж: %.1f кг | Средний тоннаж за тренировку: %.1f кг
         Разбивка по дням:
         %s
- 
-        Задача: Оцени динамику месяца. Найди паттерны (лучшие/худшие недели, корреляции питания и нагрузки).
+  
+        Задача: Оцени динамику месяца, учитывая контекст пользователя. Найди паттерны (лучшие/худшие недели, корреляции питания и нагрузки).
         Дай 4-5 конкретных рекомендаций на следующий месяц. Отвечай структурированно и кратко.
         """,
                 event.monthStart(), event.monthEnd(),
+                userContext,
                 event.nutrition().totalCalories(), event.nutrition().avgCalories(),
                 event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
                 event.nutrition().daysTracked(),
@@ -193,10 +197,10 @@ public class FitnessAiService {
             log.info("💡 Сгенерирован MONTHLY AI Insight:\n{}", aiResponse);
 
             Map<String, Object> meta = new HashMap<>();
-            meta.put("total_volume",    event.workout().totalVolumeKg());
-            meta.put("total_sessions",  event.workout().totalSessions());
-            meta.put("avg_calories",    event.nutrition().avgCalories());
-            meta.put("days_tracked",    event.nutrition().daysTracked());
+            meta.put("total_volume", event.workout().totalVolumeKg());
+            meta.put("total_sessions", event.workout().totalSessions());
+            meta.put("avg_calories", event.nutrition().avgCalories());
+            meta.put("days_tracked", event.nutrition().daysTracked());
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
@@ -214,6 +218,22 @@ public class FitnessAiService {
         }
     }
 
+    private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {
+        if (breakdown == null || breakdown.isEmpty()) return "Нет данных по питанию.";
+        return breakdown.entrySet().stream()
+                .map(e -> String.format("- %s: %d ккал (Белки: %.1fг, Жиры: %.1fг, Углеводы: %.1fг)",
+                        e.getKey(), e.getValue().calories(),
+                        e.getValue().protein(), e.getValue().fat(), e.getValue().carbs()))
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String formatWorkoutVolume(Map<String, Double> volumeByDay) {
+        if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
+        return volumeByDay.entrySet().stream()
+                .map(e -> String.format("- %s: %.1f кг", e.getKey(), e.getValue()))
+                .collect(Collectors.joining("\n"));
+    }
+
     private String formatNutritionMonthlyBreakdown(
             Map<String, MonthlyReportRequestedEvent.DailyMacrosSnapshot> breakdown,
             LocalDate monthStart,
@@ -224,7 +244,7 @@ public class FitnessAiService {
         StringBuilder sb = new StringBuilder();
 
         for (LocalDate date = monthStart; !date.isAfter(monthEnd); date = date.plusDays(1)) {
-            String dateKey = date.toString(); // Например "2026-04-01"
+            String dateKey = date.toString();
             MonthlyReportRequestedEvent.DailyMacrosSnapshot snapshot = breakdown.get(dateKey);
 
             if (snapshot != null) {
@@ -243,6 +263,52 @@ public class FitnessAiService {
         if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
         return volumeByDay.entrySet().stream()
                 .map(e -> String.format("  %s: %.1f кг", e.getKey(), e.getValue()))
-                .collect(java.util.stream.Collectors.joining("\n"));
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String getUserContextForReport(Long userId, LocalDate startDate, LocalDate endDate) {
+        StringBuilder contextBuilder = new StringBuilder();
+
+        List<UserNoteDto> notes = userNoteUseCase.getNotesByUserIdAndDateRange(userId, startDate, endDate);
+        if (!notes.isEmpty()) {
+            contextBuilder.append("- Заметки за период:\n");
+            for (UserNoteDto note : notes) {
+                contextBuilder.append(String.format("  * %s (%s): %s\n",
+                        note.relatedDate(), note.type(), note.content()));
+            }
+        } else {
+            contextBuilder.append("- Заметки за период: Нет записей\n");
+        }
+
+        profileUseCase.getProfileByUserId(userId).ifPresentOrElse(
+                profile -> {
+                    contextBuilder.append(String.format("- Возраст: %s, Пол: %s, Основная цель: %s",
+                            profile.age() != null ? profile.age() : "не указан",
+                            profile.gender() != null ? profile.gender() : "не указан",
+                            profile.primaryGoal() != null ? profile.primaryGoal() : "не указан"));
+
+                    if (profile.targetWeightKg() != null && profile.targetDate() != null) {
+                        contextBuilder.append(String.format(", Целевой вес: %s кг к %s",
+                                profile.targetWeightKg(), profile.targetDate()));
+                    }
+                    contextBuilder.append("\n");
+                },
+                () -> contextBuilder.append("- Профиль: данные не найдены\n")
+        );
+
+        List<WeightHistoryDto> weightHistory = weightHistoryUseCase.getWeightHistoryByUserId(userId);
+        if (!weightHistory.isEmpty()) {
+            contextBuilder.append("- Последние записи веса (последние 8):\n");
+            int count = Math.min(weightHistory.size(), 8);
+            for (int i = 0; i < count; i++) {
+                WeightHistoryDto entry = weightHistory.get(i);
+                contextBuilder.append(String.format("  * %s: %s кг (%s)\n",
+                        entry.date(), entry.weightKg(), entry.source()));
+            }
+        } else {
+            contextBuilder.append("- История веса: данные отсутствуют\n");
+        }
+
+        return contextBuilder.toString();
     }
 }

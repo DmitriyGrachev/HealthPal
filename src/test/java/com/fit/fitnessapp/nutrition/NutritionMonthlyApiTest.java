@@ -88,10 +88,10 @@ class NutritionMonthlyApiTest {
         assertThat(result.getTotalCalories()).isEqualTo(3000);
         assertThat(result.getAvgCalories()).isEqualTo(100.0);
 
-        assertThat(result.getWeeklyBreakdown()).hasSize(2);
-        assertThat(result.getWeeklyBreakdown())
-                .containsKey("Неделя с 2025-01-01")
-                .containsKey("Неделя с 2025-01-08");
+        assertThat(result.getDailyBreakdown()).hasSize(2);
+        assertThat(result.getDailyBreakdown())
+                .containsKey("2025-01-01")
+                .containsKey("2025-01-08");
 
         // sanity check — что реально вызвался нужный метод
         verify(jdbc).query(anyString(), any(Map.class), any(RowCallbackHandler.class));
@@ -138,7 +138,7 @@ class NutritionMonthlyApiTest {
                 adapter.getMonthlyStats(userId, start, end);
 
         // assert
-        assertThat(result.getWeeklyBreakdown()).isEmpty();
+        assertThat(result.getDailyBreakdown()).isEmpty();
         assertThat(result.getTotalCalories()).isZero();
     }
 }

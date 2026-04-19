@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "profile")
 @Getter
@@ -34,4 +37,30 @@ public class Profile {
 
     @Column(name = "weight_measure", length = 20)
     private String weightMeasure;
+
+    // Phase 1 enhancements
+    @Column(name = "age")
+    private Integer age;
+
+    @Column(name = "gender")
+    @Enumerated(EnumType.STRING)
+    private Gender gender;
+
+    @Column(name = "primary_goal")
+    @Enumerated(EnumType.STRING)
+    private FitnessGoal primaryGoal;
+
+    @Column(name = "target_weight_kg", precision = 5, scale = 2)
+    private BigDecimal targetWeightKg;
+
+    @Column(name = "target_date")
+    private LocalDate targetDate;
+
+    public enum Gender {
+        MALE, FEMALE, OTHER
+    }
+
+    public enum FitnessGoal {
+        WEIGHT_LOSS, MUSCLE_GAIN, MAINTENANCE, PERFORMANCE
+    }
 }
