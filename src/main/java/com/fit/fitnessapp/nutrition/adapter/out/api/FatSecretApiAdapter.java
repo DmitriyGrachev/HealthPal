@@ -14,6 +14,8 @@ import com.github.scribejava.core.model.OAuthRequest;
 import com.github.scribejava.core.model.Response;
 import com.github.scribejava.core.model.Verb;
 import com.github.scribejava.core.oauth.OAuth10aService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +25,8 @@ import java.util.List;
 
 @Component
 public class FatSecretApiAdapter implements FatSecretApiPort {
+
+    private static final Logger log = LoggerFactory.getLogger(FatSecretApiAdapter.class);
 
     @Value("${fatsecret.consumer-key}")
     private String consumerKey;
@@ -168,6 +172,199 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                 node.path("protein").asDouble(),
                 node.path("fat").asDouble(),
                 node.path("carbohydrate").asDouble()
+        );
+    }
+    @Override
+    public WeightEntryDto getLatestWeight(FatSecretToken token) {
+        LocalDate today = LocalDate.now();
+        List<WeightEntryDto> history = getWeightHistory(token, today.toEpochDay());
+
+        if (history.isEmpty()) {
+            // Если в этом месяце еще нет записей, проверим прошлый месяц
+            history = getWeightHistory(token, today.minusMonths(1).withDayOfMonth(today.minusMonths(1).lengthOfMonth()).toEpochDay());
+        }
+
+        return history.isEmpty() ? null : history.get(history.size() - 1);
+    }
+
+    @Override
+    public List<WeightEntryDto> getWeightHistory(FatSecretToken token, long daysSinceEpoch) {
+        try {
+            OAuth10aService service = createService();
+            OAuth1AccessToken scribeToken = new OAuth1AccessToken(token.accessToken(), token.accessTokenSecret());
+
+            OAuthRequest request = new OAuthRequest(Verb.GET, "https://platform.fatsecret.com/rest/weight/month/v2");
+            request.addQuerystringParameter("date", String.valueOf(daysSinceEpoch));
+            request.addQuerystringParameter("format", "json");
+
+            service.signRequest(scribeToken, request);
+            Response response = service.execute(request);
+
+            log.debug("FatSecret getWeightHistory response [{}]: {}", response.getCode(), response.getBody());
+
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("FatSecret API call failed: " + response.getCode() + " " + response.getBody());
+            }
+
+            return parseWeightHistoryResponse(response.getBody());
+
+        } catch (Exception e) {
+            log.error("Failed to get weight history from FatSecret", e);
+            throw new RuntimeException("Failed to get weight history from FatSecret", e);
+        }
+    }
+
+    @Override
+    public boolean updateWeight(FatSecretToken token, WeightEntryDto weightEntry) {
+        try {
+            OAuth10aService service = createService();
+            OAuth1AccessToken scribeToken = new OAuth1AccessToken(token.accessToken(), token.accessTokenSecret());
+
+            OAuthRequest request = new OAuthRequest(Verb.POST, "https://platform.fatsecret.com/rest/weight/v1");
+            request.addParameter("current_weight_kg", weightEntry.weight().toString());
+            if (weightEntry.date() != null) {
+                request.addParameter("date", String.valueOf(weightEntry.date().toEpochDay()));
+            }
+            if (weightEntry.comment() != null) {
+                request.addParameter("comment", weightEntry.comment());
+            }
+            request.addParameter("format", "json");
+
+            service.signRequest(scribeToken, request);
+            Response response = service.execute(request);
+
+            log.debug("FatSecret updateWeight response [{}]: {}", response.getCode(), response.getBody());
+
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("FatSecret API call failed: " + response.getCode() + " " + response.getBody());
+            }
+
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (root.has("error")) {
+                log.warn("FatSecret updateWeight returned error: {}", root.path("error").path("message").asText());
+                return false;
+            }
+            return root.path("success").asInt() == 1;
+
+        } catch (Exception e) {
+            log.error("Failed to update weight on FatSecret", e);
+            throw new RuntimeException("Failed to update weight on FatSecret", e);
+        }
+    }
+
+    private List<WeightEntryDto> parseWeightHistoryResponse(String jsonResponse) {
+        List<WeightEntryDto> entries = new ArrayList<>();
+        try {
+            JsonNode root = objectMapper.readTree(jsonResponse);
+            if (root.has("error")) {
+                log.warn("FatSecret getWeightHistory returned error: {}", root.path("error").path("message").asText());
+                return entries;
+            }
+            JsonNode dayNode = root.path("month").path("day");
+
+            if (dayNode.isArray()) {
+                for (JsonNode node : dayNode) {
+                    entries.add(mapWeightDayNode(node));
+                }
+            } else if (dayNode.isObject()) {
+                entries.add(mapWeightDayNode(dayNode));
+            }
+        } catch (Exception e) {
+            log.error("Failed to parse FatSecret weight history JSON", e);
+            throw new RuntimeException("Failed to parse FatSecret weight history JSON", e);
+        }
+        return entries;
+    }
+
+    private WeightEntryDto mapWeightDayNode(JsonNode node) {
+        int dateInt = node.path("date_int").asInt();
+        return new WeightEntryDto(
+                new java.math.BigDecimal(node.path("weight_kg").asText()),
+                LocalDate.ofEpochDay(dateInt),
+                dateInt,
+                node.path("weight_comment").asText(null)
+        );
+    }
+    @Override
+    public List<FatSecretExerciseDto> getExercises(FatSecretToken token) {
+        try {
+            OAuth10aService service = createService();
+            OAuth1AccessToken scribeToken = new OAuth1AccessToken(token.accessToken(), token.accessTokenSecret());
+
+            OAuthRequest request = new OAuthRequest(Verb.GET, "https://platform.fatsecret.com/rest/exercises/v2");
+            request.addQuerystringParameter("format", "json");
+
+            service.signRequest(scribeToken, request);
+            Response response = service.execute(request);
+
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("FatSecret API error: " + response.getBody());
+            }
+
+            List<FatSecretExerciseDto> exercises = new ArrayList<>();
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode exerciseNode = root.path("exercise_types").path("exercise");
+
+            if (exerciseNode.isArray()) {
+                for (JsonNode node : exerciseNode) {
+                    exercises.add(new FatSecretExerciseDto(
+                            node.path("exercise_id").asLong(),
+                            node.path("exercise_name").asText()
+                    ));
+                }
+            } else if (exerciseNode.isObject()) {
+                exercises.add(new FatSecretExerciseDto(
+                        exerciseNode.path("exercise_id").asLong(),
+                        exerciseNode.path("exercise_name").asText()
+                ));
+            }
+            return exercises;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch exercises from FatSecret", e);
+        }
+    }
+
+    @Override
+    public List<FatSecretExerciseEntryDto> getExerciseEntries(FatSecretToken token, long daysSinceEpoch) {
+        try {
+            OAuth10aService service = createService();
+            OAuth1AccessToken scribeToken = new OAuth1AccessToken(token.accessToken(), token.accessTokenSecret());
+
+            OAuthRequest request = new OAuthRequest(Verb.GET, "https://platform.fatsecret.com/rest/exercise-entries/v2");
+            request.addQuerystringParameter("date", String.valueOf(daysSinceEpoch));
+            request.addQuerystringParameter("format", "json");
+
+            service.signRequest(scribeToken, request);
+            Response response = service.execute(request);
+
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("FatSecret API error: " + response.getBody());
+            }
+
+            List<FatSecretExerciseEntryDto> entries = new ArrayList<>();
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode entryNode = root.path("exercise_entries").path("exercise_entry");
+
+            if (entryNode.isArray()) {
+                for (JsonNode node : entryNode) {
+                    entries.add(mapExerciseEntryNode(node));
+                }
+            } else if (entryNode.isObject()) {
+                entries.add(mapExerciseEntryNode(entryNode));
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch exercise entries from FatSecret", e);
+        }
+    }
+
+    private FatSecretExerciseEntryDto mapExerciseEntryNode(JsonNode node) {
+        return new FatSecretExerciseEntryDto(
+                node.path("exercise_id").asLong(),
+                node.path("exercise_name").asText(),
+                node.path("minutes").asInt(),
+                new java.math.BigDecimal(node.path("calories").asText()),
+                node.path("is_template_value").asInt() == 1
         );
     }
 
