@@ -1,8 +1,10 @@
 package com.fit.fitnessapp.ai.application.port.out;
 
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+
 public interface AiModelPort {
     //Default
-    String generate(String prompt);
+    NutritionInsightResponse generate(String prompt);
 
-    String generate(String prompt, String modelName);
+    NutritionInsightResponse generate(String prompt, String modelName);
 }

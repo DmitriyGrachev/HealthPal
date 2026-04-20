@@ -1,17 +1,24 @@
 package com.fit.fitnessapp.ai;
 
+import com.fit.fitnessapp.ai.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.ai.api.InsightType;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
+import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -29,49 +36,76 @@ public class FitnessAiService {
     private final UserNoteUseCase userNoteUseCase;
     private final ProfileUseCase profileUseCase;
     private final WeightHistoryUseCase weightHistoryUseCase;
+    private final NutritionQueryUseCase nutritionQueryUseCase;
+    private final ApplicationEventPublisher eventPublisher;
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
         log.info("🤖 Модуль AI поймал событие! Начинаем анализ для юзера {} за {}", event.userId(), event.date());
+        generateDailyInsight(event.userId(), event.date());
+    }
 
-        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.date(), InsightType.DAILY).isPresent()) {
-            log.info("Ежедневный инсайт за {} уже существует. Пропускаем.", event.date());
+    @Transactional
+    public void generateDailyInsight(Long userId, LocalDate date) {
+        if (insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY).isPresent()) {
+            log.info("Ежедневный инсайт для {} за {} уже существует. Пропускаем.", userId, date);
             return;
         }
 
+        NutritionDay nutritionDay = nutritionQueryUseCase.getDay(userId, date);
+        if (nutritionDay == null || nutritionDay.entries().isEmpty()) {
+            log.info("Нет данных по питанию для юзера {} за {}. Пропускаем генерацию.", userId, date);
+            return;
+        }
+
+        int totalCalories = nutritionDay.getTotalCalories();
+        double protein = nutritionDay.getTotalProtein();
+        double fat = nutritionDay.getTotalFat();
+        double carbs = nutritionDay.getTotalCarbohydrate();
+
         String prompt = String.format(
-                "Выступи в роли профессионального фитнес-диетолога. Проанализируй макронутриенты пользователя за день: " +
-                        "Калории: %d, Белки: %.1f, Жиры: %.1f, Углеводы: %.1f. " +
-                        "Дай очень короткий, профессиональный и неочевидный инсайт для спортсмена. Максимум 3 предложения.",
-                event.totalCalories(), event.totalProtein(), event.totalFat(), event.totalCarbohydrate()
+                "You are a professional fitness dietitian. Analyze the user's daily macronutrients: " +
+                        "Calories: %d, Protein: %.1fg, Fat: %.1fg, Carbs: %.1fg. " +
+                        "You MUST respond with a complete, valid JSON object. " +
+                        "For reportType use DAILY. For periodCovered use today's date for both start and end. " +
+                        "Provide 1-2 anomalies if relevant, 2-3 actionable recommendations. " +
+                        "The summary must be 2-3 sentences in Russian. " +
+                        "telegramSummary must be under 280 chars in Russian. " +
+                        "goalAlignment and confidenceScore must be floats between 0.0 and 1.0.",
+                totalCalories, protein, fat, carbs
         );
 
         try {
-            String aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
 
-            log.info("💡 Сгенерирован AI Insight: \n{}", aiResponse);
+            log.info("💡 Сгенерирован AI Insight summary: \n{}", aiResponse.summary());
 
             Map<String, Object> meta = new HashMap<>();
             meta.put("macros_at_generation_time", Map.of(
-                    "calories", event.totalCalories(),
-                    "protein", event.totalProtein(),
-                    "fat", event.totalFat(),
-                    "carbs", event.totalCarbohydrate()
+                    "calories", totalCalories,
+                    "protein", protein,
+                    "fat", fat,
+                    "carbs", carbs
             ));
 
             AiInsightEntity insight = AiInsightEntity.builder()
-                    .userId(event.userId())
-                    .date(event.date())
+                    .userId(userId)
+                    .date(date)
                     .insightType(InsightType.DAILY)
-                    .insightText(aiResponse)
+                    .insightText(aiResponse.summary())
+                    .structuredResponse(aiResponse)
+                    .schemaVersion(1)
                     .metadata(meta)
                     .build();
 
             insightRepository.save(insight);
 
+            eventPublisher.publishEvent(new InsightGeneratedEvent(
+                    userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse
+            ));
+
         } catch (Exception e) {
-            log.error("❌ Ошибка при обращении к нейросетям.", e);
-            throw e;
+            log.error("❌ Ошибка при обращении к нейросетям (Daily).", e);
         }
     }
 
@@ -101,7 +135,7 @@ public class FitnessAiService {
             ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
             %s
             
-            Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай 3-4 конкретные рекомендации. Отвечай кратко.
+            Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай конкретные рекомендации.
             """,
                 event.weekStart(), event.weekEnd(),
                 userContext,
@@ -113,28 +147,27 @@ public class FitnessAiService {
         );
 
         try {
-            String aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
 
-            log.info("💡 Сгенерирован WEEKLY AI Insight: \n{}", aiResponse);
-
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("total_volume", event.workout().totalVolumeKg());
-            meta.put("total_sessions", event.workout().totalSessions());
-            meta.put("avg_calories", event.nutrition().avgCalories());
+            log.info("💡 Сгенерирован WEEKLY AI Insight summary: \n{}", aiResponse.summary());
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
                     .date(event.weekStart())
                     .insightType(InsightType.WEEKLY)
-                    .insightText(aiResponse)
-                    .metadata(meta)
+                    .insightText(aiResponse.summary())
+                    .structuredResponse(aiResponse)
+                    .schemaVersion(1)
                     .build();
 
             insightRepository.save(insight);
 
+            eventPublisher.publishEvent(new InsightGeneratedEvent(
+                    event.userId(), event.weekStart(), InsightType.WEEKLY, aiResponse.summary(), aiResponse
+            ));
+
         } catch (Exception e) {
             log.error("❌ Ошибка при обращении к нейросети (Weekly)", e);
-            throw e;
         }
     }
 
@@ -177,8 +210,7 @@ public class FitnessAiService {
         Разбивка по дням:
         %s
   
-        Задача: Оцени динамику месяца, учитывая контекст пользователя. Найди паттерны (лучшие/худшие недели, корреляции питания и нагрузки).
-        Дай 4-5 конкретных рекомендаций на следующий месяц. Отвечай структурированно и кратко.
+        Задача: Оцени динамику месяца, учитывая контекст пользователя. Найди паттерны. Дай рекомендации на следующий месяц.
         """,
                 event.monthStart(), event.monthEnd(),
                 userContext,
@@ -192,29 +224,27 @@ public class FitnessAiService {
         );
 
         try {
-            String aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
 
-            log.info("💡 Сгенерирован MONTHLY AI Insight:\n{}", aiResponse);
-
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("total_volume", event.workout().totalVolumeKg());
-            meta.put("total_sessions", event.workout().totalSessions());
-            meta.put("avg_calories", event.nutrition().avgCalories());
-            meta.put("days_tracked", event.nutrition().daysTracked());
+            log.info("💡 Сгенерирован MONTHLY AI Insight summary:\n{}", aiResponse.summary());
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
                     .date(event.monthStart())
                     .insightType(InsightType.MONTHLY)
-                    .insightText(aiResponse)
-                    .metadata(meta)
+                    .insightText(aiResponse.summary())
+                    .structuredResponse(aiResponse)
+                    .schemaVersion(1)
                     .build();
 
             insightRepository.save(insight);
 
+            eventPublisher.publishEvent(new InsightGeneratedEvent(
+                    event.userId(), event.monthStart(), InsightType.MONTHLY, aiResponse.summary(), aiResponse
+            ));
+
         } catch (Exception e) {
             log.error("❌ Ошибка при обращении к нейросети (Monthly)", e);
-            throw e;
         }
     }
 

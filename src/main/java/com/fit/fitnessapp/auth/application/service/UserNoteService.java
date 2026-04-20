@@ -1,10 +1,12 @@
 package com.fit.fitnessapp.auth.application.service;
 
+import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
 import com.fit.fitnessapp.auth.adapter.out.persistence.entity.UserNote;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.adapter.out.persistence.UserNoteJpaRepository;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,7 @@ import java.util.List;
 public class UserNoteService implements UserNoteUseCase {
     
     private final UserNoteJpaRepository jpaRepository;
+    private final ApplicationEventPublisher eventPublisher;
     
     @Override
     @Transactional
@@ -28,6 +31,14 @@ public class UserNoteService implements UserNoteUseCase {
                 .build();
         
         UserNote saved = jpaRepository.save(entity);
+        
+        eventPublisher.publishEvent(new UserNoteCreatedEvent(
+                saved.getUserId(),
+                saved.getRelatedDate(),
+                saved.getContent(),
+                UserNoteDto.NoteType.valueOf(saved.getType().name())
+        ));
+
         return toDto(saved);
     }
     

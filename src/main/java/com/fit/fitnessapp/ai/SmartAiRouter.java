@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.ai.exception.AiAuthException;
 import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
 import com.fit.fitnessapp.ai.exception.AiUnavailableException;
@@ -27,7 +28,7 @@ public class SmartAiRouter {
         this.aiProperties = aiProperties;
     }
 
-    public String callWithFallback(String promptText) {
+    public NutritionInsightResponse callWithFallback(String promptText) {
         List<String> models = aiProperties.openrouter().fallbackModels();
 
         for (String modelName : models) {

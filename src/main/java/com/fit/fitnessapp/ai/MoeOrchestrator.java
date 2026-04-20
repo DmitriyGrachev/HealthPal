@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai;
 import com.fit.fitnessapp.ai.application.port.out.AiModelPort;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.ai.exception.AiUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,7 +30,7 @@ public class MoeOrchestrator {
         QUICK_ANALYSIS
     }
 
-    public String route(String prompt, AiTaskType taskType) {
+    public NutritionInsightResponse route(String prompt, AiTaskType taskType) {
         log.info("🧠 MoE Routing: Задача типа {}", taskType);
 
         log.info("📄 === НАЧАЛО ПРОМПТА ДЛЯ ИИ ===\n{}\n📄 === КОНЕЦ ПРОМПТА ===", prompt);
@@ -38,22 +39,19 @@ public class MoeOrchestrator {
             case WEEKLY_REPORT, MONTHLY_REPORT -> {
                 log.info("Отправляем отчет в Gemini, при ошибке используем Fallback...");
                 try {
-                    //TODO don`t use gemini for better insights
                     yield smartAiRouter.callWithFallback(prompt);
-
-                    //yield geminiPort.generate(prompt);
                 } catch (AiUnavailableException e) {
                     log.warn("Gemini недоступен, переключаемся на резервную модель...");
                     yield smartAiRouter.callWithFallback(prompt);
                 }
             }
             case DAILY_INSIGHT -> {
-                log.info("Отправляем в SmartAiRouter (Fallback Chain)...");
-                yield smartAiRouter.callWithFallback(prompt);
+                log.info("Отправляем Daily Insight напрямую в Gemini (лучшая поддержка JSON)...");
+                yield geminiPort.generate(prompt);
             }
             case QUICK_ANALYSIS -> {
                 log.info("Отправляем в легкую модель (Fast & Cheap)...");
-                yield openRouterPort.generate(prompt, "qwen/qwen3.6-plus:free");
+                yield openRouterPort.generate(prompt, "qwen/qwen-2.5-7b-instruct:free");
             }
         };
     }
