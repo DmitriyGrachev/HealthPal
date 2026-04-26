@@ -29,6 +29,7 @@ public class FitnessAiService {
     private final UserNoteUseCase userNoteUseCase;
     private final ProfileUseCase profileUseCase;
     private final WeightHistoryUseCase weightHistoryUseCase;
+    private final com.fit.fitnessapp.memory.MemoryQueryUseCase memoryQueryUseCase;
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
@@ -39,11 +40,26 @@ public class FitnessAiService {
             return;
         }
 
-        String prompt = String.format(
-                "Выступи в роли профессионального фитнес-диетолога. Проанализируй макронутриенты пользователя за день: " +
-                        "Калории: %d, Белки: %.1f, Жиры: %.1f, Углеводы: %.1f. " +
-                        "Дай очень короткий, профессиональный и неочевидный инсайт для спортсмена. Максимум 3 предложения.",
-                event.totalCalories(), event.totalProtein(), event.totalFat(), event.totalCarbohydrate()
+        // Fetch relevant memories for context
+        String contextQuery = String.format("Nutrition for %d calories, %.1f protein", event.totalCalories(), event.totalProtein());
+        List<com.fit.fitnessapp.memory.UserMemory> memories = memoryQueryUseCase.findRelevantMemories(event.userId(), contextQuery, 5);
+        String memoriesText = memories.stream()
+                .map(m -> "- " + m.content())
+                .collect(Collectors.joining("\n"));
+
+        String prompt = String.format("""
+                Выступи в роли профессионального фитнес-диетолога. 
+                Проанализируй макронутриенты пользователя за день:
+                Калории: %d, Белки: %.1f, Жиры: %.1f, Углеводы: %.1f.
+                
+                ИЗВЕСТНЫЕ ФАКТЫ О ПОЛЬЗОВАТЕЛЕ:
+                %s
+                
+                Дай очень короткий, профессиональный и неочевидный инсайт для спортсмена, учитывая факты выше. 
+                Максимум 3 предложения.
+                """,
+                event.totalCalories(), event.totalProtein(), event.totalFat(), event.totalCarbohydrate(),
+                memoriesText.isEmpty() ? "Нет дополнительных данных." : memoriesText
         );
 
         try {
