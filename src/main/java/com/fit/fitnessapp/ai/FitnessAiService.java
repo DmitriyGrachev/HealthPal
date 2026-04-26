@@ -4,7 +4,7 @@ import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
-import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
+import com.fit.fitnessapp.nutrition.domain.NutritionSyncedEvent;
 import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;

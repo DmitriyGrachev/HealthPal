@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.nutrition;
+package com.fit.fitnessapp.nutrition.domain;
 
 import lombok.Builder;
 import lombok.Data;
@@ -8,17 +8,16 @@ import java.util.Map;
 
 @Data
 @Builder
-public class NutritionMonthlyStatsDto {
-    private LocalDate monthStart;
-    private LocalDate monthEnd;
+public class NutritionWeeklyStatsDto {
+    private LocalDate weekStart;
+    private LocalDate weekEnd;
     private int totalCalories;
     private double avgCalories;
     private double avgProtein;
     private double avgFat;
     private double avgCarbs;
-    private int daysTracked;
 
-    // "2026-04-01" -> macros
+    // "MONDAY" -> macros
     private Map<String, DailyMacrosDto> dailyBreakdown;
 
     @Data

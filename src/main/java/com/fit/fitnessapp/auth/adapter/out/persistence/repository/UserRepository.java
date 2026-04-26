@@ -10,21 +10,26 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, User> {
+public interface UserRepository extends JpaRepository<User, Long> {
+
     Optional<User> findByUsername(String username);
 
-    Optional<User> findUserByUsernameAndEmail(String username, String email);
-    Optional<User> findById(Long userId);
-    boolean existsUserByUsername(String username);
+    Optional<User> findByEmail(String email);
 
-    boolean existsUserByEmail(String email);
+    boolean existsByUsername(String username);
 
-    @Query("SELECT f.userId FROM FatSecretConnectionJpaEntity f")
+    boolean existsByEmail(String email);
+    
+    // Compatibility aliases
+    default boolean existsUserByUsername(String username) { return existsByUsername(username); }
+    default boolean existsUserByEmail(String email) { return existsByEmail(email); }
+
+    @Query("SELECT f.userId FROM AuthFatSecretConnectionJpaEntity f")
     List<Long> findUserIdsWithFatSecretTokens();
 
-    @Query("SELECT f.accessToken FROM FatSecretConnectionJpaEntity f WHERE f.userId = :userId")
+    @Query("SELECT f.accessToken FROM AuthFatSecretConnectionJpaEntity f WHERE f.userId = :userId")
     String getFatSecretAccessTokenByUserId(@Param("userId") Long userId);
 
-    @Query("SELECT f.accessTokenSecret FROM FatSecretConnectionJpaEntity f WHERE f.userId = :userId")
+    @Query("SELECT f.accessTokenSecret FROM AuthFatSecretConnectionJpaEntity f WHERE f.userId = :userId")
     String getFatSecretAccessTokenSecretByUserId(@Param("userId") Long userId);
 }

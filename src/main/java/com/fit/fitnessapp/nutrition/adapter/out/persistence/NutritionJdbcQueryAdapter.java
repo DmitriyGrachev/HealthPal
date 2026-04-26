@@ -1,13 +1,13 @@
 package com.fit.fitnessapp.nutrition.adapter.out.persistence;
 
-import com.fit.fitnessapp.nutrition.NutritionMonthlyApi;
-import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
-import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionMonthlyApi;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthlyStatsDto;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionWeeklyApi;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
-import com.fit.fitnessapp.nutrition.NutritionWeeklyStatsDto;
+import com.fit.fitnessapp.nutrition.domain.NutritionWeeklyStatsDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;

@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.nutrition;
 
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionMonthlyApi;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.nutrition.adapter.out.persistence.NutritionJdbcQueryAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

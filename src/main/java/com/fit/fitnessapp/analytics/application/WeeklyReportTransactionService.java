@@ -2,8 +2,8 @@ package com.fit.fitnessapp.analytics.application;
 
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.UserApi;
-import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
-import com.fit.fitnessapp.nutrition.NutritionWeeklyStatsDto;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionWeeklyApi;
+import com.fit.fitnessapp.nutrition.domain.NutritionWeeklyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
 import com.fit.fitnessapp.workout.WorkoutWeeklyStatsDto;
 import lombok.RequiredArgsConstructor;

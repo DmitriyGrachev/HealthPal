@@ -1,8 +1,8 @@
 package com.fit.fitnessapp.analytics.application;
 
 import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
-import com.fit.fitnessapp.nutrition.NutritionMonthlyApi;
-import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionMonthlyApi;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutMonthlyApi;
 import com.fit.fitnessapp.workout.WorkoutMonthlyStatsDto;
 import lombok.RequiredArgsConstructor;

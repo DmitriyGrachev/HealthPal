@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.nutrition;
+package com.fit.fitnessapp.nutrition.domain;
 
 import java.time.LocalDate;
 
