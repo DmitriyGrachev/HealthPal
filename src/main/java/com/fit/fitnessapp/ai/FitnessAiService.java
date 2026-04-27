@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FitnessAiService {
 
+    private final com.fit.fitnessapp.memory.application.port.in.MemoryQueryUseCase memoryQueryUseCase;
     private final MoeOrchestrator moeOrchestrator;
     private final AiInsightRepository insightRepository;
     private final UserNoteUseCase userNoteUseCase;
@@ -63,8 +64,14 @@ public class FitnessAiService {
         double fat = nutritionDay.getTotalFat();
         double carbs = nutritionDay.getTotalCarbohydrate();
 
+        String memoriesText = getMemoriesText(userId,
+                String.format("nutrition %d calories %.1f protein", totalCalories, protein));
+        String recentInsights = getRecentInsightsSummary(userId);
+
         String prompt = String.format(
                 "You are a professional fitness dietitian. Analyze the user's daily macronutrients: " +
+                        "KNOWN FACTS ABOUT USER:\n%s\n\n" +
+                        "RECENT INSIGHTS:\n%s\n\n" +
                         "Calories: %d, Protein: %.1fg, Fat: %.1fg, Carbs: %.1fg. " +
                         "You MUST respond with a complete, valid JSON object. " +
                         "For reportType use DAILY. For periodCovered use today's date for both start and end. " +
@@ -72,7 +79,7 @@ public class FitnessAiService {
                         "The summary must be 2-3 sentences in Russian. " +
                         "telegramSummary must be under 280 chars in Russian. " +
                         "goalAlignment and confidenceScore must be floats between 0.0 and 1.0.",
-                totalCalories, protein, fat, carbs
+                memoriesText, recentInsights, totalCalories, protein, fat, carbs
         );
 
         try {
@@ -122,22 +129,35 @@ public class FitnessAiService {
         String nutritionText = formatNutritionBreakdown(event.nutrition().dailyBreakdown());
         String workoutText = formatWorkoutVolume(event.workout().volumeByDay());
 
+        String memoriesText = getMemoriesText(event.userId(),
+                String.format("weekly report calories %.0f protein %.1f",
+                        event.nutrition().avgCalories(), event.nutrition().avgProtein()));
+        String recentInsights = getRecentInsightsSummary(event.userId());
+
         String prompt = String.format("""
-            Выступи в роли профессионального фитнес-диетолога и тренера.
-            Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
-            
-            КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
-            %s
-            
-            ПИТАНИЕ ЗА НЕДЕЛЮ (Всего калорий: %d, Средние: %.1f ккал, Б: %.1f, Ж: %.1f, У: %.1f):
-            %s
-            
-            ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
-            %s
-            
-            Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай конкретные рекомендации.
-            """,
+                        Выступи в роли профессионального фитнес-диетолога и тренера.
+                        Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
+                        
+                        ДОЛГОСРОЧНАЯ ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ:
+                        %s
+                        
+                        НЕДАВНИЕ ИНСАЙТЫ:
+                        %s
+                        
+                        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+                        %s
+                        
+                        ПИТАНИЕ ЗА НЕДЕЛЮ (Всего калорий: %d, Средние: %.1f ккал, Б: %.1f, Ж: %.1f, У: %.1f):
+                        %s
+                        
+                        ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
+                        %s
+                        
+                        Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай конкретные рекомендации.
+                        """,
                 event.weekStart(), event.weekEnd(),
+                memoriesText,
+                recentInsights,
                 userContext,
                 event.nutrition().totalCalories(), event.nutrition().avgCalories(),
                 event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
@@ -190,29 +210,42 @@ public class FitnessAiService {
         );
         String workoutText = formatWorkoutMonthlyVolume(event.workout().volumeByDay());
 
+        String memoriesText = getMemoriesText(event.userId(),
+                String.format("monthly progress calories %.0f protein %.1f",
+                        event.nutrition().avgCalories(), event.nutrition().avgProtein()));
+        String recentInsights = getRecentInsightsSummary(event.userId());
+
         String prompt = String.format("""
-        Выступи в роли профессионального фитнес-диетолога и тренера.
-        Проанализируй прогресс пользователя за полный месяц (%s — %s).
-  
-        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
-        %s
-  
-        ПИТАНИЕ ЗА МЕСЯЦ:
-        - Всего калорий: %d ккал
-        - Среднее в день: %.1f ккал | Белки: %.1f г | Жиры: %.1f г | Углеводы: %.1f г
-        - Дней с данными: %d
-        Разбивка по дням:
-        %s
-  
-        ТРЕНИРОВКИ ЗА МЕСЯЦ:
-        - Всего тренировок: %d
-        - Общий тоннаж: %.1f кг | Средний тоннаж за тренировку: %.1f кг
-        Разбивка по дням:
-        %s
-  
-        Задача: Оцени динамику месяца, учитывая контекст пользователя. Найди паттерны. Дай рекомендации на следующий месяц.
-        """,
+                        Выступи в роли профессионального фитнес-диетолога и тренера.
+                        Проанализируй прогресс пользователя за полный месяц (%s — %s).
+                        
+                        ДОЛГОСРОЧНАЯ ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ:
+                        %s
+                        
+                        НЕДАВНИЕ ИНСАЙТЫ:
+                        %s
+                        
+                        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+                        %s
+                        
+                        ПИТАНИЕ ЗА МЕСЯЦ:
+                        - Всего калорий: %d ккал
+                        - Среднее в день: %.1f ккал | Белки: %.1f г | Жиры: %.1f г | Углеводы: %.1f г
+                        - Дней с данными: %d
+                        Разбивка по дням:
+                        %s
+                        
+                        ТРЕНИРОВКИ ЗА МЕСЯЦ:
+                        - Всего тренировок: %d
+                        - Общий тоннаж: %.1f кг | Средний тоннаж за тренировку: %.1f кг
+                        Разбивка по дням:
+                        %s
+                        
+                        Задача: Оцени динамику месяца. Найди паттерны. Дай рекомендации на следующий месяц.
+                        """,
                 event.monthStart(), event.monthEnd(),
+                memoriesText,
+                recentInsights,
                 userContext,
                 event.nutrition().totalCalories(), event.nutrition().avgCalories(),
                 event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
@@ -340,5 +373,25 @@ public class FitnessAiService {
         }
 
         return contextBuilder.toString();
+    }
+    private String getMemoriesText(Long userId, String query) {
+        var memories = memoryQueryUseCase.findRelevantMemories(userId, query, 5);
+        if (memories.isEmpty()) return "Нет данных.";
+        return memories.stream()
+                .map(m -> "- " + m.content())
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String getRecentInsightsSummary(Long userId) {
+        List<AiInsightEntity> recent = insightRepository
+                .findTop3ByUserIdOrderByCreatedAtDesc(userId);
+        if (recent.isEmpty()) return "Нет предыдущих инсайтов.";
+        return recent.stream()
+                .map(i -> String.format("[%s %s] %s",
+                        i.getInsightType(), i.getDate(),
+                        i.getInsightText().length() > 150
+                                ? i.getInsightText().substring(0, 150) + "..."
+                                : i.getInsightText()))
+                .collect(Collectors.joining("\n"));
     }
 }
