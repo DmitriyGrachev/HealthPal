@@ -47,11 +47,12 @@ public class MoeOrchestrator {
             }
             case DAILY_INSIGHT -> {
                 log.info("Отправляем Daily Insight напрямую в Gemini (лучшая поддержка JSON)...");
-                yield geminiPort.generate(prompt);
+                log.info("Временно openrouter");
+                yield openRouterPort.generate(prompt, "nvidia/nemotron-3-super-120b-a12b:free");
             }
             case QUICK_ANALYSIS -> {
                 log.info("Отправляем в легкую модель (Fast & Cheap)...");
-                yield openRouterPort.generate(prompt, "qwen/qwen-2.5-7b-instruct:free");
+                yield openRouterPort.generate(prompt, "nvidia/nemotron-3-super-120b-a12b:free");
             }
         };
     }
