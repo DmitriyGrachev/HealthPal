@@ -21,9 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -66,7 +64,7 @@ public class FitnessAiService {
 
         String memoriesText = getMemoriesText(userId,
                 String.format("nutrition %d calories %.1f protein", totalCalories, protein));
-        String recentInsights = getRecentInsightsSummary(userId);
+        String recentInsights = getRecentInsightsSummary(userId, InsightType.DAILY);
 
         String prompt = String.format(
                 "You are a professional fitness dietitian. Analyze the user's daily macronutrients: " +
@@ -132,7 +130,7 @@ public class FitnessAiService {
         String memoriesText = getMemoriesText(event.userId(),
                 String.format("weekly report calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
-        String recentInsights = getRecentInsightsSummary(event.userId());
+        String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
 
         String prompt = String.format("""
                         Выступи в роли профессионального фитнес-диетолога и тренера.
@@ -213,7 +211,7 @@ public class FitnessAiService {
         String memoriesText = getMemoriesText(event.userId(),
                 String.format("monthly progress calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
-        String recentInsights = getRecentInsightsSummary(event.userId());
+        String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
 
         String prompt = String.format("""
                         Выступи в роли профессионального фитнес-диетолога и тренера.
@@ -387,6 +385,42 @@ public class FitnessAiService {
                 .findTop3ByUserIdOrderByCreatedAtDesc(userId);
         if (recent.isEmpty()) return "Нет предыдущих инсайтов.";
         return recent.stream()
+                .map(i -> String.format("[%s %s] %s",
+                        i.getInsightType(), i.getDate(),
+                        i.getInsightText().length() > 150
+                                ? i.getInsightText().substring(0, 150) + "..."
+                                : i.getInsightText()))
+                .collect(Collectors.joining("\n"));
+    }
+    private String getRecentInsightsSummary(Long userId, InsightType currentType) {
+        List<AiInsightEntity> result = new ArrayList<>();
+
+        switch (currentType) {
+            case DAILY -> {
+                // Для daily: 3 последних daily
+                result.addAll(insightRepository
+                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
+            }
+            case WEEKLY -> {
+                // Для weekly: 2 прошлых weekly + 3 последних daily
+                result.addAll(insightRepository
+                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.WEEKLY, 2));
+                result.addAll(insightRepository
+                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
+            }
+            case MONTHLY -> {
+                // Для monthly: 1 прошлый monthly + 2 последних weekly
+                result.addAll(insightRepository
+                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.MONTHLY, 1));
+                result.addAll(insightRepository
+                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.WEEKLY, 2));
+            }
+        }
+
+        if (result.isEmpty()) return "Нет предыдущих инсайтов.";
+
+        return result.stream()
+                .sorted(Comparator.comparing(AiInsightEntity::getDate).reversed())
                 .map(i -> String.format("[%s %s] %s",
                         i.getInsightType(), i.getDate(),
                         i.getInsightText().length() > 150
