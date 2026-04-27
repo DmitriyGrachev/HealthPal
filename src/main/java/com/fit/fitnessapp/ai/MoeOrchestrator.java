@@ -53,7 +53,7 @@ public class MoeOrchestrator {
             }
             case QUICK_ANALYSIS -> {
                 log.info("Отправляем в легкую модель (Fast & Cheap)...");
-                yield openRouterPort.generate(prompt, "qwen/qwen3.6-plus:free");
+                yield openRouterPort.generate(prompt, "minimax/minimax-m2.5:free");
             }
         };
     }
