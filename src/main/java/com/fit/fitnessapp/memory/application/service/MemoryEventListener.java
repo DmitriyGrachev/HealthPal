@@ -11,6 +11,8 @@ import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,37 +25,60 @@ public class MemoryEventListener {
 
     @ApplicationModuleListener
     public void onInsightGenerated(InsightGeneratedEvent event) {
-        log.info("Storing AI insight in memory for user {} and date {}", event.userId(), event.date());
 
-        Document doc = new Document(
-                event.content(),
-                Map.of(
-                        "user_id", event.userId(),
-                        "date", event.date().toString(),
-                        "insight_type", event.insightType().name(),
-                        "memory_type", MemoryType.SEMANTIC.name(),
-                        "created_at", Instant.now().toString()
-                )
-        );
+        // Ежедневные инсайты — краткосрочные (14 дней)
+        // Недельные/месячные — среднесрочные (90 дней)
+        Instant expiresAt = switch (event.insightType()) {
+            case DAILY   -> Instant.now().plus(14, ChronoUnit.DAYS);
+            case WEEKLY  -> Instant.now().plus(90, ChronoUnit.DAYS);
+            case MONTHLY -> null; // не истекает
+        };
 
-        vectorStore.add(List.of(doc));
+        String horizon = switch (event.insightType()) {
+            case DAILY   -> "SHORT_TERM";
+            case WEEKLY  -> "MID_TERM";
+            case MONTHLY -> "LONG_TERM";
+        };
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("user_id", event.userId());
+        metadata.put("date", event.date().toString());
+        metadata.put("insight_type", event.insightType().name());
+        metadata.put("memory_type", MemoryType.SEMANTIC.name());
+        metadata.put("memory_horizon", horizon);
+        metadata.put("created_at", Instant.now().toString());
+        if (expiresAt != null) {
+            metadata.put("expires_at", expiresAt.toString());
+        }
+
+        vectorStore.add(List.of(new Document(event.content(), metadata)));
     }
 
     @ApplicationModuleListener
     public void onUserNoteCreated(UserNoteCreatedEvent event) {
-        log.info("Storing user note in memory for user {} and date {}", event.userId(), event.date());
 
-        Document doc = new Document(
-                event.content(),
-                Map.of(
-                        "user_id", event.userId(),
-                        "date", event.date().toString(),
-                        "note_type", event.type().name(),
-                        "memory_type", MemoryType.EPISODIC.name(),
-                        "created_at", Instant.now().toString()
-                )
-        );
+        // Временные заметки (болезнь, событие) — 7 дней
+        // Постоянные (аллергия, цель) — никогда не истекают
+        boolean isPermanent = switch (event.type()) {
+            case ALLERGY, GOAL, PREFERENCE -> true;
+            case ILLNESS, TRAVEL,INJURY,STRESS, OTHER -> false;
+        };
 
-        vectorStore.add(List.of(doc));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("user_id", event.userId());
+        metadata.put("date", event.date().toString());
+        metadata.put("note_type", event.type().name());
+        metadata.put("memory_type", isPermanent
+                ? MemoryType.FACT.name()
+                : MemoryType.EPISODIC.name());
+        metadata.put("memory_horizon", isPermanent ? "LONG_TERM" : "SHORT_TERM");
+        metadata.put("created_at", Instant.now().toString());
+
+        if (!isPermanent) {
+            metadata.put("expires_at",
+                    Instant.now().plus(7, ChronoUnit.DAYS).toString());
+        }
+
+        vectorStore.add(List.of(new Document(event.content(), metadata)));
     }
 }

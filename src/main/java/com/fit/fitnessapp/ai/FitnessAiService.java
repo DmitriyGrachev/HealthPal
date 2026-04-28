@@ -62,7 +62,7 @@ public class FitnessAiService {
         double fat = nutritionDay.getTotalFat();
         double carbs = nutritionDay.getTotalCarbohydrate();
 
-        String memoriesText = getMemoriesText(userId,
+        String memoriesText = buildMemoryContext(userId,
                 String.format("nutrition %d calories %.1f protein", totalCalories, protein));
         String recentInsights = getRecentInsightsSummary(userId, InsightType.DAILY);
 
@@ -127,7 +127,7 @@ public class FitnessAiService {
         String nutritionText = formatNutritionBreakdown(event.nutrition().dailyBreakdown());
         String workoutText = formatWorkoutVolume(event.workout().volumeByDay());
 
-        String memoriesText = getMemoriesText(event.userId(),
+        String memoriesText = buildMemoryContext(event.userId(),
                 String.format("weekly report calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
@@ -208,7 +208,7 @@ public class FitnessAiService {
         );
         String workoutText = formatWorkoutMonthlyVolume(event.workout().volumeByDay());
 
-        String memoriesText = getMemoriesText(event.userId(),
+        String memoriesText = buildMemoryContext(event.userId(),
                 String.format("monthly progress calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
@@ -372,25 +372,33 @@ public class FitnessAiService {
 
         return contextBuilder.toString();
     }
-    private String getMemoriesText(Long userId, String query) {
-        var memories = memoryQueryUseCase.findRelevantMemories(userId, query, 5);
-        if (memories.isEmpty()) return "Нет данных.";
-        return memories.stream()
-                .map(m -> "- " + m.content())
-                .collect(Collectors.joining("\n"));
-    }
+    // Вместо одного getMemoriesText() — три секции в промпте
 
-    private String getRecentInsightsSummary(Long userId) {
-        List<AiInsightEntity> recent = insightRepository
-                .findTop3ByUserIdOrderByCreatedAtDesc(userId);
-        if (recent.isEmpty()) return "Нет предыдущих инсайтов.";
-        return recent.stream()
-                .map(i -> String.format("[%s %s] %s",
-                        i.getInsightType(), i.getDate(),
-                        i.getInsightText().length() > 150
-                                ? i.getInsightText().substring(0, 150) + "..."
-                                : i.getInsightText()))
-                .collect(Collectors.joining("\n"));
+    private String buildMemoryContext(Long userId, String semanticQuery) {
+        StringBuilder sb = new StringBuilder();
+
+        // 1. Постоянные факты о пользователе
+        var facts = memoryQueryUseCase.findLongTermFacts(userId, 5);
+        if (!facts.isEmpty()) {
+            sb.append("ПОСТОЯННЫЕ ФАКТЫ О ПОЛЬЗОВАТЕЛЕ:\n");
+            facts.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+        }
+
+        // 2. Релевантные паттерны из прошлого
+        var patterns = memoryQueryUseCase.findRelevantMemories(userId, semanticQuery, 3);
+        if (!patterns.isEmpty()) {
+            sb.append("\nПАТТЕРНЫ И ИСТОРИЯ:\n");
+            patterns.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+        }
+
+        // 3. Краткосрочный контекст (последние 7 дней)
+        var recentContext = memoryQueryUseCase.findRecentContext(userId, 7, 3);
+        if (!recentContext.isEmpty()) {
+            sb.append("\nТЕКУЩИЙ КОНТЕКСТ (последние 7 дней):\n");
+            recentContext.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+        }
+
+        return sb.length() > 0 ? sb.toString() : "Нет данных о пользователе.";
     }
     private String getRecentInsightsSummary(Long userId, InsightType currentType) {
         List<AiInsightEntity> result = new ArrayList<>();

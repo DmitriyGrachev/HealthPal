@@ -42,6 +42,7 @@ public class MoeOrchestrator {
                     yield smartAiRouter.callWithFallback(prompt);
                 } catch (AiUnavailableException e) {
                     log.warn("Gemini недоступен, переключаемся на резервную модель...");
+                    //ЗАГЛУШКА
                     yield smartAiRouter.callWithFallback(prompt);
                 }
             }
