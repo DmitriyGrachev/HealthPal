@@ -1,6 +1,9 @@
 package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.ai.application.port.out.AiModelPort;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.exception.AiAuthException;
+import com.fit.fitnessapp.ai.exception.AiUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,13 +40,15 @@ class SmartAiRouterTest {
         when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b"));
 
         when(openRouterPort.generate(anyString(), eq("model-a")))
-                .thenThrow(new RuntimeException("HTTP 429 Too Many Requests"));
+                .thenThrow(new AiUnavailableException("HTTP 429 Too Many Requests", new RuntimeException()));
+        
+        NutritionInsightResponse mockResponse = createMockResponse("Ответ от model-b");
         when(openRouterPort.generate(anyString(), eq("model-b")))
-                .thenReturn("Ответ от model-b");
+                .thenReturn(mockResponse);
 
-        String result = smartAiRouter.callWithFallback("Промпт");
+        NutritionInsightResponse result = smartAiRouter.callWithFallback("Промпт");
 
-        assertThat(result).isEqualTo("Ответ от model-b");
+        assertThat(result.summary()).isEqualTo("Ответ от model-b");
         verify(openRouterPort, times(2)).generate(anyString(), anyString());
         verifyNoInteractions(geminiPort);
     }
@@ -54,15 +59,26 @@ class SmartAiRouterTest {
         when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b", "model-c"));
 
         when(openRouterPort.generate(anyString(), eq("model-a")))
-                .thenThrow(new RuntimeException("HTTP 401 Unauthorized"));
-        when(geminiPort.generate(anyString(), isNull()))
-                .thenReturn("Gemini Answer");
+                .thenThrow(new AiAuthException("HTTP 401 Unauthorized", new RuntimeException()));
+        
+        NutritionInsightResponse mockResponse = createMockResponse("Gemini Answer");
+        when(geminiPort.generate(anyString()))
+                .thenReturn(mockResponse);
 
-        String result = smartAiRouter.callWithFallback("Промпт");
+        NutritionInsightResponse result = smartAiRouter.callWithFallback("Промпт");
 
-        assertThat(result).isEqualTo("Gemini Answer");
+        assertThat(result.summary()).isEqualTo("Gemini Answer");
         // OpenRouter вызван ровно 1 раз, потому что 401 прервал перебор
         verify(openRouterPort, times(1)).generate(anyString(), anyString());
-        verify(geminiPort, times(1)).generate(anyString(), isNull());
+        verify(geminiPort, times(1)).generate(anyString());
+    }
+
+    private NutritionInsightResponse createMockResponse(String summary) {
+        return new NutritionInsightResponse(
+                null, null, summary, summary,
+                null, null,
+                List.of(), List.of(), List.of(),
+                1.0f, 1.0f
+        );
     }
 }

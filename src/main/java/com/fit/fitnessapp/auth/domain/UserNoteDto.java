@@ -10,6 +10,6 @@ public record UserNoteDto(
         NoteType type
 ) {
     public enum NoteType {
-        ILLNESS, TRAVEL, INJURY, STRESS, OTHER
+        ILLNESS, TRAVEL, INJURY, STRESS, ALLERGY, GOAL, PREFERENCE, OTHER
     }
 }

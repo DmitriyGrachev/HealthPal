@@ -13,6 +13,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Map;
+import com.fit.fitnessapp.ai.api.InsightType;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 
 @Entity
 @Table(
@@ -48,6 +50,14 @@ public class AiInsightEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "insight_data", columnDefinition = "jsonb")
     private Map<String, Object> insightData;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "structured_response", columnDefinition = "jsonb")
+    private NutritionInsightResponse structuredResponse;
+
+    @Column(name = "schema_version", nullable = false)
+    @Builder.Default
+    private Integer schemaVersion = 1;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
