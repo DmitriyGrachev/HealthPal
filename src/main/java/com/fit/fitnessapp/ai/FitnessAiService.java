@@ -13,9 +13,11 @@ import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
+import com.fit.fitnessapp.telegram.api.TelegramTodayRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,45 @@ public class FitnessAiService {
     private final WeightHistoryUseCase weightHistoryUseCase;
     private final NutritionQueryUseCase nutritionQueryUseCase;
     private final ApplicationEventPublisher eventPublisher;
+
+    @EventListener
+    public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
+        log.info("AI MODULE: Received TelegramTodayRequestedEvent for userId: {}", event.userId());
+        generateDailyInsight(event.userId(), event.date());
+    }
+
+    @EventListener
+    public void onTelegramAskRequested(com.fit.fitnessapp.telegram.api.TelegramAskRequestedEvent event) {
+        log.info("AI MODULE: Received TelegramAskRequestedEvent from user {}: {}", event.userId(), event.question());
+        
+        String memoryContext = buildMemoryContext(event.userId(), event.question());
+        
+        String prompt = String.format(
+                "You are a helpful fitness assistant. Answer the user's question based on their data and history.\n\n" +
+                "USER CONTEXT AND HISTORY:\n%s\n\n" +
+                "USER QUESTION: %s\n\n" +
+                "Answer concisely in Russian. If you don't know the answer, say so.",
+                memoryContext, event.question()
+        );
+
+        try {
+            // Using QUICK_ANALYSIS for faster response
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.QUICK_ANALYSIS);
+            
+            eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    aiResponse.summary()
+            ));
+        } catch (Exception e) {
+            log.error("Error processing /ask for user {}", event.userId(), e);
+            eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    "Извините, произошла ошибка при обработке вашего вопроса. Попробуйте позже."
+            ));
+        }
+    }
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
