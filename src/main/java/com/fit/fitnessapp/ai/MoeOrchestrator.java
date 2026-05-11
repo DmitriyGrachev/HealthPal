@@ -13,14 +13,15 @@ public class MoeOrchestrator {
     private final AiModelPort openRouterPort;
     private final AiModelPort geminiPort;
     private final SmartAiRouter smartAiRouter;
-
+    private final AiProperties aiProperties;
     public MoeOrchestrator(
             @Qualifier("openRouterPort") AiModelPort openRouterPort,
             @Qualifier("geminiPort") AiModelPort geminiPort,
-            SmartAiRouter smartAiRouter) {
+            SmartAiRouter smartAiRouter, AiProperties aiProperties) {
         this.openRouterPort = openRouterPort;
         this.geminiPort = geminiPort;
         this.smartAiRouter = smartAiRouter;
+        this.aiProperties = aiProperties;
     }
 
     public enum AiTaskType {
@@ -49,11 +50,11 @@ public class MoeOrchestrator {
             case DAILY_INSIGHT -> {
                 log.info("Отправляем Daily Insight напрямую в Gemini (лучшая поддержка JSON)...");
                 log.info("Временно openrouter");
-                yield openRouterPort.generate(prompt, "openai/gpt-oss-120b:free");
+                yield openRouterPort.generate(prompt, aiProperties.DAILY_INSIGHT_MODEL());
             }
             case QUICK_ANALYSIS -> {
                 log.info("Отправляем в легкую модель (Fast & Cheap)...");
-                yield openRouterPort.generate(prompt, "nvidia/nemotron-3-super-120b-a12b:free");
+                yield openRouterPort.generate(prompt, aiProperties.QUICK_ANALYSIS_MODEL());
             }
         };
     }
