@@ -3,10 +3,12 @@ package com.fit.fitnessapp.telegram.application.service.handlers;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramLinkCodeManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 @Component
+@Profile("dev")
 @RequiredArgsConstructor
 public class TestGenerateHandler implements CommandHandler {
 

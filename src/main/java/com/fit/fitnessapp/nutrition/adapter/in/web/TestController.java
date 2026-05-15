@@ -7,6 +7,7 @@ import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FatSecretUserSummaryDto;
 import lombok.AllArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @AllArgsConstructor
+@Profile("dev")
 public class TestController {
 
     private final FatSecretProfileSyncService fatSecretProfileSyncService;

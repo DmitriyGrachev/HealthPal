@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/import/**").hasRole("VIP")
+                        .requestMatchers("/test/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/nutrition/callback").permitAll()
                         //.requestMatchers("/ai/**","/api/v1/workouts/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
