@@ -73,7 +73,7 @@ public class OpenRouterAdapter implements AiModelPort {
 
     private NutritionInsightResponse createDegradedResponse(String rawContent) {
         return new NutritionInsightResponse(
-                null, null, rawContent, "⚠️ Structured parsing failed.",
+                null, null, rawContent, "Structured parsing failed.",
                 null, null,
                 List.of(), List.of(), List.of(),
                 0.0f, 0.1f

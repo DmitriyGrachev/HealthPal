@@ -74,27 +74,27 @@ public class FitnessAiService {
             eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent(
                     event.userId(),
                     event.chatId(),
-                    "Извините, произошла ошибка при обработке вашего вопроса. Попробуйте позже."
+                    "Sorry, an error occurred while processing your question. Please try again later."
             ));
         }
     }
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
-        log.info("🤖 Модуль AI поймал событие! Начинаем анализ для юзера {} за {}", event.userId(), event.date());
+        log.info("AI module received NutritionSyncedEvent for user {} on {}", event.userId(), event.date());
         generateDailyInsight(event.userId(), event.date());
     }
 
     @Transactional
     public void generateDailyInsight(Long userId, LocalDate date) {
         if (insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY).isPresent()) {
-            log.info("Ежедневный инсайт для {} за {} уже существует. Пропускаем.", userId, date);
+            log.info("Daily insight for user {} on {} already exists. Skipping.", userId, date);
             return;
         }
 
         NutritionDay nutritionDay = nutritionQueryUseCase.getDay(userId, date);
         if (nutritionDay == null || nutritionDay.entries().isEmpty()) {
-            log.info("Нет данных по питанию для юзера {} за {}. Пропускаем генерацию.", userId, date);
+            log.info("No nutrition data for user {} on {}. Skipping insight generation.", userId, date);
             return;
         }
 
@@ -124,7 +124,7 @@ public class FitnessAiService {
         try {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
 
-            log.info("💡 Сгенерирован AI Insight summary: \n{}", aiResponse.summary());
+            log.info("Generated daily AI insight summary:\n{}", aiResponse.summary());
 
             Map<String, Object> meta = new HashMap<>();
             meta.put("macros_at_generation_time", Map.of(
@@ -151,16 +151,16 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при обращении к нейросетям (Daily).", e);
+            log.error("Error while calling AI provider for daily insight.", e);
         }
     }
 
     @ApplicationModuleListener
     public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
-        log.info("🤖 Модуль AI поймал WeeklyReport! Юзер: {}, Неделя с: {}", event.userId(), event.weekStart());
+        log.info("AI module received WeeklyReportRequestedEvent for user {}, week starting {}", event.userId(), event.weekStart());
 
         if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.weekStart(), InsightType.WEEKLY).isPresent()) {
-            log.info("Еженедельный инсайт за {} уже существует. Пропускаем.", event.weekStart());
+            log.info("Weekly insight for {} already exists. Skipping.", event.weekStart());
             return;
         }
 
@@ -174,25 +174,25 @@ public class FitnessAiService {
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
 
         String prompt = String.format("""
-                        Выступи в роли профессионального фитнес-диетолога и тренера.
-                        Проанализируй корреляцию между тренировками и питанием пользователя за неделю (%s - %s).
+                        Act as a professional fitness dietitian and trainer.
+                        Analyze the relationship between workouts and nutrition for the user during the week (%s - %s).
                         
-                        ДОЛГОСРОЧНАЯ ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ:
+                        LONG-TERM USER MEMORY:
                         %s
                         
-                        НЕДАВНИЕ ИНСАЙТЫ:
+                        RECENT INSIGHTS:
                         %s
                         
-                        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+                        USER CONTEXT:
                         %s
                         
-                        ПИТАНИЕ ЗА НЕДЕЛЮ (Всего калорий: %d, Средние: %.1f ккал, Б: %.1f, Ж: %.1f, У: %.1f):
+                        WEEKLY NUTRITION (total calories: %d, average: %.1f kcal, protein: %.1f, fat: %.1f, carbs: %.1f):
                         %s
                         
-                        ТРЕНИРОВКИ ЗА НЕДЕЛЮ (Всего тренировок: %d, Общий тоннаж: %.1f кг):
+                        WEEKLY WORKOUTS (total sessions: %d, total volume: %.1f kg):
                         %s
                         
-                        Задача: Найди причинно-следственные связи, учитывая контекст пользователя. Дай конкретные рекомендации.
+                        Task: find cause-and-effect patterns using the user context. Give concrete recommendations.
                         """,
                 event.weekStart(), event.weekEnd(),
                 memoriesText,
@@ -208,7 +208,7 @@ public class FitnessAiService {
         try {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
 
-            log.info("💡 Сгенерирован WEEKLY AI Insight summary: \n{}", aiResponse.summary());
+            log.info("Generated weekly AI insight summary:\n{}", aiResponse.summary());
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
@@ -226,18 +226,18 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при обращении к нейросети (Weekly)", e);
+            log.error("Error while calling AI provider for weekly insight.", e);
         }
     }
 
     @ApplicationModuleListener
     public void onMonthlyReportRequested(MonthlyReportRequestedEvent event) {
-        log.info("🤖 AI поймал MonthlyReport! Юзер: {}, Месяц: {} - {}",
+        log.info("AI module received MonthlyReportRequestedEvent for user {}, month {} - {}",
                 event.userId(), event.monthStart(), event.monthEnd());
 
         if (insightRepository.findByUserIdAndDateAndInsightType(
                 event.userId(), event.monthStart(), InsightType.MONTHLY).isPresent()) {
-            log.info("Ежемесячный инсайт за {} уже существует. Пропускаем.", event.monthStart());
+            log.info("Monthly insight for {} already exists. Skipping.", event.monthStart());
             return;
         }
 
@@ -255,32 +255,32 @@ public class FitnessAiService {
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
 
         String prompt = String.format("""
-                        Выступи в роли профессионального фитнес-диетолога и тренера.
-                        Проанализируй прогресс пользователя за полный месяц (%s — %s).
+                        Act as a professional fitness dietitian and trainer.
+                        Analyze the user progress for the full month (%s - %s).
                         
-                        ДОЛГОСРОЧНАЯ ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ:
+                        LONG-TERM USER MEMORY:
                         %s
                         
-                        НЕДАВНИЕ ИНСАЙТЫ:
+                        RECENT INSIGHTS:
                         %s
                         
-                        КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ:
+                        USER CONTEXT:
                         %s
                         
-                        ПИТАНИЕ ЗА МЕСЯЦ:
-                        - Всего калорий: %d ккал
-                        - Среднее в день: %.1f ккал | Белки: %.1f г | Жиры: %.1f г | Углеводы: %.1f г
-                        - Дней с данными: %d
-                        Разбивка по дням:
+                        MONTHLY NUTRITION:
+                        - Total calories: %d kcal
+                        - Daily average: %.1f kcal | Protein: %.1f g | Fat: %.1f g | Carbs: %.1f g
+                        - Days tracked: %d
+                        Daily breakdown:
                         %s
                         
-                        ТРЕНИРОВКИ ЗА МЕСЯЦ:
-                        - Всего тренировок: %d
-                        - Общий тоннаж: %.1f кг | Средний тоннаж за тренировку: %.1f кг
-                        Разбивка по дням:
+                        MONTHLY WORKOUTS:
+                        - Total sessions: %d
+                        - Total volume: %.1f kg | Average volume per session: %.1f kg
+                        Daily breakdown:
                         %s
                         
-                        Задача: Оцени динамику месяца. Найди паттерны. Дай рекомендации на следующий месяц.
+                        Task: evaluate monthly dynamics, find patterns, and give recommendations for the next month.
                         """,
                 event.monthStart(), event.monthEnd(),
                 memoriesText,
@@ -298,7 +298,7 @@ public class FitnessAiService {
         try {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
 
-            log.info("💡 Сгенерирован MONTHLY AI Insight summary:\n{}", aiResponse.summary());
+            log.info("Generated monthly AI insight summary:\n{}", aiResponse.summary());
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
@@ -316,23 +316,23 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при обращении к нейросети (Monthly)", e);
+            log.error("Error while calling AI provider for monthly insight.", e);
         }
     }
 
     private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {
-        if (breakdown == null || breakdown.isEmpty()) return "Нет данных по питанию.";
+        if (breakdown == null || breakdown.isEmpty()) return "No nutrition data.";
         return breakdown.entrySet().stream()
-                .map(e -> String.format("- %s: %d ккал (Белки: %.1fг, Жиры: %.1fг, Углеводы: %.1fг)",
+                .map(e -> String.format("- %s: %d kcal (protein: %.1fg, fat: %.1fg, carbs: %.1fg)",
                         e.getKey(), e.getValue().calories(),
                         e.getValue().protein(), e.getValue().fat(), e.getValue().carbs()))
                 .collect(Collectors.joining("\n"));
     }
 
     private String formatWorkoutVolume(Map<String, Double> volumeByDay) {
-        if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
+        if (volumeByDay == null || volumeByDay.isEmpty()) return "No workout data.";
         return volumeByDay.entrySet().stream()
-                .map(e -> String.format("- %s: %.1f кг", e.getKey(), e.getValue()))
+                .map(e -> String.format("- %s: %.1f kg", e.getKey(), e.getValue()))
                 .collect(Collectors.joining("\n"));
     }
 
@@ -350,11 +350,11 @@ public class FitnessAiService {
             MonthlyReportRequestedEvent.DailyMacrosSnapshot snapshot = breakdown.get(dateKey);
 
             if (snapshot != null) {
-                sb.append(String.format("  %s: %d ккал (Б:%.1f Ж:%.1f У:%.1f)\n",
+                sb.append(String.format("  %s: %d kcal (P:%.1f F:%.1f C:%.1f)\n",
                         dateKey, snapshot.calories(),
                         snapshot.protein(), snapshot.fat(), snapshot.carbs()));
             } else {
-                sb.append(String.format("  %s: 0 ккал (Нет записей)\n", dateKey));
+                sb.append(String.format("  %s: 0 kcal (no entries)\n", dateKey));
             }
         }
 
@@ -362,9 +362,9 @@ public class FitnessAiService {
     }
 
     private String formatWorkoutMonthlyVolume(Map<String, Double> volumeByDay) {
-        if (volumeByDay == null || volumeByDay.isEmpty()) return "Нет данных по тренировкам.";
+        if (volumeByDay == null || volumeByDay.isEmpty()) return "No workout data.";
         return volumeByDay.entrySet().stream()
-                .map(e -> String.format("  %s: %.1f кг", e.getKey(), e.getValue()))
+                .map(e -> String.format("  %s: %.1f kg", e.getKey(), e.getValue()))
                 .collect(Collectors.joining("\n"));
     }
 
@@ -373,92 +373,92 @@ public class FitnessAiService {
 
         List<UserNoteDto> notes = userNoteUseCase.getNotesByUserIdAndDateRange(userId, startDate, endDate);
         if (!notes.isEmpty()) {
-            contextBuilder.append("- Заметки за период:\n");
+            contextBuilder.append("- Notes for period:\n");
             for (UserNoteDto note : notes) {
                 contextBuilder.append(String.format("  * %s (%s): %s\n",
                         note.relatedDate(), note.type(), note.content()));
             }
         } else {
-            contextBuilder.append("- Заметки за период: Нет записей\n");
+            contextBuilder.append("- Notes for period: no entries\n");
         }
 
         profileUseCase.getProfileByUserId(userId).ifPresentOrElse(
                 profile -> {
-                    contextBuilder.append(String.format("- Возраст: %s, Пол: %s, Основная цель: %s",
-                            profile.age() != null ? profile.age() : "не указан",
-                            profile.gender() != null ? profile.gender() : "не указан",
-                            profile.primaryGoal() != null ? profile.primaryGoal() : "не указан"));
+                    contextBuilder.append(String.format("- Age: %s, gender: %s, primary goal: %s",
+                            profile.age() != null ? profile.age() : "not specified",
+                            profile.gender() != null ? profile.gender() : "not specified",
+                            profile.primaryGoal() != null ? profile.primaryGoal() : "not specified"));
 
                     if (profile.targetWeightKg() != null && profile.targetDate() != null) {
-                        contextBuilder.append(String.format(", Целевой вес: %s кг к %s",
+                        contextBuilder.append(String.format(", target weight: %s kg by %s",
                                 profile.targetWeightKg(), profile.targetDate()));
                     }
                     contextBuilder.append("\n");
                 },
-                () -> contextBuilder.append("- Профиль: данные не найдены\n")
+                () -> contextBuilder.append("- Profile: data not found\n")
         );
 
         List<WeightHistoryDto> weightHistory = weightHistoryUseCase.getWeightHistoryByUserId(userId);
         if (!weightHistory.isEmpty()) {
-            contextBuilder.append("- Последние записи веса (последние 8):\n");
+            contextBuilder.append("- Recent weight entries (latest 8):\n");
             int count = Math.min(weightHistory.size(), 8);
             for (int i = 0; i < count; i++) {
                 WeightHistoryDto entry = weightHistory.get(i);
-                contextBuilder.append(String.format("  * %s: %s кг (%s)\n",
+                contextBuilder.append(String.format("  * %s: %s kg (%s)\n",
                         entry.date(), entry.weightKg(), entry.source()));
             }
         } else {
-            contextBuilder.append("- История веса: данные отсутствуют\n");
+            contextBuilder.append("- Weight history: no data\n");
         }
 
         return contextBuilder.toString();
     }
-    // Вместо одного getMemoriesText() — три секции в промпте
+    // Prompt context is split into three memory sections.
 
     private String buildMemoryContext(Long userId, String semanticQuery) {
         StringBuilder sb = new StringBuilder();
 
-        // 1. Постоянные факты о пользователе
+        // 1. Permanent user facts
         var facts = memoryQueryUseCase.findLongTermFacts(userId, 5);
         if (!facts.isEmpty()) {
-            sb.append("ПОСТОЯННЫЕ ФАКТЫ О ПОЛЬЗОВАТЕЛЕ:\n");
+            sb.append("PERMANENT USER FACTS:\n");
             facts.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
         }
 
-        // 2. Релевантные паттерны из прошлого
+        // 2. Relevant patterns from history
         var patterns = memoryQueryUseCase.findRelevantMemories(userId, semanticQuery, 3);
         if (!patterns.isEmpty()) {
-            sb.append("\nПАТТЕРНЫ И ИСТОРИЯ:\n");
+            sb.append("\nPATTERNS AND HISTORY:\n");
             patterns.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
         }
 
-        // 3. Краткосрочный контекст (последние 7 дней)
+        // 3. Short-term context from the last 7 days
         var recentContext = memoryQueryUseCase.findRecentContext(userId, 7, 3);
         if (!recentContext.isEmpty()) {
-            sb.append("\nТЕКУЩИЙ КОНТЕКСТ (последние 7 дней):\n");
+            sb.append("\nCURRENT CONTEXT (last 7 days):\n");
             recentContext.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
         }
 
-        return sb.length() > 0 ? sb.toString() : "Нет данных о пользователе.";
+        return sb.length() > 0 ? sb.toString() : "No user data.";
     }
     private String getRecentInsightsSummary(Long userId, InsightType currentType) {
         List<AiInsightEntity> result = new ArrayList<>();
 
         switch (currentType) {
             case DAILY -> {
-                // Для daily: 3 последних daily
+                // For daily: last 3 daily insights
                 result.addAll(insightRepository
                         .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
             }
             case WEEKLY -> {
-                // Для weekly: 2 прошлых weekly + 3 последних daily
+                // For weekly: 2 previous weekly insights + 3 recent daily insights
                 result.addAll(insightRepository
                         .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.WEEKLY, 2));
                 result.addAll(insightRepository
                         .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
             }
             case MONTHLY -> {
-                // Для monthly: 1 прошлый monthly + 2 последних weekly
+                // For monthly: 1 previous monthly insight + 2 recent weekly insights
                 result.addAll(insightRepository
                         .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.MONTHLY, 1));
                 result.addAll(insightRepository
@@ -466,7 +466,7 @@ public class FitnessAiService {
             }
         }
 
-        if (result.isEmpty()) return "Нет предыдущих инсайтов.";
+        if (result.isEmpty()) return "No previous insights.";
 
         return result.stream()
                 .sorted(Comparator.comparing(AiInsightEntity::getDate).reversed())
