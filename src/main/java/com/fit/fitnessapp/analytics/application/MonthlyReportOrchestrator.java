@@ -24,8 +24,7 @@ public class MonthlyReportOrchestrator {
         log.info("Запуск генерации ежемесячных отчетов...");
 
         // Берём прошлый месяц целиком
-        //YearMonth lastMonth = YearMonth.now().minusMonths(1);
-        YearMonth lastMonth = YearMonth.now();
+        YearMonth lastMonth = YearMonth.now().minusMonths(1);
         LocalDate monthStart = lastMonth.atDay(1);
         LocalDate monthEnd   = lastMonth.atEndOfMonth();
 

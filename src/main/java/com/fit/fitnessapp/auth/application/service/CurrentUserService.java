@@ -1,8 +1,8 @@
 package com.fit.fitnessapp.auth.application.service;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
-import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
-import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.application.port.out.UserAuthenticationPort;
+import com.fit.fitnessapp.auth.domain.CurrentUserView;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,35 +12,33 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CurrentUserService implements CurrentUserApi {
 
-    private final UserRepository userRepository;
+    private final UserAuthenticationPort userAuthenticationPort;
 
-    private User getCurrentUser() {
+    private CurrentUserView getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication != null && authentication.isAuthenticated()) {
-            Object principal = authentication.getPrincipal();
-
-            if (principal instanceof User) {
-                return (User) principal;
+            String username = authentication.getName();
+            if (username != null && !username.isBlank() && !"anonymousUser".equals(username)) {
+                return userAuthenticationPort.findCurrentUserByUsername(username);
             }
         }
-        throw new RuntimeException("Пользователь не найден в контексте (возможно, не залогинен)");
+
+        throw new IllegalStateException("User is not authenticated");
     }
 
-
-    // Сокращенный метод, если нужен только ID
+    @Override
     public Long getCurrentUserId() {
-        return getCurrentUser().getId();
+        return getCurrentUser().id();
     }
 
     @Override
     public String getCurrentUserEmail() {
-        return getCurrentUser().getEmail();
+        return getCurrentUser().email();
     }
 
     @Override
-    public void findUserById (Long userId) {
-        userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+    public void findUserById(Long userId) {
+        userAuthenticationPort.requireUserExists(userId);
     }
 }

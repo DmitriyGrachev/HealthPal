@@ -1,6 +1,5 @@
 package com.fit.fitnessapp.auth.adapter.out.persistence.entity.user;
 
-import com.fit.fitnessapp.nutrition.adapter.out.persistence.entity.Profile;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -41,7 +40,6 @@ public class User implements UserDetails {
         return roles.stream()
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .collect(Collectors.toList());
-        //return List.of(new SimpleGrantedAuthority(roles.));
     }
 
     @Override
