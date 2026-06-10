@@ -66,14 +66,15 @@ class RateLimitInterceptorTest {
     }
 
     @Test
-    @DisplayName("When user is not authenticated (exception), request should be allowed (fail-open)")
-    void whenUserNotAuthenticated_returnsTrue() throws Exception {
+    @DisplayName("When current user cannot be resolved, request should be rejected fail-closed")
+    void whenCurrentUserCannotBeResolved_sendsUnauthorizedAndReturnsFalse() throws Exception {
         when(currentUserApi.getCurrentUserId())
                 .thenThrow(new RuntimeException("Not authenticated"));
 
         boolean result = interceptor.preHandle(request, response, new Object());
 
-        assertThat(result).isTrue();
+        assertThat(result).isFalse();
+        verify(response).sendError(eq(HttpStatus.UNAUTHORIZED.value()), anyString());
         verifyNoInteractions(rateLimiterService);
     }
 }
