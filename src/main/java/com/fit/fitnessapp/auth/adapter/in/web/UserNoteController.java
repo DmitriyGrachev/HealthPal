@@ -5,6 +5,7 @@ import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +23,7 @@ public class UserNoteController {
     
     @Operation(summary = "Create a user note")
     @PostMapping
-    public ResponseEntity<UserNoteDto> createNote(@RequestBody UserNoteDto note) {
+    public ResponseEntity<UserNoteDto> createNote(@Valid @RequestBody UserNoteDto note) {
         Long userId = currentUserApi.getCurrentUserId();
         UserNoteDto scopedNote = new UserNoteDto(
                 note.id(),
