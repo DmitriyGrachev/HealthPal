@@ -44,8 +44,8 @@ public class UserNotePersistenceAdapter implements UserNotePersistencePort {
     }
 
     @Override
-    public void deleteById(Long noteId) {
-        jpaRepository.deleteById(noteId);
+    public void deleteByUserIdAndId(Long userId, Long noteId) {
+        jpaRepository.deleteByUserIdAndId(userId, noteId);
     }
 
     private UserNoteDto toDto(UserNote entity) {

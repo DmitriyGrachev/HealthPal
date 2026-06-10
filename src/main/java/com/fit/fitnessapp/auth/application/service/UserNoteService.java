@@ -48,7 +48,7 @@ public class UserNoteService implements UserNoteUseCase {
 
     @Override
     @Transactional
-    public void deleteNote(Long noteId) {
-        userNotePersistencePort.deleteById(noteId);
+    public void deleteNote(Long userId, Long noteId) {
+        userNotePersistencePort.deleteByUserIdAndId(userId, noteId);
     }
 }

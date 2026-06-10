@@ -13,5 +13,5 @@ public interface UserNotePersistencePort {
 
     List<UserNoteDto> findByUserIdAndDateRange(Long userId, LocalDate from, LocalDate to);
 
-    void deleteById(Long noteId);
+    void deleteByUserIdAndId(Long userId, Long noteId);
 }

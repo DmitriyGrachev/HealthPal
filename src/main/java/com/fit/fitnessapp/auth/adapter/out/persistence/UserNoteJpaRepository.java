@@ -8,4 +8,5 @@ import java.util.List;
 public interface UserNoteJpaRepository extends JpaRepository<UserNote, Long> {
     List<UserNote> findByUserIdOrderByRelatedDateDesc(Long userId);
     List<UserNote> findByUserIdAndRelatedDateBetweenOrderByRelatedDateDesc(Long userId, LocalDate from, LocalDate to);
+    void deleteByUserIdAndId(Long userId, Long id);
 }

@@ -8,5 +8,5 @@ public interface UserNoteUseCase {
     UserNoteDto createNote(UserNoteDto note);
     List<UserNoteDto> getNotesByUserId(Long userId);
     List<UserNoteDto> getNotesByUserIdAndDateRange(Long userId, LocalDate from, LocalDate to);
-    void deleteNote(Long noteId);
+    void deleteNote(Long userId, Long noteId);
 }
