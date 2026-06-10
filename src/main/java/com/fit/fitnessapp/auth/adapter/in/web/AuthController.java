@@ -5,6 +5,7 @@ import com.fit.fitnessapp.auth.application.service.LoginService;
 import com.fit.fitnessapp.auth.domain.LoginRequest;
 import com.fit.fitnessapp.auth.domain.RegisterRequest;
 import com.fit.fitnessapp.exception.UserAlreadyExistsException;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +24,7 @@ public class AuthController {
     private final LoginService loginService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try{
             return ResponseEntity.status(HttpStatus.OK).body(loginService.userLogin(loginRequest));
         }catch (BadCredentialsException e){
@@ -32,7 +33,7 @@ public class AuthController {
     }
     //Чуть позже добавлю валидацию
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest registerRequest){
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest){
         try{
 
             registerUserPort.registerUser(registerRequest);

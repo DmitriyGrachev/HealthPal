@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -91,5 +92,29 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("User already exists"));
+    }
+
+    @Test
+    void registerRejectsBlankFieldsBeforeCallingUseCase() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":" ","email":"not-an-email","password":""}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
+    }
+
+    @Test
+    void loginRejectsBlankCredentialsBeforeCallingService() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":" ","password":""}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(loginService, never()).userLogin(any(LoginRequest.class));
     }
 }
