@@ -15,8 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-//TODO подробно разобраться как работает Спринг Секюрити
-
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -45,7 +43,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-            return new BCryptPasswordEncoder(); // Пароли храним ТОЛЬКО в хешах
+            return new BCryptPasswordEncoder();
     }
 
     @Bean

@@ -105,7 +105,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             service.signRequest(scribeToken, request);
             Response response = service.execute(request);
 
-            System.out.println(response.getBody().toString());
+            log.debug("FatSecret food entries response [{}]: {}", response.getCode(), response.getBody());
             if (!response.isSuccessful()) {
                 throw new RuntimeException("FatSecret API error: " + response.getBody());
             }
@@ -131,7 +131,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             service.signRequest(scribeToken, request);
             Response response = service.execute(request);
 
-            System.out.println(response.getBody().toString());
+            log.debug("FatSecret monthly food entries response [{}]: {}", response.getCode(), response.getBody());
 
             if (!response.isSuccessful()) {
                 throw new RuntimeException("FatSecret API error: " + response.getBody());
@@ -387,7 +387,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                             node.path("carbohydrate").asDouble()
                     );
                     entries.add(entry);
-                    System.out.println(entry.toString());
+                    log.debug("Parsed FatSecret food entry: {}", entry);
                 }
             } else if (foodEntriesNode.isObject()) { // FatSecret возвращает объект, если запись всего одна
                 FoodEntry entry = new FoodEntry(
@@ -401,7 +401,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                         foodEntriesNode.path("carbohydrate").asDouble()
                 );
                 entries.add(entry);
-                System.out.println(entry.toString());
+                log.debug("Parsed FatSecret food entry: {}", entry);
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse FatSecret JSON", e);

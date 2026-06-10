@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
-import com.fit.fitnessapp.telegram.api.TelegramTodayRequestedEvent;
+import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;

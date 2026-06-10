@@ -32,7 +32,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
                     COUNT(ws.id)                                    AS total_sets,
                     SUM(ws.weight * ws.reps)                        AS total_volume,
                     STRING_AGG(DISTINCT we.exercise_name, ', ')     AS exercise_names_preview
-                FROM workouts w
+                FROM workout w
                 LEFT JOIN workout_exercises we ON w.id = we.workout_id
                 LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
                 WHERE w.user_id = :userId
@@ -70,7 +70,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
 
     private List<WorkoutSummaryWeeklyDto> getWorkoutSummary(Long userId, LocalDateTime startDate) {
         String sql = """
-                select we.exercise_name,sum(ws.weight) as weekly_weight_sum,sum(ws.reps) as weekly_reps_sum, DATE_TRUNC('week', w.date) as week from workouts as w
+                select we.exercise_name,sum(ws.weight) as weekly_weight_sum,sum(ws.reps) as weekly_reps_sum, DATE_TRUNC('week', w.date) as week from workout as w
                 left join public.workout_exercises we on w.id = we.workout_id
                 left join public.workout_sets ws on we.id = ws.exercise_id
                 where w.date >= :startDate and w.user_Id = :userId
@@ -95,7 +95,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
                     w.date::date as workout_date,
                     TRIM(TO_CHAR(w.date, 'DAY')) as day_name,
                     COALESCE(SUM(ws.weight * ws.reps), 0) as daily_volume
-                FROM workouts w
+                FROM workout w
                 LEFT JOIN workout_exercises we ON w.id = we.workout_id
                 LEFT JOIN workout_sets ws ON we.id = ws.exercise_id
                 WHERE w.user_id = :userId 
@@ -113,7 +113,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
             SELECT 
                 TRIM(TO_CHAR(w.date, 'DAY')) as day_name,
                 COALESCE(SUM(ws.weight * ws.reps), 0) as daily_volume
-            FROM workouts w
+            FROM workout w
             LEFT JOIN workout_exercises we ON w.id = we.workout_id
             LEFT JOIN workout_sets ws ON we.id = ws.exercise_id
             WHERE w.user_id = :userId 
@@ -159,7 +159,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
             SELECT 
                 CAST(w.date AS DATE)                         AS workout_date,
                 COALESCE(SUM(ws.weight * ws.reps), 0)        AS daily_volume
-            FROM workouts w
+            FROM workout w
             LEFT JOIN workout_exercises we ON w.id = we.workout_id
             LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
             WHERE w.user_id = :userId
@@ -178,7 +178,7 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
         SELECT 
             CAST(CAST(w.date AS DATE) AS TEXT)           AS day_key,
             COALESCE(SUM(ws.weight * ws.reps), 0)        AS daily_volume
-        FROM workouts w
+        FROM workout w
         LEFT JOIN workout_exercises we ON w.id = we.workout_id
         LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
         WHERE w.user_id = :userId

@@ -24,20 +24,14 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
     @Transactional
     public List<WorkoutSession> importWorkouts(InputStream fileStream, String format, Long userId) {
 
-        // 1. Ищем подходящий парсер (Паттерн Стратегия)
         WorkoutParserPort parser = parsers.stream()
-                .filter(p -> p.supports(format)) // Спрашиваем: "Ты умеешь парсить этот формат?"
+                .filter(p -> p.supports(format))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported workout format: " + format));
 
-        // 2. Парсим файл в чистые доменные объекты
         List<WorkoutSession> sessions = parser.parse(fileStream);
 
-        // 3. Отдаем абстрактному "грузчику" на сохранение
         persistencePort.saveAll(sessions, userId);
-
-        // TODO: В будущем здесь мы добавим отправку ApplicationEvent (WorkoutSavedEvent)
-        // чтобы модуль AI узнал о новой тренировке и начал генерировать инсайт.
 
         return sessions;
     }

@@ -2,7 +2,7 @@ package com.fit.fitnessapp.nutrition.adapter.in;
 
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
-import com.fit.fitnessapp.telegram.api.TelegramWeightRequestedEvent;
+import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.modulith.events.ApplicationModuleListener;

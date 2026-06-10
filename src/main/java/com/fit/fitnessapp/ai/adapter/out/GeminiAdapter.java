@@ -32,7 +32,7 @@ public class GeminiAdapter implements AiModelPort {
                     .call()
                     .entity(NutritionInsightResponse.class);
         } catch (Exception e) {
-            log.warn("Gemini output parsing failed, attempting raw extraction fallback", e);
+            log.warn("Gemini output parsing failed, attempting raw extraction fallback: {}", e.getMessage());
             try {
                 String rawContent = chatClient.prompt().user(prompt).call().content();
                 return createDegradedResponse(rawContent);
@@ -49,7 +49,7 @@ public class GeminiAdapter implements AiModelPort {
 
     private NutritionInsightResponse createDegradedResponse(String rawContent) {
         return new NutritionInsightResponse(
-                null, null, rawContent, "⚠️ Structured parsing failed.",
+                null, null, rawContent, "Structured parsing failed.",
                 null, null,
                 List.of(), List.of(), List.of(),
                 0.0f, 0.2f

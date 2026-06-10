@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
-import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.api.UserPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import lombok.RequiredArgsConstructor;
@@ -18,14 +18,14 @@ import java.util.List;
 @Slf4j
 public class FatSecretProfileSyncService {
 
-    private final UserRepository userRepository;
+    private final UserPort userPort;
     private final FatSecretProfileService fatSecretProfileService;
 
     @Scheduled(cron = "0 0 3 * * ?")
     public void syncAllProfiles() {
         log.info("Starting daily FatSecret profile sync for all users");
         
-        List<Long> userIdsWithFatSecret = userRepository.findUserIdsWithFatSecretTokens();
+        List<Long> userIdsWithFatSecret = userPort.getUserIdsWithFatSecretTokens();
         log.info("Found {} users with FatSecret tokens", userIdsWithFatSecret.size());
         
         int successCount = 0;
@@ -46,13 +46,13 @@ public class FatSecretProfileSyncService {
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncUserProfile(Long userId) {
-        String accessToken = userRepository.getFatSecretAccessTokenByUserId(userId);
+        String accessToken = userPort.getFatSecretAccessTokenByUserId(userId);
         if (accessToken == null || accessToken.isEmpty()) {
             log.debug("User {} has no FatSecret access token", userId);
             return;
         }
         
-        String accessTokenSecret = userRepository.getFatSecretAccessTokenSecretByUserId(userId);
+        String accessTokenSecret = userPort.getFatSecretAccessTokenSecretByUserId(userId);
         FatSecretToken token = new FatSecretToken(accessToken, accessTokenSecret != null ? accessTokenSecret : "");
         FatSecretAuthResult authResult = new FatSecretAuthResult(userId, token);
         

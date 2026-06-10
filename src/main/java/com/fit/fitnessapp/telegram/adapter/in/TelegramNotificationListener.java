@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.telegram.adapter.in;
 
-import com.fit.fitnessapp.ai.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
@@ -24,16 +24,15 @@ public class TelegramNotificationListener {
         log.info("Telegram module received InsightGeneratedEvent for user {}", event.userId());
 
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findByUserId(event.userId());
-        
+
         userOpt.ifPresent(telegramUser -> {
-            String message = String.format("*Your %s Insight (%s):*\n\n%s", 
-                    event.insightType(), 
-                    event.date(), 
+            String message = String.format("*Your %s Insight (%s):*\n\n%s",
+                    event.insightType(),
+                    event.date(),
                     event.content());
-            
-            // If we have a structured response with a telegramSummary, use it
-            if (event.structuredResponse() != null && event.structuredResponse().telegramSummary() != null) {
-                message = "*Personalized Insight:* 💡\n\n" + event.structuredResponse().telegramSummary();
+
+            if (event.telegramSummary() != null && !event.telegramSummary().isBlank()) {
+                message = "*Personalized Insight:*\n\n" + event.telegramSummary();
             }
 
             botService.sendMessage(telegramUser.getChatId(), message);

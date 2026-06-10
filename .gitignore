@@ -1,12 +1,12 @@
-# Скомпилированные классы и сборки
-target/
-build/
-out/
+# Compiled classes and builds
+/target/
+/build/
+/out/
 *.class
 *.jar
 *.war
 
-# Настройки IDE (IntelliJ IDEA, Eclipse, VS Code)
+# IDE settings (IntelliJ IDEA, Eclipse, VS Code)
 .idea/
 *.iml
 *.iws
@@ -15,17 +15,20 @@ out/
 .project
 .vscode/
 
-# Секретные конфигурации Spring (добавьте свои суффиксы, если нужно)
+# Secret Spring configuration files
 application-prod.properties
 application-secret.properties
 application-secret.yml
 application-dev.properties
 *.jks
 
-# Логи
+# Logs
 *.log
 logs/
 
-# Временные файлы ОС
+# OS temporary files
 .DS_Store
 Thumbs.db
+
+# Local environment variables
+.env

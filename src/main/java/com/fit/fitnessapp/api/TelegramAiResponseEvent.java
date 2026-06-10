@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.telegram.api;
+package com.fit.fitnessapp.api;
 
 public record TelegramAiResponseEvent(
     Long userId,

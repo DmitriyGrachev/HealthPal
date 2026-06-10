@@ -82,7 +82,8 @@ public class NoteCommandHandler implements CommandHandler {
     }
 
     private void handleNoteType(Long chatId, String type) {
-        stateUseCase.updateState(chatId, ConversationState.WAITING_NOTE_CONTENT, java.util.Map.of("noteType", type));
+        String normalizedType = type.trim().toUpperCase();
+        stateUseCase.updateState(chatId, ConversationState.WAITING_NOTE_CONTENT, java.util.Map.of("noteType", normalizedType));
         botService.sendMessage(chatId, "Got it. Now, what would you like to record?");
     }
 
@@ -90,7 +91,7 @@ public class NoteCommandHandler implements CommandHandler {
         var data = stateUseCase.getData(chatId);
         String type = (String) data.get("noteType");
         
-        eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramNoteRequestedEvent(
+        eventPublisher.publishEvent(new com.fit.fitnessapp.api.TelegramNoteRequestedEvent(
                 userId,
                 chatId,
                 content,

@@ -2,7 +2,7 @@ package com.fit.fitnessapp.auth.adapter.in;
 
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
-import com.fit.fitnessapp.telegram.api.TelegramNoteRequestedEvent;
+import com.fit.fitnessapp.api.TelegramNoteRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.modulith.events.ApplicationModuleListener;

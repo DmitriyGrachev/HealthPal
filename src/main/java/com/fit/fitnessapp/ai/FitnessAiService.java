@@ -1,7 +1,10 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.ai.api.InsightGeneratedEvent;
-import com.fit.fitnessapp.ai.api.InsightType;
+import com.fit.fitnessapp.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.TelegramAiResponseEvent;
+import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
+import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
@@ -13,7 +16,6 @@ import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
-import com.fit.fitnessapp.telegram.api.TelegramTodayRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,7 +49,7 @@ public class FitnessAiService {
     }
 
     @EventListener
-    public void onTelegramAskRequested(com.fit.fitnessapp.telegram.api.TelegramAskRequestedEvent event) {
+    public void onTelegramAskRequested(TelegramAskRequestedEvent event) {
         log.info("AI MODULE: Received TelegramAskRequestedEvent from user {}: {}", event.userId(), event.question());
         
         String memoryContext = buildMemoryContext(event.userId(), event.question());
@@ -64,14 +66,14 @@ public class FitnessAiService {
             // Using QUICK_ANALYSIS for faster response
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.QUICK_ANALYSIS);
             
-            eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent(
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
                     event.userId(),
                     event.chatId(),
                     aiResponse.summary()
             ));
         } catch (Exception e) {
             log.error("Error processing /ask for user {}", event.userId(), e);
-            eventPublisher.publishEvent(new com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent(
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
                     event.userId(),
                     event.chatId(),
                     "Sorry, an error occurred while processing your question. Please try again later."
@@ -147,7 +149,7 @@ public class FitnessAiService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse
+                    userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse.telegramSummary()
             ));
 
         } catch (Exception e) {
@@ -222,7 +224,7 @@ public class FitnessAiService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    event.userId(), event.weekStart(), InsightType.WEEKLY, aiResponse.summary(), aiResponse
+                    event.userId(), event.weekStart(), InsightType.WEEKLY, aiResponse.summary(), aiResponse.telegramSummary()
             ));
 
         } catch (Exception e) {
@@ -312,7 +314,7 @@ public class FitnessAiService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    event.userId(), event.monthStart(), InsightType.MONTHLY, aiResponse.summary(), aiResponse
+                    event.userId(), event.monthStart(), InsightType.MONTHLY, aiResponse.summary(), aiResponse.telegramSummary()
             ));
 
         } catch (Exception e) {

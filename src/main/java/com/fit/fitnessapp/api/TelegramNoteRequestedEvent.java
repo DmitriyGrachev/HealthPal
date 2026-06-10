@@ -1,6 +1,4 @@
-package com.fit.fitnessapp.telegram.api;
-
-import java.time.LocalDate;
+package com.fit.fitnessapp.api;
 
 public record TelegramNoteRequestedEvent(
     Long userId,

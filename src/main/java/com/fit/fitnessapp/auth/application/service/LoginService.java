@@ -23,16 +23,13 @@ public class LoginService implements LoginUseCase {
 
     @Override
     public String userLogin(LoginRequest loginRequest) {
-            // Spring сам проверит логин и пароль
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.username(), loginRequest.password())
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            // Если всё ок - генерим токен
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
-            //TODO after add some validation logic and throw new BadCredentialsException
         return jwtCore.generateToken(userDetails);
     }
 }

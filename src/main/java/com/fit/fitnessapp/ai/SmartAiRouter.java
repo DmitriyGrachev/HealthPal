@@ -1,15 +1,15 @@
 package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.ai.application.port.out.AiModelPort;
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.exception.AiAuthException;
+import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
+import com.fit.fitnessapp.ai.exception.AiUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
-import com.fit.fitnessapp.ai.exception.AiAuthException;
-import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
-import com.fit.fitnessapp.ai.exception.AiUnavailableException;
 
 @Slf4j
 @Component
@@ -32,23 +32,23 @@ public class SmartAiRouter {
         List<String> models = aiProperties.openrouter().fallbackModels();
 
         for (String modelName : models) {
-            log.info("🔄 Пробуем модель: {}", modelName);
+            log.info("Trying OpenRouter model: {}", modelName);
             try {
                 return openRouterPort.generate(promptText, modelName);
             } catch (AiAuthException | AiInvalidRequestException e) {
-                log.error("❌ Фатальная ошибка OpenRouter: {}. Прерываем перебор.", e.getMessage());
+                log.warn("Fatal OpenRouter error: {}. Stopping OpenRouter retry loop.", e.getMessage());
                 break;
             } catch (AiUnavailableException e) {
-                log.warn("⚠️ Модель {} недоступна ({}). Пробуем следующую...", modelName, e.getMessage());
+                log.warn("OpenRouter model {} is unavailable: {}. Trying next model.", modelName, e.getMessage());
             }
         }
 
-        log.warn("🆘 OpenRouter полностью недоступен. Переключаемся на Gemini...");
+        log.warn("OpenRouter is unavailable. Switching to Gemini fallback.");
         try {
             return geminiPort.generate(promptText);
         } catch (AiUnavailableException e) {
-            log.error("❌ Резервный Gemini тоже упал!", e);
-            throw new RuntimeException("Все AI-провайдеры лежат.", e);
+            log.warn("Gemini fallback is unavailable: {}", e.getMessage());
+            throw new RuntimeException("All AI providers are unavailable.", e);
         }
     }
 }

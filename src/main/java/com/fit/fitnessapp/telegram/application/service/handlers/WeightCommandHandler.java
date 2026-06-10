@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
-import com.fit.fitnessapp.telegram.api.TelegramWeightRequestedEvent;
+import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.domain.ConversationState;

@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.telegram.adapter.in;
 
-import com.fit.fitnessapp.telegram.api.TelegramAiResponseEvent;
+import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

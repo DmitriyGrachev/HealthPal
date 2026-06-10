@@ -44,14 +44,12 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                 line = line.trim();
                 if (line.isEmpty()) continue;
 
-                // 1. Твоя родная логика определения секции
                 if (line.startsWith("###")) {
                     currentSection = line.replace("#", "").trim();
                     headers = null;
                     continue;
                 }
 
-                // 2. Твоя логика заголовков
                 if (headers == null) {
                     if (line.contains(";")) delimiter = ";";
                     else delimiter = ",";
@@ -61,7 +59,6 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                     continue;
                 }
 
-                // 3. Твоя логика разделения строки
                 String[] data = line.split(delimiter + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
                 for (int i = 0; i < data.length; i++) data[i] = data[i].trim().replace("\"", "");
 
@@ -69,14 +66,6 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                     log.debug("DATE PARSED : {} ", Arrays.stream(data).toList());
                 }
 
-                //TODO
-                /*
-                Данные лежат у тебя в памяти, в мапе tempWorkouts. Теперь тебе нужно их сохранить в базу данных через твой Spring Data JPA (в таблицу workouts).
-
-Представь, что в tempWorkouts накопилось 5000 записей.
-
-Как ты будешь сохранять их в БД? Напиши словами или куском кода. Спойлер: если ты просто пройдешься циклом for и вызовешь repository.save(workout) 5000 раз, твой пет-проект заставит базу данных попотеть. Почему, и как сделать лучше?
-                 */
                 try {
                     if (currentSection.contains("WORKOUT SESSIONS")) {
                         parseSession(headers, data, tempWorkouts);

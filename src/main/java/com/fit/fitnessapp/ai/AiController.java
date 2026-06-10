@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.ai;
 
-import com.fit.fitnessapp.ai.api.InsightType;
+import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

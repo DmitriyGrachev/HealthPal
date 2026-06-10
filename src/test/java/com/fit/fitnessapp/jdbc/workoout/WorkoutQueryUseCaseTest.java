@@ -1,90 +1,53 @@
 package com.fit.fitnessapp.jdbc.workoout;
 
-import com.fit.fitnessapp.auth.adapter.out.persistence.entity.user.User;
-import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
-import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
-import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
-import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
-import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
+import com.fit.fitnessapp.workout.adapter.out.WorkoutJdbcQueryAdapter;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
-import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest
-@Transactional
-public class WorkoutQueryUseCaseTest {
+class WorkoutQueryUseCaseTest {
 
-    @Autowired
-    private WorkoutQueryUseCase workoutQueryUseCase;
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private WorkoutJpaRepository workoutJpaRepository;
-
-    private User testUser;
-    private WorkoutJpaEntity testWorkout;
-
-    @BeforeEach
-    void setUp(){
-        testUser = new User();
-        testUser.setUsername("testuser");
-        testUser.setEmail("test@example.com");
-        testUser.setPassword("password123");
-        testUser = userRepository.save(testUser);
-
-        testWorkout = new WorkoutJpaEntity();
-        testWorkout.setJefitId(1770220318L);
-        testWorkout.setDate(LocalDateTime.of(2026, 3, 21, 10, 30, 0));
-        testWorkout.setUserId(testUser.getId());
-
-        WorkoutExerciseJpaEntity exercise = new WorkoutExerciseJpaEntity();
-        exercise.setJefitLogId(100L);
-        exercise.setExerciseName("Bench Press");
-        exercise.setWorkoutJpaEntity(testWorkout);
-
-        WorkoutSetJpaEntity set1 = new WorkoutSetJpaEntity();
-        set1.setSetIndex(1);
-        set1.setReps(3);
-        set1.setWeight(60.0);
-        set1.setExercise(exercise);
-
-        WorkoutSetJpaEntity set2 = new WorkoutSetJpaEntity();
-        set2.setSetIndex(2);
-        set2.setReps(3);
-        set2.setWeight(70.0);
-        set2.setExercise(exercise);
-
-        exercise.getSets().add(set1);
-        exercise.getSets().add(set2);
-        testWorkout.getExercises().add(exercise);
-
-        workoutJpaRepository.saveAndFlush(testWorkout);
-
-    }
     @Test
-    void testWeeklySummary(){
+    void weeklySummaryMapsJdbcRowsToWorkoutSummaryDtos() throws Exception {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        WorkoutJdbcQueryAdapter adapter = new WorkoutJdbcQueryAdapter(jdbc);
 
-        List<WorkoutSummaryWeeklyDto> listRs =
-                workoutQueryUseCase.getAllWorkoutSummaryThisWeek(testUser.getId());
+        ResultSet rs = mock(ResultSet.class);
+        LocalDateTime weekStart = LocalDateTime.of(2026, 3, 16, 0, 0);
+        when(rs.getString("exercise_name")).thenReturn("Bench Press");
+        when(rs.getLong("weekly_reps_sum")).thenReturn(6L);
+        when(rs.getDouble("weekly_weight_sum")).thenReturn(130.0);
+        when(rs.getTimestamp("week")).thenReturn(Timestamp.valueOf(weekStart));
 
+        when(jdbc.query(anyString(), anyMap(), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    RowMapper<WorkoutSummaryWeeklyDto> mapper = invocation.getArgument(2);
+                    return List.of(mapper.mapRow(rs, 0));
+                });
 
-        assertThat(listRs).isNotEmpty();
+        List<WorkoutSummaryWeeklyDto> result = adapter.getAllWorkoutSummaryThisWeek(1L);
 
-        WorkoutSummaryWeeklyDto dto = listRs.get(0);
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().getExerciseName()).isEqualTo("Bench Press");
+        assertThat(result.getFirst().getTotalReps()).isEqualTo(6L);
+        assertThat(result.getFirst().getTotalWeight()).isEqualTo(130.0);
+        assertThat(result.getFirst().getDate()).isEqualTo(weekStart);
 
-        assertThat(dto.getExerciseName()).isEqualTo("Bench Press");
-        assertThat(dto.getTotalReps()).isEqualTo(6);
-        assertThat(dto.getTotalWeight()).isEqualTo(130.0);
-
-
+        verify(jdbc).query(anyString(), any(Map.class), any(RowMapper.class));
     }
 }

@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.memory.application.service;
 
-import com.fit.fitnessapp.ai.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
 import com.fit.fitnessapp.memory.domain.MemoryType;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +61,7 @@ public class MemoryEventListener {
         // Постоянные (аллергия, цель) — никогда не истекают
         boolean isPermanent = switch (event.type()) {
             case ALLERGY, GOAL, PREFERENCE -> true;
-            case ILLNESS, TRAVEL,INJURY,STRESS, OTHER -> false;
+            case ILLNESS, TRAVEL, INJURY, STRESS, TRAINING, NUTRITION, GENERAL, MOOD, OTHER -> false;
         };
 
         Map<String, Object> metadata = new HashMap<>();

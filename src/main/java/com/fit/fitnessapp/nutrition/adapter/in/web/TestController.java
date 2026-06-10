@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.adapter.in.web;
 
-import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
+import com.fit.fitnessapp.auth.api.UserPort;
 import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileService;
 import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileSyncService;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
@@ -20,7 +20,7 @@ public class TestController {
 
     private final FatSecretProfileSyncService fatSecretProfileSyncService;
     private final FatSecretProfileService fatSecretProfileService;
-    private final UserRepository userRepository;
+    private final UserPort userPort;
 
     @PostMapping("/test/sync-weight")
     public void testSync(@RequestParam Long userId) {
@@ -29,8 +29,8 @@ public class TestController {
 
     @GetMapping("/test/user-summary")
     public FatSecretUserSummaryDto getUserSummary(@RequestParam Long userId) {
-        String accessToken = userRepository.getFatSecretAccessTokenByUserId(userId);
-        String accessTokenSecret = userRepository.getFatSecretAccessTokenSecretByUserId(userId);
+        String accessToken = userPort.getFatSecretAccessTokenByUserId(userId);
+        String accessTokenSecret = userPort.getFatSecretAccessTokenSecretByUserId(userId);
         
         FatSecretToken token = new FatSecretToken(accessToken, accessTokenSecret != null ? accessTokenSecret : "");
         FatSecretAuthResult authResult = new FatSecretAuthResult(userId, token);

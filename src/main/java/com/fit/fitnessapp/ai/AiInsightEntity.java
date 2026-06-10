@@ -13,7 +13,7 @@ import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Map;
-import com.fit.fitnessapp.ai.api.InsightType;
+import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 
 @Entity
