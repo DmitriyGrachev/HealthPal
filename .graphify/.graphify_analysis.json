@@ -1,0 +1,1504 @@
+{
+  "communities": {
+    "0": [
+      "analytics_monthlyreportorchestratortest",
+      "analytics_monthlyreportorchestratortest_monthlyreportorchestratortest",
+      "analytics_monthlyreportorchestratortest_monthlyreportorchestratortest_scheduledmonthlyreportusespreviousfullmonth",
+      "application_monthlyreportorchestrator",
+      "application_monthlyreportorchestrator_monthlyreportorchestrator",
+      "application_monthlyreportorchestrator_monthlyreportorchestrator_generatemonthlyreports",
+      "application_monthlyreporttransactionservice",
+      "application_monthlyreporttransactionservice_monthlyreporttransactionservice",
+      "application_monthlyreporttransactionservice_monthlyreporttransactionservice_buildevent",
+      "application_monthlyreporttransactionservice_monthlyreporttransactionservice_generateforuser",
+      "application_weeklyreportorchestrator",
+      "application_weeklyreportorchestrator_weeklyreportorchestrator",
+      "application_weeklyreportorchestrator_weeklyreportorchestrator_generateweeklyreports",
+      "application_weeklyreporttransactionservice",
+      "application_weeklyreporttransactionservice_weeklyreporttransactionservice",
+      "application_weeklyreporttransactionservice_weeklyreporttransactionservice_buildevent",
+      "application_weeklyreporttransactionservice_weeklyreporttransactionservice_generateforuser",
+      "nutritionmonthlyapi",
+      "nutritionqueryusecase",
+      "nutritionweeklyapi",
+      "out_workoutjdbcqueryadapter",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getallworkoutsummarybyuser",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getallworkoutsummarythisweek",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getmonthlystats",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getweeklystats",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getworkoutsummary",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getworkoutsummarylasttwoweeks",
+      "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter_getworkoutsummarythismonth",
+      "persistence_nutritionjdbcqueryadapter",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter_getcurrentmonthsummary",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter_getdaterange",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter_getday",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter_getmonthlystats",
+      "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter_getweeklystats",
+      "persistence_userpersistenceadapter",
+      "persistence_userpersistenceadapter_userpersistenceadapter",
+      "persistence_userpersistenceadapter_userpersistenceadapter_getalluserids",
+      "persistence_userpersistenceadapter_userpersistenceadapter_registeruser",
+      "userapi",
+      "userpersistenceport",
+      "web_workoutanalyticcontroller",
+      "web_workoutanalyticcontroller_workoutanalyticcontroller",
+      "web_workoutanalyticcontroller_workoutanalyticcontroller_getallworkoutsummarythisweek",
+      "workoutmonthlyapi",
+      "workoutqueryusecase",
+      "workoutweeklyapi"
+    ],
+    "1": [
+      "commandhandler",
+      "handlers_askcommandhandler",
+      "handlers_askcommandhandler_askcommandhandler",
+      "handlers_askcommandhandler_askcommandhandler_canhandle",
+      "handlers_askcommandhandler_askcommandhandler_getcommand",
+      "handlers_askcommandhandler_askcommandhandler_handle",
+      "handlers_linkcommandhandler",
+      "handlers_linkcommandhandler_linkcommandhandler",
+      "handlers_linkcommandhandler_linkcommandhandler_canhandle",
+      "handlers_linkcommandhandler_linkcommandhandler_getcommand",
+      "handlers_linkcommandhandler_linkcommandhandler_handle",
+      "handlers_startcommandhandler",
+      "handlers_startcommandhandler_startcommandhandler",
+      "handlers_startcommandhandler_startcommandhandler_canhandle",
+      "handlers_startcommandhandler_startcommandhandler_getcommand",
+      "handlers_startcommandhandler_startcommandhandler_handle",
+      "handlers_testgeneratehandler",
+      "handlers_testgeneratehandler_testgeneratehandler",
+      "handlers_testgeneratehandler_testgeneratehandler_canhandle",
+      "handlers_testgeneratehandler_testgeneratehandler_getcommand",
+      "handlers_testgeneratehandler_testgeneratehandler_handle",
+      "handlers_todaycommandhandler",
+      "handlers_todaycommandhandler_todaycommandhandler",
+      "handlers_todaycommandhandler_todaycommandhandler_canhandle",
+      "handlers_todaycommandhandler_todaycommandhandler_getcommand",
+      "handlers_todaycommandhandler_todaycommandhandler_handle",
+      "handlers_weightcommandhandler",
+      "handlers_weightcommandhandler_weightcommandhandler",
+      "handlers_weightcommandhandler_weightcommandhandler_canhandle",
+      "handlers_weightcommandhandler_weightcommandhandler_getcommand",
+      "handlers_weightcommandhandler_weightcommandhandler_handle",
+      "handlers_weightcommandhandler_weightcommandhandler_handleweightinput",
+      "handlers_weightcommandhandler_weightcommandhandler_startweightflow",
+      "in_telegramnotificationlistener",
+      "in_telegramnotificationlistener_telegramnotificationlistener",
+      "in_telegramnotificationlistener_telegramnotificationlistener_oninsightgenerated",
+      "in_telegramupdatehandler",
+      "in_telegramupdatehandler_telegramupdatehandler",
+      "in_telegramupdatehandler_telegramupdatehandler_getbotusername",
+      "in_telegramupdatehandler_telegramupdatehandler_onupdatereceived",
+      "in_telegramupdatehandler_telegramupdatehandler_telegramupdatehandler",
+      "repository_telegramuserrepository",
+      "repository_telegramuserrepository_telegramuserrepository",
+      "repository_telegramuserrepository_telegramuserrepository_findbyuserid",
+      "telegramlongpollingbot",
+      "telegramuserentity"
+    ],
+    "2": [
+      "core",
+      "loginusecase",
+      "org",
+      "out_userauthenticationport",
+      "out_userauthenticationport_userauthenticationport",
+      "out_userauthenticationport_userauthenticationport_findcurrentuserbyusername",
+      "out_userauthenticationport_userauthenticationport_loaduserbyusername",
+      "out_userauthenticationport_userauthenticationport_requireuserexists",
+      "persistence_userauthenticationadapter",
+      "persistence_userauthenticationadapter_userauthenticationadapter",
+      "persistence_userauthenticationadapter_userauthenticationadapter_findcurrentuserbyusername",
+      "persistence_userauthenticationadapter_userauthenticationadapter_loaduserbyusername",
+      "persistence_userauthenticationadapter_userauthenticationadapter_requireuserexists",
+      "security",
+      "service_loginservice",
+      "service_loginservice_loginservice",
+      "service_loginservice_loginservice_userlogin",
+      "service_userdetailsservice",
+      "service_userdetailsservice_userdetailsservice",
+      "service_userdetailsservice_userdetailsservice_loaduserbyusername",
+      "springframework",
+      "user_user",
+      "user_user_user",
+      "user_user_user_getauthorities",
+      "user_user_user_isaccountnonexpired",
+      "user_user_user_isaccountnonlocked",
+      "user_user_user_iscredentialsnonexpired",
+      "user_user_user_isenabled",
+      "user_user_user_user",
+      "userauthenticationport",
+      "userdetails",
+      "utils_jwtcore",
+      "utils_jwtcore_jwtcore",
+      "utils_jwtcore_jwtcore_generatetoken",
+      "utils_jwtcore_jwtcore_getnamefromjwt",
+      "utils_jwtcore_jwtcore_getsigningkey",
+      "utils_jwtcore_jwtcore_validatetoken"
+    ],
+    "3": [
+      "auth_usernotecontrollertest",
+      "auth_usernotecontrollertest_usernotecontrollertest",
+      "auth_usernotecontrollertest_usernotecontrollertest_createnoteusesauthenticateduseridinsteadofrequestbodyuserid",
+      "auth_usernotecontrollertest_usernotecontrollertest_deletenoteisscopedtoauthenticateduser",
+      "auth_usernotecontrollertest_usernotecontrollertest_getusernotesreadsonlyauthenticatedusersnotes",
+      "auth_usernotecontrollervalidationtest",
+      "auth_usernotecontrollervalidationtest_usernotecontrollervalidationtest",
+      "auth_usernotecontrollervalidationtest_usernotecontrollervalidationtest_createnoterejectsinvalidpayloadbeforecallingusecase",
+      "in_telegramnotelistener",
+      "in_telegramnotelistener_telegramnotelistener",
+      "in_telegramnotelistener_telegramnotelistener_onnoterequested",
+      "persistence_usernotepersistenceadapter",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter_deletebyuseridandid",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter_findbyuserid",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter_findbyuseridanddaterange",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter_save",
+      "persistence_usernotepersistenceadapter_usernotepersistenceadapter_todto",
+      "service_usernoteservice",
+      "service_usernoteservice_usernoteservice",
+      "service_usernoteservice_usernoteservice_createnote",
+      "service_usernoteservice_usernoteservice_deletenote",
+      "service_usernoteservice_usernoteservice_getnotesbyuserid",
+      "service_usernoteservice_usernoteservice_getnotesbyuseridanddaterange",
+      "usernotepersistenceport",
+      "usernoteusecase",
+      "web_usernotecontroller",
+      "web_usernotecontroller_usernotecontroller",
+      "web_usernotecontroller_usernotecontroller_createnote",
+      "web_usernotecontroller_usernotecontroller_deletenote",
+      "web_usernotecontroller_usernotecontroller_getusernotes"
+    ],
+    "4": [
+      "ai_moeorchestrator",
+      "ai_moeorchestrator_moeorchestrator",
+      "ai_moeorchestrator_moeorchestrator_moeorchestrator",
+      "ai_moeorchestrator_moeorchestrator_route",
+      "ai_smartairouter",
+      "ai_smartairouter_smartairouter",
+      "ai_smartairouter_smartairouter_callwithfallback",
+      "ai_smartairouter_smartairouter_smartairouter",
+      "ai_smartairoutertest",
+      "ai_smartairoutertest_smartairoutertest",
+      "ai_smartairoutertest_smartairoutertest_createmockresponse",
+      "ai_smartairoutertest_smartairoutertest_setup",
+      "ai_smartairoutertest_smartairoutertest_when401autherror_abortsopenrouterandcallsgemini",
+      "ai_smartairoutertest_smartairoutertest_when429ratelimit_fallsbacktonextmodel",
+      "ai_smartairoutertest_smartairoutertest_whenallopenroutermodelsunavailable_fallsbacktogemini",
+      "ai_smartairoutertest_smartairoutertest_whenallprovidersdown_throwsruntimeexception",
+      "ai_smartairoutertest_smartairoutertest_whenfirstmodelsucceeds_nofallbackneeded",
+      "aimodelport",
+      "out_geminiadapter",
+      "out_geminiadapter_geminiadapter",
+      "out_geminiadapter_geminiadapter_createdegradedresponse",
+      "out_geminiadapter_geminiadapter_geminiadapter",
+      "out_geminiadapter_geminiadapter_generate",
+      "out_openrouteradapter",
+      "out_openrouteradapter_openrouteradapter",
+      "out_openrouteradapter_openrouteradapter_createdegradedresponse",
+      "out_openrouteradapter_openrouteradapter_generate",
+      "out_openrouteradapter_openrouteradapter_handleexception",
+      "out_openrouteradapter_openrouteradapter_handleexceptionifknown",
+      "out_openrouteradapter_openrouteradapter_openrouteradapter"
+    ],
+    "5": [
+      "connectfatsecretusecase",
+      "nutritioncommandport",
+      "persistence_nutritionpersistenceadapter",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_builddayfromsummary",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_computehashforday",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_computehashforsummary",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_gettoken",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_mapdomaintoentity",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_savenutritionday",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_savenutritionmonth",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_savetoken",
+      "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter_updatedayfromsummary",
+      "service_nutritionservice",
+      "service_nutritionservice_nutritionservice",
+      "service_nutritionservice_nutritionservice_getauthorizationurl",
+      "service_nutritionservice_nutritionservice_processcallback",
+      "service_nutritionservice_nutritionservice_syncday",
+      "service_nutritionservice_nutritionservice_syncmonth",
+      "syncnutritionusecase",
+      "web_nutritioncontroller",
+      "web_nutritioncontroller_nutritioncontroller",
+      "web_nutritioncontroller_nutritioncontroller_getauthurl",
+      "web_nutritioncontroller_nutritioncontroller_getcurrentmonthsummary",
+      "web_nutritioncontroller_nutritioncontroller_getdaterange",
+      "web_nutritioncontroller_nutritioncontroller_getday",
+      "web_nutritioncontroller_nutritioncontroller_processcallback",
+      "web_nutritioncontroller_nutritioncontroller_synccurrentmonth",
+      "web_nutritioncontroller_nutritioncontroller_synctoday"
+    ],
+    "6": [
+      "ai_fitnessaiservice",
+      "ai_fitnessaiservice_fitnessaiservice",
+      "ai_fitnessaiservice_fitnessaiservice_buildmemorycontext",
+      "ai_fitnessaiservice_fitnessaiservice_formatnutritionbreakdown",
+      "ai_fitnessaiservice_fitnessaiservice_formatnutritionmonthlybreakdown",
+      "ai_fitnessaiservice_fitnessaiservice_formatworkoutmonthlyvolume",
+      "ai_fitnessaiservice_fitnessaiservice_formatworkoutvolume",
+      "ai_fitnessaiservice_fitnessaiservice_generatedailyinsight",
+      "ai_fitnessaiservice_fitnessaiservice_getrecentinsightssummary",
+      "ai_fitnessaiservice_fitnessaiservice_getusercontextforreport",
+      "ai_fitnessaiservice_fitnessaiservice_onmonthlyreportrequested",
+      "ai_fitnessaiservice_fitnessaiservice_onnutritionsynced",
+      "ai_fitnessaiservice_fitnessaiservice_ontelegramaskrequested",
+      "ai_fitnessaiservice_fitnessaiservice_ontelegramtodayrequested",
+      "ai_fitnessaiservice_fitnessaiservice_onweeklyreportrequested",
+      "persistence_profilejparepository",
+      "persistence_profilejparepository_profilejparepository",
+      "persistence_profilejparepository_profilejparepository_getprofilebyuserid",
+      "persistence_profilejparepository_profilejparepository_saveprofile",
+      "persistence_profilejparepository_profilejparepository_todto",
+      "profileusecase"
+    ],
+    "7": [
+      "importworkoutusecase",
+      "parser_jefitcsvparseradapter",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_builddomainobjects",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_findindex",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_parse",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_parseexerciselog",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_parsesession",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_parsesetlog",
+      "parser_jefitcsvparseradapter_jefitcsvparseradapter_supports",
+      "parser_jefitcsvparseradapter_tempexercise",
+      "parser_jefitcsvparseradapter_tempexercise_tempexercise",
+      "parser_jefitcsvparseradapter_tempworkout",
+      "parser_jefitcsvparseradapter_tempworkout_tempworkout",
+      "service_workoutimportservice",
+      "service_workoutimportservice_workoutimportservice",
+      "service_workoutimportservice_workoutimportservice_importworkouts",
+      "web_workoutimportcontroller",
+      "web_workoutimportcontroller_workoutimportcontroller",
+      "web_workoutimportcontroller_workoutimportcontroller_importfile",
+      "workoutparserport"
+    ],
+    "8": [
+      "ai_aicontroller",
+      "ai_aicontroller_aicontroller",
+      "ai_aicontroller_aicontroller_generateinsight",
+      "ai_aicontroller_aicontroller_gettodayinsight",
+      "ai_ratelimitinterceptor",
+      "ai_ratelimitinterceptor_ratelimitinterceptor",
+      "ai_ratelimitinterceptor_ratelimitinterceptor_prehandle",
+      "ai_ratelimitinterceptortest",
+      "ai_ratelimitinterceptortest_ratelimitinterceptortest",
+      "ai_ratelimitinterceptortest_ratelimitinterceptortest_whencurrentusercannotberesolved_sendsunauthorizedandreturnsfalse",
+      "ai_ratelimitinterceptortest_ratelimitinterceptortest_whennotokens_sendstoomanyrequestsandreturnsfalse",
+      "ai_ratelimitinterceptortest_ratelimitinterceptortest_whentokenavailable_returnstrue",
+      "currentuserapi",
+      "handlerinterceptor",
+      "service_currentuserservice",
+      "service_currentuserservice_currentuserservice",
+      "service_currentuserservice_currentuserservice_finduserbyid",
+      "service_currentuserservice_currentuserservice_getcurrentuser",
+      "service_currentuserservice_currentuserservice_getcurrentuseremail",
+      "service_currentuserservice_currentuserservice_getcurrentuserid"
+    ],
+    "9": [
+      "conversationstateusecase",
+      "handlers_notecommandhandler",
+      "handlers_notecommandhandler_notecommandhandler",
+      "handlers_notecommandhandler_notecommandhandler_canhandle",
+      "handlers_notecommandhandler_notecommandhandler_getcommand",
+      "handlers_notecommandhandler_notecommandhandler_handle",
+      "handlers_notecommandhandler_notecommandhandler_handlenotecontent",
+      "handlers_notecommandhandler_notecommandhandler_handlenotetype",
+      "handlers_notecommandhandler_notecommandhandler_startnoteflow",
+      "handlers_notecommandhandlertest",
+      "handlers_notecommandhandlertest_notecommandhandlertest",
+      "handlers_notecommandhandlertest_notecommandhandlertest_assertthatcode",
+      "handlers_notecommandhandlertest_notecommandhandlertest_update",
+      "handlers_notecommandhandlertest_notecommandhandlertest_visibletrainingnotetypepublishesenumcompatibleeventtype",
+      "service_conversationstateservice",
+      "service_conversationstateservice_conversationstateservice",
+      "service_conversationstateservice_conversationstateservice_clearstate",
+      "service_conversationstateservice_conversationstateservice_getdata",
+      "service_conversationstateservice_conversationstateservice_getstate",
+      "service_conversationstateservice_conversationstateservice_updatestate"
+    ],
+    "10": [
+      "auth_authcontrollertest",
+      "auth_authcontrollertest_authcontrollertest",
+      "auth_authcontrollertest_authcontrollertest_loginrejectsblankcredentialsbeforecallingservice",
+      "auth_authcontrollertest_authcontrollertest_loginreturnstokenwhencredentialsarevalid",
+      "auth_authcontrollertest_authcontrollertest_loginreturnsunauthorizedwhencredentialsareinvalid",
+      "auth_authcontrollertest_authcontrollertest_registerdelegatestoregisterusecase",
+      "auth_authcontrollertest_authcontrollertest_registerrejectsblankfieldsbeforecallingusecase",
+      "auth_authcontrollertest_authcontrollertest_registerreturnsbadrequestwhenuseralreadyexists",
+      "registeruserport",
+      "service_registerservice",
+      "service_registerservice_registerservice",
+      "service_registerservice_registerservice_registeruser",
+      "web_authcontroller",
+      "web_authcontroller_authcontroller",
+      "web_authcontroller_authcontroller_login",
+      "web_authcontroller_authcontroller_register"
+    ],
+    "11": [
+      "auth_userauthoritytest",
+      "auth_userauthoritytest_userauthoritytest",
+      "auth_userauthoritytest_userauthoritytest_authoritiesusespringsecurityroleprefix",
+      "auth_userauthoritytest_userauthoritytest_roleenumcontainsviproleusedbysecurityconfig",
+      "repository_userrepository",
+      "repository_userrepository_userrepository",
+      "repository_userrepository_userrepository_existsuserbyemail",
+      "repository_userrepository_userrepository_existsuserbyusername",
+      "repository_userrepository_userrepository_findbyusername",
+      "repository_userrepository_userrepository_finduserbyusernameandemail",
+      "repository_userrepository_userrepository_finduseridswithfatsecrettokens",
+      "repository_userrepository_userrepository_getfatsecretaccesstokenbyuserid",
+      "repository_userrepository_userrepository_getfatsecretaccesstokensecretbyuserid",
+      "user"
+    ],
+    "12": [
+      "ai_moeorchestratortest",
+      "ai_moeorchestratortest_dailyinsight",
+      "ai_moeorchestratortest_dailyinsight_routestoopenrouterwithdailymodel",
+      "ai_moeorchestratortest_moeorchestratortest",
+      "ai_moeorchestratortest_moeorchestratortest_mockresponse",
+      "ai_moeorchestratortest_moeorchestratortest_setup",
+      "ai_moeorchestratortest_monthlyreport",
+      "ai_moeorchestratortest_monthlyreport_routesthroughsmartairouter",
+      "ai_moeorchestratortest_quickanalysis",
+      "ai_moeorchestratortest_quickanalysis_routestoopenrouterwithquickmodel",
+      "ai_moeorchestratortest_weeklyreport",
+      "ai_moeorchestratortest_weeklyreport_routesthroughsmartairouter",
+      "ai_moeorchestratortest_weeklyreport_whenallprovidersdown_exceptionpropagatesafterretry"
+    ],
+    "13": [
+      "exception_aiauthexception",
+      "exception_aiauthexception_aiauthexception",
+      "exception_aiauthexception_aiauthexception_aiauthexception",
+      "exception_aiinvalidrequestexception",
+      "exception_aiinvalidrequestexception_aiinvalidrequestexception",
+      "exception_aiinvalidrequestexception_aiinvalidrequestexception_aiinvalidrequestexception",
+      "exception_aiunavailableexception",
+      "exception_aiunavailableexception_aiunavailableexception",
+      "exception_aiunavailableexception_aiunavailableexception_aiunavailableexception",
+      "exception_useralreadyexistsexception",
+      "exception_useralreadyexistsexception_useralreadyexistsexception",
+      "exception_useralreadyexistsexception_useralreadyexistsexception_useralreadyexistsexception",
+      "runtimeexception"
+    ],
+    "14": [
+      "in_telegramweightlistener",
+      "in_telegramweightlistener_telegramweightlistener",
+      "in_telegramweightlistener_telegramweightlistener_onweightrequested",
+      "persistence_weighthistoryrepository",
+      "persistence_weighthistoryrepository_weighthistoryrepository",
+      "persistence_weighthistoryrepository_weighthistoryrepository_getlatestweightbyuserid",
+      "persistence_weighthistoryrepository_weighthistoryrepository_getweighthistorybyuserid",
+      "persistence_weighthistoryrepository_weighthistoryrepository_getweighthistorybyuseridanddaterange",
+      "persistence_weighthistoryrepository_weighthistoryrepository_saveweight",
+      "persistence_weighthistoryrepository_weighthistoryrepository_todto",
+      "weighthistoryusecase"
+    ],
+    "15": [
+      "migration_v1_init_schema",
+      "migration_v1_init_schema_event_publication",
+      "migration_v1_init_schema_fatsecret_connection",
+      "migration_v1_init_schema_fatsecret_day",
+      "migration_v1_init_schema_fatsecret_food",
+      "migration_v1_init_schema_profile",
+      "migration_v1_init_schema_user_roles",
+      "migration_v1_init_schema_users",
+      "migration_v1_init_schema_workout",
+      "migration_v1_init_schema_workout_exercises",
+      "migration_v1_init_schema_workout_sets"
+    ],
+    "16": [
+      "persistence_useradapter",
+      "persistence_useradapter_useradapter",
+      "persistence_useradapter_useradapter_getfatsecretaccesstokenbyuserid",
+      "persistence_useradapter_useradapter_getfatsecretaccesstokensecretbyuserid",
+      "persistence_useradapter_useradapter_getuseridswithfatsecrettokens",
+      "userport",
+      "web_testcontroller",
+      "web_testcontroller_testcontroller",
+      "web_testcontroller_testcontroller_getusersummary",
+      "web_testcontroller_testcontroller_testsync"
+    ],
+    "17": [
+      "nutrition_nutritionmonthlyapitest",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_aggregateresultset",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_dailybreakdownresultset",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_emptydailybreakdownresultset",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_mockmonthlyqueries",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_setup",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_shouldreturnemptydailybreakdownwhennorowsexist",
+      "nutrition_nutritionmonthlyapitest_nutritionmonthlyapitest_shouldreturnmonthlystatswithdailybreakdown"
+    ],
+    "18": [
+      "fitnessapp_codehygienetest",
+      "fitnessapp_codehygienetest_codehygienetest",
+      "fitnessapp_codehygienetest_codehygienetest_applicationlayerdoesnotimportadaptersorpersistenceentities",
+      "fitnessapp_codehygienetest_codehygienetest_containsconsoleprint",
+      "fitnessapp_codehygienetest_codehygienetest_importsadaptersorpersistence",
+      "fitnessapp_codehygienetest_codehygienetest_importsothermodulepersistenceadapter",
+      "fitnessapp_codehygienetest_codehygienetest_modulesdonotimportothermodulespersistenceadapters",
+      "fitnessapp_codehygienetest_codehygienetest_productioncodedoesnotwritedirectlytostdoutorstderr"
+    ],
+    "19": [
+      "persistence_workoutpersistenceadapter",
+      "persistence_workoutpersistenceadapter_workoutpersistenceadapter",
+      "persistence_workoutpersistenceadapter_workoutpersistenceadapter_saveall",
+      "repository_workoutsetjparepository",
+      "repository_workoutsetjparepository_workoutsetjparepository",
+      "repository_workoutsetjparepository_workoutsetjparepository_deleteallbyexerciseidin",
+      "workoutpersistenceport",
+      "workoutsetjpaentity"
+    ],
+    "20": [
+      "auth_userrepositorysignaturetest",
+      "auth_userrepositorysignaturetest_userrepositorysignaturetest",
+      "auth_userrepositorysignaturetest_userrepositorysignaturetest_userrepositoryuseslongasentityidtype",
+      "conversationstateentity",
+      "jparepository",
+      "repository_conversationstaterepository",
+      "repository_conversationstaterepository_conversationstaterepository"
+    ],
+    "21": [
+      "memoryqueryusecase",
+      "service_memoryservice",
+      "service_memoryservice_memoryservice",
+      "service_memoryservice_memoryservice_findlongtermfacts",
+      "service_memoryservice_memoryservice_findrecentcontext",
+      "service_memoryservice_memoryservice_findrelevantmemories",
+      "service_memoryservice_memoryservice_maptousermemory"
+    ],
+    "22": [
+      "ai_aiinsightrepository",
+      "ai_aiinsightrepository_aiinsightrepository",
+      "ai_aiinsightrepository_aiinsightrepository_findbyuseridanddateandinsighttype",
+      "ai_aiinsightrepository_aiinsightrepository_findtop3byuseridorderbycreatedatdesc",
+      "ai_aiinsightrepository_aiinsightrepository_findtopnbyuseridandinsighttypeorderbydatedesc",
+      "aiinsightentity"
+    ],
+    "23": [
+      "ai_openrouteradaptertest",
+      "ai_openrouteradaptertest_openrouteradaptertest",
+      "ai_openrouteradaptertest_openrouteradaptertest_setup",
+      "ai_openrouteradaptertest_openrouteradaptertest_translates400toinvalidrequestexception",
+      "ai_openrouteradaptertest_openrouteradaptertest_translates401toauthexception",
+      "ai_openrouteradaptertest_openrouteradaptertest_translatestimeouttounavailableexception"
+    ],
+    "24": [
+      "ai_ratelimiterservicetest",
+      "ai_ratelimiterservicetest_ratelimiterservicetest",
+      "ai_ratelimiterservicetest_ratelimiterservicetest_differentuseridsreturndifferentbuckets",
+      "ai_ratelimiterservicetest_ratelimiterservicetest_newbuckethastokensavailable",
+      "ai_ratelimiterservicetest_ratelimiterservicetest_ratelimitenforcedat5requestspersecond",
+      "ai_ratelimiterservicetest_ratelimiterservicetest_sameuseridreturnssamebucket"
+    ],
+    "25": [
+      "in_conversationstateusecase",
+      "in_conversationstateusecase_conversationstateusecase",
+      "in_conversationstateusecase_conversationstateusecase_clearstate",
+      "in_conversationstateusecase_conversationstateusecase_getdata",
+      "in_conversationstateusecase_conversationstateusecase_getstate",
+      "in_conversationstateusecase_conversationstateusecase_updatestate"
+    ],
+    "26": [
+      "in_usernoteusecase",
+      "in_usernoteusecase_usernoteusecase",
+      "in_usernoteusecase_usernoteusecase_createnote",
+      "in_usernoteusecase_usernoteusecase_deletenote",
+      "in_usernoteusecase_usernoteusecase_getnotesbyuserid",
+      "in_usernoteusecase_usernoteusecase_getnotesbyuseridanddaterange"
+    ],
+    "27": [
+      "in_weighthistoryusecase",
+      "in_weighthistoryusecase_weighthistoryusecase",
+      "in_weighthistoryusecase_weighthistoryusecase_getlatestweightbyuserid",
+      "in_weighthistoryusecase_weighthistoryusecase_getweighthistorybyuserid",
+      "in_weighthistoryusecase_weighthistoryusecase_getweighthistorybyuseridanddaterange",
+      "in_weighthistoryusecase_weighthistoryusecase_saveweight"
+    ],
+    "28": [
+      "in_workoutqueryusecase",
+      "in_workoutqueryusecase_workoutqueryusecase",
+      "in_workoutqueryusecase_workoutqueryusecase_getallworkoutsummarybyuser",
+      "in_workoutqueryusecase_workoutqueryusecase_getallworkoutsummarythisweek",
+      "in_workoutqueryusecase_workoutqueryusecase_getworkoutsummarylasttwoweeks",
+      "in_workoutqueryusecase_workoutqueryusecase_getworkoutsummarythismonth"
+    ],
+    "29": [
+      "out_nutritioncommandport",
+      "out_nutritioncommandport_nutritioncommandport",
+      "out_nutritioncommandport_nutritioncommandport_gettoken",
+      "out_nutritioncommandport_nutritioncommandport_savenutritionday",
+      "out_nutritioncommandport_nutritioncommandport_savenutritionmonth",
+      "out_nutritioncommandport_nutritioncommandport_savetoken"
+    ],
+    "30": [
+      "out_usernotepersistenceport",
+      "out_usernotepersistenceport_usernotepersistenceport",
+      "out_usernotepersistenceport_usernotepersistenceport_deletebyuseridandid",
+      "out_usernotepersistenceport_usernotepersistenceport_findbyuserid",
+      "out_usernotepersistenceport_usernotepersistenceport_findbyuseridanddaterange",
+      "out_usernotepersistenceport_usernotepersistenceport_save"
+    ],
+    "31": [
+      "persistence_usernotejparepository",
+      "persistence_usernotejparepository_usernotejparepository",
+      "persistence_usernotejparepository_usernotejparepository_deletebyuseridandid",
+      "persistence_usernotejparepository_usernotejparepository_findbyuseridandrelateddatebetweenorderbyrelateddatedesc",
+      "persistence_usernotejparepository_usernotejparepository_findbyuseridorderbyrelateddatedesc",
+      "usernote"
+    ],
+    "32": [
+      "persistence_weighthistoryjparepository",
+      "persistence_weighthistoryjparepository_weighthistoryjparepository",
+      "persistence_weighthistoryjparepository_weighthistoryjparepository_findbyuseridanddatebetweenorderbydatedesc",
+      "persistence_weighthistoryjparepository_weighthistoryjparepository_findbyuseridorderbydatedesc",
+      "persistence_weighthistoryjparepository_weighthistoryjparepository_findtopbyuseridorderbydatedesc",
+      "weighthistory"
+    ],
+    "33": [
+      "api_userport",
+      "api_userport_userport",
+      "api_userport_userport_getfatsecretaccesstokenbyuserid",
+      "api_userport_userport_getfatsecretaccesstokensecretbyuserid",
+      "api_userport_userport_getuseridswithfatsecrettokens"
+    ],
+    "34": [
+      "auth_currentuserapi",
+      "auth_currentuserapi_currentuserapi",
+      "auth_currentuserapi_currentuserapi_finduserbyid",
+      "auth_currentuserapi_currentuserapi_getcurrentuseremail",
+      "auth_currentuserapi_currentuserapi_getcurrentuserid"
+    ],
+    "35": [
+      "config_securityconfig",
+      "config_securityconfig_securityconfig",
+      "config_securityconfig_securityconfig_authenticationmanager",
+      "config_securityconfig_securityconfig_filterchain",
+      "config_securityconfig_securityconfig_passwordencoder"
+    ],
+    "36": [
+      "domain_nutritionday",
+      "domain_nutritionday_gettotalcalories",
+      "domain_nutritionday_gettotalcarbohydrate",
+      "domain_nutritionday_gettotalfat",
+      "domain_nutritionday_gettotalprotein"
+    ],
+    "37": [
+      "handlers_commandhandler",
+      "handlers_commandhandler_commandhandler",
+      "handlers_commandhandler_commandhandler_canhandle",
+      "handlers_commandhandler_commandhandler_getcommand",
+      "handlers_commandhandler_commandhandler_handle"
+    ],
+    "38": [
+      "in_memoryqueryusecase",
+      "in_memoryqueryusecase_memoryqueryusecase",
+      "in_memoryqueryusecase_memoryqueryusecase_findlongtermfacts",
+      "in_memoryqueryusecase_memoryqueryusecase_findrecentcontext",
+      "in_memoryqueryusecase_memoryqueryusecase_findrelevantmemories"
+    ],
+    "39": [
+      "in_nutritionqueryusecase",
+      "in_nutritionqueryusecase_nutritionqueryusecase",
+      "in_nutritionqueryusecase_nutritionqueryusecase_getcurrentmonthsummary",
+      "in_nutritionqueryusecase_nutritionqueryusecase_getdaterange",
+      "in_nutritionqueryusecase_nutritionqueryusecase_getday"
+    ],
+    "40": [
+      "long",
+      "persistence_profilejparepositoryimpl",
+      "persistence_profilejparepositoryimpl_profilejparepositoryimpl",
+      "persistence_profilejparepositoryimpl_profilejparepositoryimpl_findbyuserid",
+      "profile"
+    ],
+    "41": [
+      "migration_v7_telegram_module_tables",
+      "migration_v7_telegram_module_tables_conversation_history",
+      "migration_v7_telegram_module_tables_conversation_state",
+      "migration_v7_telegram_module_tables_telegram_users",
+      "migration_v7_telegram_module_tables_users"
+    ],
+    "42": [
+      "service_telegramlinkcodemanager",
+      "service_telegramlinkcodemanager_telegramlinkcodemanager",
+      "service_telegramlinkcodemanager_telegramlinkcodemanager_generatecode",
+      "service_telegramlinkcodemanager_telegramlinkcodemanager_getuseridbycode",
+      "service_telegramlinkcodemanager_telegramlinkcodemanager_invalidatecode"
+    ],
+    "43": [
+      "service_telegramlinkservice",
+      "service_telegramlinkservice_telegramlinkservice",
+      "service_telegramlinkservice_telegramlinkservice_generatelinkcode",
+      "service_telegramlinkservice_telegramlinkservice_getexistingcode",
+      "service_telegramlinkservice_telegramlinkservice_verifycode"
+    ],
+    "44": [
+      "ai_aiclientconfig",
+      "ai_aiclientconfig_aiclientconfig",
+      "ai_aiclientconfig_aiclientconfig_googlechatclient",
+      "ai_aiclientconfig_aiclientconfig_openrouterchatclient"
+    ],
+    "45": [
+      "ai_aiprovider",
+      "ai_aiprovider_aiprovider",
+      "ai_aiprovider_fromkey",
+      "ai_aiprovider_getkey"
+    ],
+    "46": [
+      "ai_geminiadaptertest",
+      "ai_geminiadaptertest_geminiadaptertest",
+      "ai_geminiadaptertest_geminiadaptertest_setup",
+      "ai_geminiadaptertest_geminiadaptertest_unavailablegeminidoesnotlogparsingfailurestacktrace"
+    ],
+    "47": [
+      "ai_ratelimiterservice",
+      "ai_ratelimiterservice_ratelimiterservice",
+      "ai_ratelimiterservice_ratelimiterservice_newbucket",
+      "ai_ratelimiterservice_ratelimiterservice_resolvebucket"
+    ],
+    "48": [
+      "ai_webmvcconfig",
+      "ai_webmvcconfig_webmvcconfig",
+      "ai_webmvcconfig_webmvcconfig_addinterceptors",
+      "webmvcconfigurer"
+    ],
+    "49": [
+      "in_profileusecase",
+      "in_profileusecase_profileusecase",
+      "in_profileusecase_profileusecase_getprofilebyuserid",
+      "in_profileusecase_profileusecase_saveprofile"
+    ],
+    "50": [
+      "in_syncnutritionusecase",
+      "in_syncnutritionusecase_syncnutritionusecase",
+      "in_syncnutritionusecase_syncnutritionusecase_syncday",
+      "in_syncnutritionusecase_syncnutritionusecase_syncmonth"
+    ],
+    "51": [
+      "module_moduletest",
+      "module_moduletest_moduletest",
+      "module_moduletest_moduletest_verifyarchitecture",
+      "module_moduletest_moduletest_writedocumentation"
+    ],
+    "52": [
+      "out_workoutparserport",
+      "out_workoutparserport_workoutparserport",
+      "out_workoutparserport_workoutparserport_parse",
+      "out_workoutparserport_workoutparserport_supports"
+    ],
+    "53": [
+      "repository_workoutexercisejparepository",
+      "repository_workoutexercisejparepository_workoutexercisejparepository",
+      "repository_workoutexercisejparepository_workoutexercisejparepository_findexerciseswithsetsbyworkoutidin",
+      "workoutexercisejpaentity"
+    ],
+    "54": [
+      "repository_workoutjparepository",
+      "repository_workoutjparepository_workoutjparepository",
+      "repository_workoutjparepository_workoutjparepository_findwithexercisesbyjefitidinanduserid",
+      "workoutjpaentity"
+    ],
+    "55": [
+      "service_memoryeventlistener",
+      "service_memoryeventlistener_memoryeventlistener",
+      "service_memoryeventlistener_memoryeventlistener_oninsightgenerated",
+      "service_memoryeventlistener_memoryeventlistener_onusernotecreated"
+    ],
+    "56": [
+      "service_telegrambotservice",
+      "service_telegrambotservice_telegrambotservice",
+      "service_telegrambotservice_telegrambotservice_sendmessage",
+      "service_telegrambotservice_telegrambotservice_telegrambotservice"
+    ],
+    "57": [
+      "ai_fitnessaitools",
+      "ai_fitnessaitools_fitnessaitools",
+      "ai_fitnessaitools_fitnessaitools_savememory"
+    ],
+    "58": [
+      "auth_userapi",
+      "auth_userapi_userapi",
+      "auth_userapi_userapi_getalluserids"
+    ],
+    "59": [
+      "config_memoryconfig",
+      "config_memoryconfig_memoryconfig",
+      "config_memoryconfig_memoryconfig_vectorstore"
+    ],
+    "60": [
+      "config_telegrambotconfig",
+      "config_telegrambotconfig_telegrambotconfig",
+      "config_telegrambotconfig_telegrambotconfig_telegrambotsapi"
+    ],
+    "61": [
+      "config_webconfig",
+      "config_webconfig_webconfig",
+      "config_webconfig_webconfig_objectmapper"
+    ],
+    "62": [
+      "entity_conversationstateentity",
+      "entity_conversationstateentity_conversationstateentity",
+      "entity_conversationstateentity_conversationstateentity_onupdate"
+    ],
+    "63": [
+      "fitnessapp_fitnessappapplication",
+      "fitnessapp_fitnessappapplication_fitnessappapplication",
+      "fitnessapp_fitnessappapplication_fitnessappapplication_main"
+    ],
+    "64": [
+      "fitnessapp_fitnessappapplicationtests",
+      "fitnessapp_fitnessappapplicationtests_fitnessappapplicationtests",
+      "fitnessapp_fitnessappapplicationtests_fitnessappapplicationtests_contextloads"
+    ],
+    "65": [
+      "in_importworkoutusecase",
+      "in_importworkoutusecase_importworkoutusecase",
+      "in_importworkoutusecase_importworkoutusecase_importworkouts"
+    ],
+    "66": [
+      "in_loginusecase",
+      "in_loginusecase_loginusecase",
+      "in_loginusecase_loginusecase_userlogin"
+    ],
+    "67": [
+      "in_monthlyreportcontroller",
+      "in_monthlyreportcontroller_monthlyreportcontroller",
+      "in_monthlyreportcontroller_monthlyreportcontroller_getmonthlyreport"
+    ],
+    "68": [
+      "in_registeruserport",
+      "in_registeruserport_registeruserport",
+      "in_registeruserport_registeruserport_registeruser"
+    ],
+    "69": [
+      "in_telegramairesponselistener",
+      "in_telegramairesponselistener_telegramairesponselistener",
+      "in_telegramairesponselistener_telegramairesponselistener_onairesponse"
+    ],
+    "70": [
+      "in_weeklyreportcontroller",
+      "in_weeklyreportcontroller_weeklyreportcontroller",
+      "in_weeklyreportcontroller_weeklyreportcontroller_getweeklyreport"
+    ],
+    "71": [
+      "infrastructure_caffeinecacheconfig",
+      "infrastructure_caffeinecacheconfig_caffeinecacheconfig",
+      "infrastructure_caffeinecacheconfig_caffeinecacheconfig_requesttokencache"
+    ],
+    "72": [
+      "migration_v2_create_ai_insights",
+      "migration_v2_create_ai_insights_ai_insights",
+      "migration_v2_create_ai_insights_users"
+    ],
+    "73": [
+      "migration_v5_create_weight_history_table",
+      "migration_v5_create_weight_history_table_users",
+      "migration_v5_create_weight_history_table_weight_history"
+    ],
+    "74": [
+      "nutrition_nutritionmonthlyapi",
+      "nutrition_nutritionmonthlyapi_nutritionmonthlyapi",
+      "nutrition_nutritionmonthlyapi_nutritionmonthlyapi_getmonthlystats"
+    ],
+    "75": [
+      "nutrition_nutritionmonthlystatsdto",
+      "nutrition_nutritionmonthlystatsdto_dailymacrosdto",
+      "nutrition_nutritionmonthlystatsdto_nutritionmonthlystatsdto"
+    ],
+    "76": [
+      "nutrition_nutritionweeklyapi",
+      "nutrition_nutritionweeklyapi_nutritionweeklyapi",
+      "nutrition_nutritionweeklyapi_nutritionweeklyapi_getweeklystats"
+    ],
+    "77": [
+      "nutrition_nutritionweeklystatsdto",
+      "nutrition_nutritionweeklystatsdto_dailymacrosdto",
+      "nutrition_nutritionweeklystatsdto_nutritionweeklystatsdto"
+    ],
+    "78": [
+      "out_aimodelport",
+      "out_aimodelport_aimodelport",
+      "out_aimodelport_aimodelport_generate"
+    ],
+    "79": [
+      "out_userpersistenceport",
+      "out_userpersistenceport_userpersistenceport",
+      "out_userpersistenceport_userpersistenceport_registeruser"
+    ],
+    "80": [
+      "out_workoutpersistenceport",
+      "out_workoutpersistenceport_workoutpersistenceport",
+      "out_workoutpersistenceport_workoutpersistenceport_saveall"
+    ],
+    "81": [
+      "util_timeentryutil",
+      "util_timeentryutil_timeentryutil",
+      "util_timeentryutil_timeentryutil_getcurrentdaysincurrentmonth"
+    ],
+    "82": [
+      "workoout_workoutjdbcqueryadaptersqltest",
+      "workoout_workoutjdbcqueryadaptersqltest_workoutjdbcqueryadaptersqltest",
+      "workoout_workoutjdbcqueryadaptersqltest_workoutjdbcqueryadaptersqltest_workoutqueriesusemigratedworkouttablename"
+    ],
+    "83": [
+      "workoout_workoutqueryusecasetest",
+      "workoout_workoutqueryusecasetest_workoutqueryusecasetest",
+      "workoout_workoutqueryusecasetest_workoutqueryusecasetest_weeklysummarymapsjdbcrowstoworkoutsummarydtos"
+    ],
+    "84": [
+      "workout_workoutmonthlyapi",
+      "workout_workoutmonthlyapi_workoutmonthlyapi",
+      "workout_workoutmonthlyapi_workoutmonthlyapi_getmonthlystats"
+    ],
+    "85": [
+      "workout_workoutweeklyapi",
+      "workout_workoutweeklyapi_workoutweeklyapi",
+      "workout_workoutweeklyapi_workoutweeklyapi_getweeklystats"
+    ],
+    "86": [
+      "ai_aiinsightentity",
+      "ai_aiinsightentity_aiinsightentity"
+    ],
+    "87": [
+      "config_telegramproperties",
+      "config_telegramproperties_telegramproperties"
+    ],
+    "88": [
+      "entity_profile",
+      "entity_profile_profile"
+    ],
+    "89": [
+      "entity_telegramuserentity",
+      "entity_telegramuserentity_telegramuserentity"
+    ],
+    "90": [
+      "entity_usernote",
+      "entity_usernote_usernote"
+    ],
+    "91": [
+      "entity_weighthistory",
+      "entity_weighthistory_weighthistory"
+    ],
+    "92": [
+      "entity_workoutexercisejpaentity",
+      "entity_workoutexercisejpaentity_workoutexercisejpaentity"
+    ],
+    "93": [
+      "entity_workoutjpaentity",
+      "entity_workoutjpaentity_workoutjpaentity"
+    ],
+    "94": [
+      "entity_workoutsetjpaentity",
+      "entity_workoutsetjpaentity_workoutsetjpaentity"
+    ],
+    "95": [
+      "infrastructure_workoutsummarydto",
+      "infrastructure_workoutsummarydto_workoutsummarydto"
+    ],
+    "96": [
+      "infrastructure_workoutsummaryweeklydto",
+      "infrastructure_workoutsummaryweeklydto_workoutsummaryweeklydto"
+    ],
+    "97": [
+      "migration_v3_create_user_notes_table",
+      "migration_v3_create_user_notes_table_user_notes"
+    ],
+    "98": [
+      "migration_v6_structured_ai_and_pgvector",
+      "migration_v6_structured_ai_and_pgvector_user_memory"
+    ],
+    "99": [
+      "service_nutritionsyncscheduler",
+      "service_nutritionsyncscheduler_nutritionsyncscheduler"
+    ],
+    "100": [
+      "workout_workoutmonthlystatsdto",
+      "workout_workoutmonthlystatsdto_workoutmonthlystatsdto"
+    ],
+    "101": [
+      "workout_workoutweeklystatsdto",
+      "workout_workoutweeklystatsdto_workoutweeklystatsdto"
+    ],
+    "102": [
+      "ai_aiproperties"
+    ],
+    "103": [
+      "analytics_monthlyreportrequestedevent"
+    ],
+    "104": [
+      "analytics_weeklyreportrequestedevent"
+    ],
+    "105": [
+      "api_insightgeneratedevent"
+    ],
+    "106": [
+      "api_insighttype"
+    ],
+    "107": [
+      "api_nutritioninsightresponse"
+    ],
+    "108": [
+      "api_package_info"
+    ],
+    "109": [
+      "api_telegramairesponseevent"
+    ],
+    "110": [
+      "api_telegramaskrequestedevent"
+    ],
+    "111": [
+      "api_telegramnoterequestedevent"
+    ],
+    "112": [
+      "api_telegramtodayrequestedevent"
+    ],
+    "113": [
+      "api_telegramweightrequestedevent"
+    ],
+    "114": [
+      "api_usernotecreatedevent"
+    ],
+    "115": [
+      "domain_conversationstate"
+    ],
+    "116": [
+      "domain_currentuserview"
+    ],
+    "117": [
+      "domain_exercise"
+    ],
+    "118": [
+      "domain_foodentry"
+    ],
+    "119": [
+      "domain_loginrequest"
+    ],
+    "120": [
+      "domain_memorytype"
+    ],
+    "121": [
+      "domain_nutritiondaysummary"
+    ],
+    "122": [
+      "domain_nutritionmonth"
+    ],
+    "123": [
+      "domain_package_info"
+    ],
+    "124": [
+      "domain_profilesummarydto"
+    ],
+    "125": [
+      "domain_profileupdatedevent"
+    ],
+    "126": [
+      "domain_registerrequest"
+    ],
+    "127": [
+      "domain_set"
+    ],
+    "128": [
+      "domain_telegramuser"
+    ],
+    "129": [
+      "domain_usermemory"
+    ],
+    "130": [
+      "domain_usernoteaddedevent"
+    ],
+    "131": [
+      "domain_usernotedto"
+    ],
+    "132": [
+      "domain_weightentrydto"
+    ],
+    "133": [
+      "domain_weighthistorydto"
+    ],
+    "134": [
+      "domain_workoutsession"
+    ],
+    "135": [
+      "in_package_info"
+    ],
+    "136": [
+      "migration_v1_1_alter_nutrition"
+    ],
+    "137": [
+      "migration_v2_1_alter_contraint"
+    ],
+    "138": [
+      "migration_v4_extend_profile_table"
+    ],
+    "139": [
+      "migration_v6_1_fix_dimention_and_index"
+    ],
+    "140": [
+      "migration_v6_2_fix_insight_type_constraint"
+    ],
+    "141": [
+      "nutrition_nutritionsyncedevent"
+    ],
+    "142": [
+      "response_nutritioninsightresponse"
+    ],
+    "143": [
+      "user_role"
+    ]
+  },
+  "cohesion": {
+    "0": 0.05673758865248227,
+    "1": 0.050241545893719805,
+    "2": 0.06756756756756757,
+    "3": 0.07096774193548387,
+    "4": 0.09195402298850575,
+    "5": 0.09113300492610837,
+    "6": 0.1761904761904762,
+    "7": 0.1380952380952381,
+    "8": 0.12105263157894737,
+    "9": 0.1368421052631579,
+    "10": 0.13333333333333333,
+    "11": 0.15384615384615385,
+    "12": 0.20512820512820512,
+    "13": 0.15384615384615385,
+    "14": 0.21818181818181817,
+    "15": 0.2909090909090909,
+    "16": 0.2222222222222222,
+    "17": 0.3888888888888889,
+    "18": 0.25,
+    "19": 0.32142857142857145,
+    "20": 0.38095238095238093,
+    "21": 0.3333333333333333,
+    "22": 0.3333333333333333,
+    "23": 0.3333333333333333,
+    "24": 0.3333333333333333,
+    "25": 0.3333333333333333,
+    "26": 0.3333333333333333,
+    "27": 0.3333333333333333,
+    "28": 0.3333333333333333,
+    "29": 0.3333333333333333,
+    "30": 0.3333333333333333,
+    "31": 0.4,
+    "32": 0.4,
+    "33": 0.4,
+    "34": 0.4,
+    "35": 0.4,
+    "36": 0.4,
+    "37": 0.4,
+    "38": 0.4,
+    "39": 0.4,
+    "40": 0.5,
+    "41": 0.5,
+    "42": 0.4,
+    "43": 0.4,
+    "44": 0.5,
+    "45": 0.5,
+    "46": 0.5,
+    "47": 0.5,
+    "48": 0.6666666666666666,
+    "49": 0.5,
+    "50": 0.5,
+    "51": 0.5,
+    "52": 0.5,
+    "53": 0.6666666666666666,
+    "54": 0.6666666666666666,
+    "55": 0.5,
+    "56": 0.5,
+    "57": 0.6666666666666666,
+    "58": 0.6666666666666666,
+    "59": 0.6666666666666666,
+    "60": 0.6666666666666666,
+    "61": 0.6666666666666666,
+    "62": 0.6666666666666666,
+    "63": 0.6666666666666666,
+    "64": 0.6666666666666666,
+    "65": 0.6666666666666666,
+    "66": 0.6666666666666666,
+    "67": 0.6666666666666666,
+    "68": 0.6666666666666666,
+    "69": 0.6666666666666666,
+    "70": 0.6666666666666666,
+    "71": 0.6666666666666666,
+    "72": 1,
+    "73": 1,
+    "74": 0.6666666666666666,
+    "75": 0.6666666666666666,
+    "76": 0.6666666666666666,
+    "77": 0.6666666666666666,
+    "78": 0.6666666666666666,
+    "79": 0.6666666666666666,
+    "80": 0.6666666666666666,
+    "81": 0.6666666666666666,
+    "82": 0.6666666666666666,
+    "83": 0.6666666666666666,
+    "84": 0.6666666666666666,
+    "85": 0.6666666666666666,
+    "86": 1,
+    "87": 1,
+    "88": 1,
+    "89": 1,
+    "90": 1,
+    "91": 1,
+    "92": 1,
+    "93": 1,
+    "94": 1,
+    "95": 1,
+    "96": 1,
+    "97": 1,
+    "98": 1,
+    "99": 1,
+    "100": 1,
+    "101": 1,
+    "102": 1,
+    "103": 1,
+    "104": 1,
+    "105": 1,
+    "106": 1,
+    "107": 1,
+    "108": 1,
+    "109": 1,
+    "110": 1,
+    "111": 1,
+    "112": 1,
+    "113": 1,
+    "114": 1,
+    "115": 1,
+    "116": 1,
+    "117": 1,
+    "118": 1,
+    "119": 1,
+    "120": 1,
+    "121": 1,
+    "122": 1,
+    "123": 1,
+    "124": 1,
+    "125": 1,
+    "126": 1,
+    "127": 1,
+    "128": 1,
+    "129": 1,
+    "130": 1,
+    "131": 1,
+    "132": 1,
+    "133": 1,
+    "134": 1,
+    "135": 1,
+    "136": 1,
+    "137": 1,
+    "138": 1,
+    "139": 1,
+    "140": 1,
+    "141": 1,
+    "142": 1,
+    "143": 1
+  },
+  "gods": [
+    {
+      "id": "ai_fitnessaiservice_fitnessaiservice",
+      "label": "FitnessAiService",
+      "edges": 14,
+      "degree": 14
+    },
+    {
+      "id": "repository_userrepository_userrepository",
+      "label": "UserRepository",
+      "edges": 11,
+      "degree": 11
+    },
+    {
+      "id": "persistence_nutritionpersistenceadapter_nutritionpersistenceadapter",
+      "label": "NutritionPersistenceAdapter",
+      "edges": 11,
+      "degree": 11
+    },
+    {
+      "id": "out_workoutjdbcqueryadapter_workoutjdbcqueryadapter",
+      "label": "WorkoutJdbcQueryAdapter",
+      "edges": 11,
+      "degree": 11
+    },
+    {
+      "id": "service_userdetailsservice_userdetailsservice",
+      "label": "UserDetailsService",
+      "edges": 9,
+      "degree": 9
+    },
+    {
+      "id": "persistence_nutritionjdbcqueryadapter_nutritionjdbcqueryadapter",
+      "label": "NutritionJdbcQueryAdapter",
+      "edges": 9,
+      "degree": 9
+    },
+    {
+      "id": "parser_jefitcsvparseradapter_jefitcsvparseradapter",
+      "label": "JefitCsvParserAdapter",
+      "edges": 9,
+      "degree": 9
+    },
+    {
+      "id": "user_user_user",
+      "label": "User",
+      "edges": 8,
+      "degree": 8
+    },
+    {
+      "id": "web_nutritioncontroller_nutritioncontroller",
+      "label": "NutritionController",
+      "edges": 8,
+      "degree": 8
+    },
+    {
+      "id": "handlers_notecommandhandler_notecommandhandler",
+      "label": "NoteCommandHandler",
+      "edges": 8,
+      "degree": 8
+    }
+  ],
+  "surprises": [
+    {
+      "source": "AiInsightRepository",
+      "target": "JpaRepository",
+      "source_files": [
+        "src/main/java/com/fit/fitnessapp/ai/AiInsightRepository.java",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "note": "Bridges community 22 → community 20"
+    },
+    {
+      "source": "AiInsightRepository",
+      "target": "Long",
+      "source_files": [
+        "src/main/java/com/fit/fitnessapp/ai/AiInsightRepository.java",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "note": "Bridges community 22 → community 40"
+    },
+    {
+      "source": "NoteCommandHandler",
+      "target": "CommandHandler",
+      "source_files": [
+        "src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/NoteCommandHandler.java",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "note": "Bridges community 9 → community 1"
+    },
+    {
+      "source": "ProfileJpaRepositoryImpl",
+      "target": "JpaRepository",
+      "source_files": [
+        "src/main/java/com/fit/fitnessapp/nutrition/adapter/out/persistence/ProfileJpaRepositoryImpl.java",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "note": "Bridges community 40 → community 20"
+    },
+    {
+      "source": "UserNoteJpaRepository",
+      "target": "JpaRepository",
+      "source_files": [
+        "src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserNoteJpaRepository.java",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "inherits",
+      "note": "Bridges community 31 → community 20"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `TelegramUserRepository` connect `Community 1` to `Community 20`, `Community 40`?",
+      "why": "High betweenness centrality (0.015) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `AiInsightEntity`, `UserNote`, `NutritionMonthlyStatsDto` to the rest of the system?",
+      "why": "23 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 0` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.05673758865248227 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.050241545893719805 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 2` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06756756756756757 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 3` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.07096774193548387 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 4` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.09195402298850575 - nodes in this community are weakly interconnected."
+    }
+  ],
+  "labels": {
+    "0": "Community 0",
+    "1": "Community 1",
+    "2": "Community 2",
+    "3": "Community 3",
+    "4": "Community 4",
+    "5": "Community 5",
+    "6": "Community 6",
+    "7": "Community 7",
+    "8": "Community 8",
+    "9": "Community 9",
+    "10": "Community 10",
+    "11": "Community 11",
+    "12": "Community 12",
+    "13": "Community 13",
+    "14": "Community 14",
+    "15": "Community 15",
+    "16": "Community 16",
+    "17": "Community 17",
+    "18": "Community 18",
+    "19": "Community 19",
+    "20": "Community 20",
+    "21": "Community 21",
+    "22": "Community 22",
+    "23": "Community 23",
+    "24": "Community 24",
+    "25": "Community 25",
+    "26": "Community 26",
+    "27": "Community 27",
+    "28": "Community 28",
+    "29": "Community 29",
+    "30": "Community 30",
+    "31": "Community 31",
+    "32": "Community 32",
+    "33": "Community 33",
+    "34": "Community 34",
+    "35": "Community 35",
+    "36": "Community 36",
+    "37": "Community 37",
+    "38": "Community 38",
+    "39": "Community 39",
+    "40": "Community 40",
+    "41": "Community 41",
+    "42": "Community 42",
+    "43": "Community 43",
+    "44": "Community 44",
+    "45": "Community 45",
+    "46": "Community 46",
+    "47": "Community 47",
+    "48": "Community 48",
+    "49": "Community 49",
+    "50": "Community 50",
+    "51": "Community 51",
+    "52": "Community 52",
+    "53": "Community 53",
+    "54": "Community 54",
+    "55": "Community 55",
+    "56": "Community 56",
+    "57": "Community 57",
+    "58": "Community 58",
+    "59": "Community 59",
+    "60": "Community 60",
+    "61": "Community 61",
+    "62": "Community 62",
+    "63": "Community 63",
+    "64": "Community 64",
+    "65": "Community 65",
+    "66": "Community 66",
+    "67": "Community 67",
+    "68": "Community 68",
+    "69": "Community 69",
+    "70": "Community 70",
+    "71": "Community 71",
+    "72": "Community 72",
+    "73": "Community 73",
+    "74": "Community 74",
+    "75": "Community 75",
+    "76": "Community 76",
+    "77": "Community 77",
+    "78": "Community 78",
+    "79": "Community 79",
+    "80": "Community 80",
+    "81": "Community 81",
+    "82": "Community 82",
+    "83": "Community 83",
+    "84": "Community 84",
+    "85": "Community 85",
+    "86": "Community 86",
+    "87": "Community 87",
+    "88": "Community 88",
+    "89": "Community 89",
+    "90": "Community 90",
+    "91": "Community 91",
+    "92": "Community 92",
+    "93": "Community 93",
+    "94": "Community 94",
+    "95": "Community 95",
+    "96": "Community 96",
+    "97": "Community 97",
+    "98": "Community 98",
+    "99": "Community 99",
+    "100": "Community 100",
+    "101": "Community 101",
+    "102": "Community 102",
+    "103": "Community 103",
+    "104": "Community 104",
+    "105": "Community 105",
+    "106": "Community 106",
+    "107": "Community 107",
+    "108": "Community 108",
+    "109": "Community 109",
+    "110": "Community 110",
+    "111": "Community 111",
+    "112": "Community 112",
+    "113": "Community 113",
+    "114": "Community 114",
+    "115": "Community 115",
+    "116": "Community 116",
+    "117": "Community 117",
+    "118": "Community 118",
+    "119": "Community 119",
+    "120": "Community 120",
+    "121": "Community 121",
+    "122": "Community 122",
+    "123": "Community 123",
+    "124": "Community 124",
+    "125": "Community 125",
+    "126": "Community 126",
+    "127": "Community 127",
+    "128": "Community 128",
+    "129": "Community 129",
+    "130": "Community 130",
+    "131": "Community 131",
+    "132": "Community 132",
+    "133": "Community 133",
+    "134": "Community 134",
+    "135": "Community 135",
+    "136": "Community 136",
+    "137": "Community 137",
+    "138": "Community 138",
+    "139": "Community 139",
+    "140": "Community 140",
+    "141": "Community 141",
+    "142": "Community 142",
+    "143": "Community 143"
+  }
+}

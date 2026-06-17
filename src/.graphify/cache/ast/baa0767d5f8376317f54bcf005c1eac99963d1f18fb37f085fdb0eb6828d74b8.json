@@ -1,0 +1,1 @@
+{"nodes":[{"id":"migration_v6_2_fix_insight_type_constraint","label":"V6.2__fix_insight_type_constraint.sql","file_type":"code","source_file":"main/resources/db/migration/V6.2__fix_insight_type_constraint.sql","source_location":"L1"}],"edges":[]}

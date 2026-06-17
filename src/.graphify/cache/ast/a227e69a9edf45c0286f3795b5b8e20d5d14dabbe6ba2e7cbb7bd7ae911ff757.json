@@ -1,0 +1,1 @@
+{"nodes":[{"id":"migration_v6_1_fix_dimention_and_index","label":"V6.1__fix_dimention_and_index.sql","file_type":"code","source_file":"main/resources/db/migration/V6.1__fix_dimention_and_index.sql","source_location":"L1"}],"edges":[]}

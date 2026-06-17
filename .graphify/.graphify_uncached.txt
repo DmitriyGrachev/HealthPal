@@ -1,0 +1,8 @@
+C:\JavaFundamentals\FitnessApp\GEMINI.md
+C:\JavaFundamentals\FitnessApp\HELP.md
+C:\JavaFundamentals\FitnessApp\ISSUES_TO_FIX.md
+C:\JavaFundamentals\FitnessApp\TELEGRAM_PLAN.md
+C:\JavaFundamentals\FitnessApp\TESTING.md
+C:\JavaFundamentals\FitnessApp\docker-compose.yml
+C:\JavaFundamentals\FitnessApp\docs\superpowers\plans\2026-06-10-prod-codex-refactor.md
+C:\JavaFundamentals\FitnessApp\dont_read.md
