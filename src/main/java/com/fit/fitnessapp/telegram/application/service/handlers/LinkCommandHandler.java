@@ -2,6 +2,7 @@ package com.fit.fitnessapp.telegram.application.service.handlers;
 
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramLinkCodeManager;
+import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class LinkCommandHandler implements CommandHandler {
 
     @Override
     public boolean canHandle(Update update) {
-        return update.hasMessage() && update.getMessage().hasText() 
+        return update.hasMessage() && update.getMessage().hasText()
                 && update.getMessage().getText().startsWith("/link");
     }
 
@@ -33,7 +34,7 @@ public class LinkCommandHandler implements CommandHandler {
 
         String[] parts = text.split("\\s+");
         if (parts.length < 2) {
-            botService.sendMessage(chatId, "Please provide the linking code: `/link 123456`.");
+            botService.sendMessage(chatId, TelegramMessages.LINK_CODE_REQUIRED);
             return;
         }
 
@@ -42,20 +43,20 @@ public class LinkCommandHandler implements CommandHandler {
 
         if (userIdOpt.isPresent()) {
             Long userId = userIdOpt.get();
-            
+
             TelegramUserEntity entity = TelegramUserEntity.builder()
                     .telegramId(telegramId)
                     .userId(userId)
                     .chatId(chatId)
                     .linkedAt(OffsetDateTime.now())
                     .build();
-            
+
             telegramUserRepository.save(entity);
             codeManager.invalidateCode(code);
-            
-            botService.sendMessage(chatId, "Success! 🎉 Your account is now linked. You can start using FitnessApp commands.");
+
+            botService.sendMessage(chatId, TelegramMessages.LINK_SUCCESS);
         } else {
-            botService.sendMessage(chatId, "Invalid or expired code. Please generate a new one on the website.");
+            botService.sendMessage(chatId, TelegramMessages.LINK_INVALID);
         }
     }
 

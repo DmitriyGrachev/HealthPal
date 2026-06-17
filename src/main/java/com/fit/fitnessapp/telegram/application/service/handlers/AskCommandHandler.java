@@ -2,6 +2,7 @@ package com.fit.fitnessapp.telegram.application.service.handlers;
 
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
+import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class AskCommandHandler implements CommandHandler {
 
     @Override
     public boolean canHandle(Update update) {
-        return update.hasMessage() && update.getMessage().hasText() 
+        return update.hasMessage() && update.getMessage().hasText()
                 && update.getMessage().getText().startsWith("/ask");
     }
 
@@ -37,17 +38,17 @@ public class AskCommandHandler implements CommandHandler {
 
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
         if (userOpt.isEmpty()) {
-            botService.sendMessage(chatId, "Please link your account first using `/link`.");
+            botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
             return;
         }
 
         String question = text.replace("/ask", "").trim();
         if (question.isEmpty()) {
-            botService.sendMessage(chatId, "Please provide a question: `/ask How much protein did I have today?`.");
+            botService.sendMessage(chatId, TelegramMessages.ASK_REQUIRED);
             return;
         }
 
-        botService.sendMessage(chatId, "Thinking... 🧠");
+        botService.sendMessage(chatId, TelegramMessages.ASK_THINKING);
 
         eventPublisher.publishEvent(new TelegramAskRequestedEvent(
                 userOpt.get().getUserId(),

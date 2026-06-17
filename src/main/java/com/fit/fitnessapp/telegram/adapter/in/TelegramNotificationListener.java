@@ -2,6 +2,7 @@ package com.fit.fitnessapp.telegram.adapter.in;
 
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
+import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,13 +27,13 @@ public class TelegramNotificationListener {
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findByUserId(event.userId());
 
         userOpt.ifPresent(telegramUser -> {
-            String message = String.format("*Your %s Insight (%s):*\n\n%s",
+            String message = TelegramMessages.insight(
                     event.insightType(),
                     event.date(),
                     event.content());
 
             if (event.telegramSummary() != null && !event.telegramSummary().isBlank()) {
-                message = "*Personalized Insight:*\n\n" + event.telegramSummary();
+                message = TelegramMessages.personalizedInsight(event.telegramSummary());
             }
 
             botService.sendMessage(telegramUser.getChatId(), message);

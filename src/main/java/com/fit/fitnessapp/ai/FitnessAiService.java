@@ -41,16 +41,19 @@ public class FitnessAiService {
     private final WeightHistoryUseCase weightHistoryUseCase;
     private final NutritionQueryUseCase nutritionQueryUseCase;
     private final ApplicationEventPublisher eventPublisher;
+    private final AiProperties aiProperties;
 
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
-        log.info("AI MODULE: Received TelegramTodayRequestedEvent for userId: {}", event.userId());
+        log.info("AI request received userId={} taskType=DAILY_INSIGHT source=telegram", event.userId());
         generateDailyInsight(event.userId(), event.date());
     }
 
     @EventListener
     public void onTelegramAskRequested(TelegramAskRequestedEvent event) {
-        log.info("AI MODULE: Received TelegramAskRequestedEvent from user {}: {}", event.userId(), event.question());
+        long startedAt = System.nanoTime();
+        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.QUICK_ANALYSIS;
+        String model = modelFor(taskType);
         
         String memoryContext = buildMemoryContext(event.userId(), event.question());
         
@@ -63,8 +66,8 @@ public class FitnessAiService {
         );
 
         try {
-            // Using QUICK_ANALYSIS for faster response
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.QUICK_ANALYSIS);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
             
             eventPublisher.publishEvent(new TelegramAiResponseEvent(
                     event.userId(),
@@ -72,7 +75,7 @@ public class FitnessAiService {
                     aiResponse.summary()
             ));
         } catch (Exception e) {
-            log.error("Error processing /ask for user {}", event.userId(), e);
+            logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
             eventPublisher.publishEvent(new TelegramAiResponseEvent(
                     event.userId(),
                     event.chatId(),
@@ -123,10 +126,12 @@ public class FitnessAiService {
                 memoriesText, recentInsights, totalCalories, protein, fat, carbs
         );
 
+        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.DAILY_INSIGHT;
+        String model = modelFor(taskType);
+        long startedAt = System.nanoTime();
         try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
-
-            log.info("Generated daily AI insight summary:\n{}", aiResponse.summary());
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            logAiCall(userId, taskType, model, startedAt, "success", "NONE");
 
             Map<String, Object> meta = new HashMap<>();
             meta.put("macros_at_generation_time", Map.of(
@@ -153,7 +158,7 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("Error while calling AI provider for daily insight.", e);
+            logAiCall(userId, taskType, model, startedAt, "error", errorCode(e));
         }
     }
 
@@ -207,10 +212,12 @@ public class FitnessAiService {
                 workoutText
         );
 
+        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.WEEKLY_REPORT;
+        String model = modelFor(taskType);
+        long startedAt = System.nanoTime();
         try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
-
-            log.info("Generated weekly AI insight summary:\n{}", aiResponse.summary());
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
@@ -228,7 +235,7 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("Error while calling AI provider for weekly insight.", e);
+            logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
         }
     }
 
@@ -297,10 +304,12 @@ public class FitnessAiService {
                 workoutText
         );
 
+        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.MONTHLY_REPORT;
+        String model = modelFor(taskType);
+        long startedAt = System.nanoTime();
         try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
-
-            log.info("Generated monthly AI insight summary:\n{}", aiResponse.summary());
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
 
             AiInsightEntity insight = AiInsightEntity.builder()
                     .userId(event.userId())
@@ -318,8 +327,39 @@ public class FitnessAiService {
             ));
 
         } catch (Exception e) {
-            log.error("Error while calling AI provider for monthly insight.", e);
+            logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
         }
+    }
+
+    private void logAiCall(
+            Long userId,
+            MoeOrchestrator.AiTaskType taskType,
+            String model,
+            long startedAt,
+            String status,
+            String errorCode) {
+        long latencyMs = startedAt > 0L ? (System.nanoTime() - startedAt) / 1_000_000 : -1L;
+        log.info(
+                "AI call completed userId={} taskType={} model={} latencyMs={} status={} errorCode={}",
+                userId,
+                taskType,
+                model,
+                latencyMs,
+                status,
+                errorCode
+        );
+    }
+
+    private String modelFor(MoeOrchestrator.AiTaskType taskType) {
+        return switch (taskType) {
+            case DAILY_INSIGHT -> aiProperties.DAILY_INSIGHT_MODEL();
+            case QUICK_ANALYSIS -> aiProperties.QUICK_ANALYSIS_MODEL();
+            case WEEKLY_REPORT, MONTHLY_REPORT -> "fallback-chain";
+        };
+    }
+
+    private String errorCode(Exception e) {
+        return e.getClass().getSimpleName();
     }
 
     private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {

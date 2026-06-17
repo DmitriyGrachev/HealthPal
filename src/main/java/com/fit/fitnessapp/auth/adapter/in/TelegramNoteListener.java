@@ -30,6 +30,6 @@ public class TelegramNoteListener {
         );
 
         userNoteUseCase.createNote(dto);
-        log.info("Saved note for user {}: {}", event.userId(), event.content());
+        log.info("Saved note for user {}", event.userId());
     }
 }

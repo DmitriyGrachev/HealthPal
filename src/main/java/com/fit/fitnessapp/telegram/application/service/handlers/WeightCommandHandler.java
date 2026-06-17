@@ -3,6 +3,7 @@ package com.fit.fitnessapp.telegram.application.service.handlers;
 import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
+import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.domain.ConversationState;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
@@ -48,7 +49,7 @@ public class WeightCommandHandler implements CommandHandler {
 
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
         if (userOpt.isEmpty()) {
-            botService.sendMessage(chatId, "Please link your account first using `/link`.");
+            botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
             return;
         }
 
@@ -61,7 +62,7 @@ public class WeightCommandHandler implements CommandHandler {
 
     private void startWeightFlow(Long chatId) {
         stateUseCase.updateState(chatId, ConversationState.WAITING_WEIGHT);
-        botService.sendMessage(chatId, "Please enter your current weight in kg (e.g., 75.5):");
+        botService.sendMessage(chatId, TelegramMessages.WEIGHT_PROMPT);
     }
 
     private void handleWeightInput(Long chatId, Long userId, String input) {
@@ -71,7 +72,7 @@ public class WeightCommandHandler implements CommandHandler {
             BigDecimal weight = new BigDecimal(normalizedInput);
 
             if (weight.compareTo(BigDecimal.ZERO) <= 0 || weight.compareTo(new BigDecimal("500")) > 0) {
-                botService.sendMessage(chatId, "Please enter a realistic weight value.");
+                botService.sendMessage(chatId, TelegramMessages.WEIGHT_UNREALISTIC);
                 return;
             }
 
@@ -83,11 +84,11 @@ public class WeightCommandHandler implements CommandHandler {
             ));
 
             String formattedWeight = weight.stripTrailingZeros().toPlainString();
-            botService.sendMessage(chatId, "Got it! " + formattedWeight + " kg recorded.");
+            botService.sendMessage(chatId, TelegramMessages.weightRecorded(formattedWeight));
             stateUseCase.clearState(chatId);
             
         } catch (NumberFormatException e) {
-            botService.sendMessage(chatId, "Invalid format. Please enter a number (e.g., 80 or 72.5):");
+            botService.sendMessage(chatId, TelegramMessages.WEIGHT_INVALID_FORMAT);
         }
     }
 

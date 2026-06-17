@@ -98,6 +98,22 @@ class CodeHygieneTest {
         assertThat(properties).containsKey("fitness.app.jwt-expiration");
     }
 
+    @Test
+    void productionCodeDoesNotContainMojibakeArtifacts() throws IOException {
+        List<String> offenders;
+        try (var files = Files.walk(Path.of("src/main/java"))) {
+            offenders = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java")
+                            || path.toString().endsWith(".properties"))
+                    .filter(this::containsMojibake)
+                    .map(Path::toString)
+                    .toList();
+        }
+
+        assertThat(offenders).isEmpty();
+    }
+
     private boolean containsConsolePrint(Path path) {
         try {
             String source = Files.readString(path);
@@ -140,6 +156,24 @@ class CodeHygieneTest {
                         || source.contains("com.fit.fitnessapp.ai.adapter.out.persistence");
             }
             return false;
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
+    }
+
+    private boolean containsMojibake(Path path) {
+        try {
+            String source = Files.readString(path);
+            return source.contains("Рђ")
+                    || source.contains("Рџ")
+                    || source.contains("Рњ")
+                    || source.contains("рџ")
+                    || source.contains("Ð")
+                    || source.contains("Ñ")
+                    || source.contains("в†")
+                    || source.contains("вЂ")
+                    || source.contains("пё")
+                    || source.contains("�");
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + path, e);
         }
