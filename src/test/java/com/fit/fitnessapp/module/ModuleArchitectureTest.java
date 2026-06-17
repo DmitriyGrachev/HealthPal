@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModules;
 import org.springframework.modulith.docs.Documenter;
 
-class ModuleTest {
+class ModuleArchitectureTest {
 
     private final ApplicationModules modules = ApplicationModules.of(FitnessAppApplication.class);
 
@@ -17,7 +17,7 @@ class ModuleTest {
     }
 
     @Test
-    @Disabled("Documentation generation is not part of the normal unit-test gate.")
+    @Disabled("Documentation generation is not part of the architecture test gate.")
     void writeDocumentation() {
         // Generates PlantUML diagrams for the modules.
         new Documenter(modules)
@@ -25,4 +25,3 @@ class ModuleTest {
                 .writeIndividualModulesAsPlantUml();
     }
 }
-

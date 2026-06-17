@@ -73,7 +73,7 @@ Tools:
 
 - Spring Modulith `ApplicationModules`
 
-Run these only after the intended module boundaries are cleaned up. Right now they correctly fail because the architecture has real cycles.
+Run these through the dedicated architecture gate, not through the default push gate.
 
 ## Existing Test Audit
 
@@ -201,19 +201,19 @@ Actions:
 - Delete for now, or replace later with a real smoke test using Testcontainers and explicit test profile.
 - Do not let this block useful unit tests.
 
-### `src/test/java/com/fit/fitnessapp/module/ModuleTest.java`
+### `src/test/java/com/fit/fitnessapp/module/ModuleArchitectureTest.java`
 
-Decision: KEEP DISABLED UNTIL ARCHITECTURE PHASE
+Decision: KEEP IN ARCHITECTURE PROFILE
 
 Why:
 
-- This is valuable. It correctly detects real module cycles.
-- But it should not block the early test cleanup phase.
+- This is valuable. It detects module cycles and leaked internals.
+- But it should not block the fast push gate.
 
 Actions:
 
-- Temporarily disable with a clear reason, or exclude from default test run.
-- Re-enable after module APIs and `@NamedInterface` exposure are fixed.
+- Run through `mvn test -Parchitecture`.
+- Keep excluded from the default `mvn test` gate by naming convention.
 - Split documentation generation from verification. Docs generation should not be a normal unit test assertion.
 
 ### `src/test/java/com/fit/fitnessapp/AuthTest.java`
@@ -248,7 +248,7 @@ Tasks:
 
 - Clean corrupted comments/display names in tests you keep.
 - Delete `AuthTest.java` or replace it with a short TODO test skeleton.
-- Disable `ModuleTest.verifyArchitecture()` with a clear reason, or tag it as architecture-only.
+- Keep Modulith checks tagged by naming convention as `*ArchitectureTest`.
 - Delete or replace `FitnessAppApplicationTests`.
 - Rename typo package `workoout` when recreating the workout integration test.
 
@@ -257,10 +257,10 @@ Done when:
 - No test file is mostly commented-out learning notes.
 - Running the stable unit subset is possible.
 
-Suggested command:
+Current command:
 
 ```bash
-mvn test -Dtest='*RateLimiterServiceTest,*RateLimitInterceptorTest,*SmartAiRouterTest'
+mvn test
 ```
 
 ## Step 2 - Create A Fast Unit Test Baseline
@@ -449,7 +449,7 @@ Tasks:
 
 - Fix module API exposure with `@NamedInterface`.
 - Remove cycles deliberately.
-- Re-enable `ModuleTest.verifyArchitecture()`.
+- Keep `ModuleArchitectureTest.verifyArchitecture()` green in the architecture profile.
 - Keep documentation generation separate from normal test verification.
 
 Done when:
@@ -469,13 +469,13 @@ Stages:
 3. PostgreSQL integration tests after Testcontainers setup.
 4. Architecture tests after module cleanup.
 
-Suggested Maven profiles later:
+Maven gates:
 
-- `unit`
-- `integration`
-- `architecture`
+- `mvn test` runs the fast default gate on every push. It includes `*Test` and excludes `*IntegrationTest` and `*ArchitectureTest`.
+- `mvn verify -Pintegration` runs future PostgreSQL/Testcontainers checks named `*IntegrationTest`.
+- `mvn test -Parchitecture` runs Modulith checks named `*ArchitectureTest`.
 
-Do not add strict CI until the stable subset is honest.
+Do not add feature work until the default `mvn test` gate is green.
 
 ## Immediate Next Actions
 
@@ -486,12 +486,12 @@ Do these in order:
 3. Clean and keep `SmartAiRouterTest`.
 4. Rewrite or temporarily disable `OpenRouterAdapterTest`.
 5. Delete or replace `FitnessAppApplicationTests`.
-6. Disable `ModuleTest.verifyArchitecture()` with a TODO linked to module cleanup.
+6. Keep `ModuleArchitectureTest.verifyArchitecture()` out of the default gate and runnable with `mvn test -Parchitecture`.
 7. Delete the commented-out `AuthTest.java` and recreate auth tests from scratch.
 8. Create the first stable command:
 
 ```bash
-mvn test -Dtest='*RateLimiterServiceTest,*RateLimitInterceptorTest,*SmartAiRouterTest'
+mvn test
 ```
 
 After that, start building new tests module by module.
