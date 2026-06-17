@@ -87,6 +87,17 @@ class CodeHygieneTest {
                 .containsEntry("spring.ai.google.genai.api-key", "${GEMINI_API_KEY}");
     }
 
+    @Test
+    void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
+        String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
+        Properties properties = loadProperties("src/main/resources/application.properties");
+
+        assertThat(jwtCore)
+                .doesNotContain("86400000")
+                .doesNotContain("Duration.ofHours(24)");
+        assertThat(properties).containsKey("fitness.app.jwt-expiration");
+    }
+
     private boolean containsConsolePrint(Path path) {
         try {
             String source = Files.readString(path);

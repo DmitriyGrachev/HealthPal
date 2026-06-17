@@ -5,6 +5,7 @@ import com.fit.fitnessapp.auth.application.port.in.RegisterUserPort;
 import com.fit.fitnessapp.auth.application.service.LoginService;
 import com.fit.fitnessapp.auth.domain.LoginRequest;
 import com.fit.fitnessapp.auth.domain.RegisterRequest;
+import com.fit.fitnessapp.auth.infrastructure.utils.AuthRateLimitFilter;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.ai.RateLimitInterceptor;
 import com.fit.fitnessapp.exception.UserAlreadyExistsException;
@@ -34,6 +35,7 @@ class AuthControllerTest {
     @MockBean private LoginService loginService;
     @MockBean private RateLimitInterceptor rateLimitInterceptor;
     @MockBean private TokenFilter tokenFilter;
+    @MockBean private AuthRateLimitFilter authRateLimitFilter;
     @MockBean private UserDetailsService userDetailsService;
 
     @Autowired private MockMvc mockMvc;
@@ -71,12 +73,12 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"john","email":"john@example.com","password":"secret"}
+                                {"username":"john","email":"john@example.com","password":"Secret123!"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().string("Registered successfully!"));
 
-        verify(registerUserPort).registerUser(new RegisterRequest("john", "secret", "john@example.com"));
+        verify(registerUserPort).registerUser(new RegisterRequest("john", "Secret123!", "john@example.com"));
     }
 
     @Test
@@ -88,7 +90,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"john","email":"john@example.com","password":"secret"}
+                                {"username":"john","email":"john@example.com","password":"Secret123!"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("User already exists"));
@@ -100,6 +102,18 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":" ","email":"not-an-email","password":""}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
+    }
+
+    @Test
+    void registerRejectsWeakPasswordBeforeCallingUseCase() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"john","email":"john@example.com","password":"password"}
                                 """))
                 .andExpect(status().isBadRequest());
 
