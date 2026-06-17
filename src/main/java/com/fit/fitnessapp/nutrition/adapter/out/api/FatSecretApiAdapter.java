@@ -3,6 +3,7 @@ package com.fit.fitnessapp.nutrition.adapter.out.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.api.FatSecretLegacyApi;
+import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.util.TimeEntryUtil;
 import com.fit.fitnessapp.nutrition.domain.*;
@@ -65,7 +66,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
             return service.getAuthorizationUrl(requestToken);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate FatSecret Auth URL", e);
+            throw new ExternalApiException("Failed to generate FatSecret Auth URL", e);
         }
     }
 
@@ -74,7 +75,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
         try {
             FatSecretAuthState state = requestTokenCache.getIfPresent(oauthToken);
             if (state == null) {
-                throw new RuntimeException("Auth session expired or invalid");
+                throw new IllegalArgumentException("FatSecret auth session expired or invalid");
             }
             requestTokenCache.invalidate(oauthToken);
 
@@ -86,8 +87,10 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                     state.getUserId(),
                     new FatSecretToken(accessToken.getToken(), accessToken.getTokenSecret())
             );
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to exchange FatSecret token", e);
+            throw new ExternalApiException("Failed to exchange FatSecret token", e);
         }
     }
 
@@ -107,12 +110,12 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
             log.debug("FatSecret food entries response [{}]: {}", response.getCode(), response.getBody());
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API error: " + response.getBody());
+                throw new ExternalApiException("FatSecret API error: " + response.getBody(), null);
             }
 
             return parseJsonToNutritionDay(response.getBody(), userId, LocalDate.ofEpochDay(daysSinceEpoch));
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch data from FatSecret", e);
+            throw new ExternalApiException("Failed to fetch data from FatSecret", e);
         }
     }
     @Override
@@ -134,12 +137,12 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             log.debug("FatSecret monthly food entries response [{}]: {}", response.getCode(), response.getBody());
 
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API error: " + response.getBody());
+                throw new ExternalApiException("FatSecret API error: " + response.getBody(), null);
             }
 
             return parseMonthJson(response.getBody(), userId);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch monthly data from FatSecret", e);
+            throw new ExternalApiException("Failed to fetch monthly data from FatSecret", e);
         }
     }
 
@@ -157,7 +160,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                 days.add(mapDayNode(dayNode, userId));
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse FatSecret month JSON", e);
+            throw new ExternalApiException("Failed to parse FatSecret month JSON", e);
         }
         return new NutritionMonth(userId, days);
     }
@@ -203,14 +206,14 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             log.debug("FatSecret getWeightHistory response [{}]: {}", response.getCode(), response.getBody());
 
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API call failed: " + response.getCode() + " " + response.getBody());
+                throw new ExternalApiException("FatSecret API call failed: " + response.getCode() + " " + response.getBody(), null);
             }
 
             return parseWeightHistoryResponse(response.getBody());
 
         } catch (Exception e) {
             log.error("Failed to get weight history from FatSecret", e);
-            throw new RuntimeException("Failed to get weight history from FatSecret", e);
+            throw new ExternalApiException("Failed to get weight history from FatSecret", e);
         }
     }
 
@@ -236,7 +239,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             log.debug("FatSecret updateWeight response [{}]: {}", response.getCode(), response.getBody());
 
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API call failed: " + response.getCode() + " " + response.getBody());
+                throw new ExternalApiException("FatSecret API call failed: " + response.getCode() + " " + response.getBody(), null);
             }
 
             JsonNode root = objectMapper.readTree(response.getBody());
@@ -248,7 +251,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
         } catch (Exception e) {
             log.error("Failed to update weight on FatSecret", e);
-            throw new RuntimeException("Failed to update weight on FatSecret", e);
+            throw new ExternalApiException("Failed to update weight on FatSecret", e);
         }
     }
 
@@ -271,7 +274,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             }
         } catch (Exception e) {
             log.error("Failed to parse FatSecret weight history JSON", e);
-            throw new RuntimeException("Failed to parse FatSecret weight history JSON", e);
+            throw new ExternalApiException("Failed to parse FatSecret weight history JSON", e);
         }
         return entries;
     }
@@ -298,7 +301,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             Response response = service.execute(request);
 
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API error: " + response.getBody());
+                throw new ExternalApiException("FatSecret API error: " + response.getBody(), null);
             }
 
             List<FatSecretExerciseDto> exercises = new ArrayList<>();
@@ -320,7 +323,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             }
             return exercises;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch exercises from FatSecret", e);
+            throw new ExternalApiException("Failed to fetch exercises from FatSecret", e);
         }
     }
 
@@ -338,7 +341,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             Response response = service.execute(request);
 
             if (!response.isSuccessful()) {
-                throw new RuntimeException("FatSecret API error: " + response.getBody());
+                throw new ExternalApiException("FatSecret API error: " + response.getBody(), null);
             }
 
             List<FatSecretExerciseEntryDto> entries = new ArrayList<>();
@@ -354,7 +357,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             }
             return entries;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch exercise entries from FatSecret", e);
+            throw new ExternalApiException("Failed to fetch exercise entries from FatSecret", e);
         }
     }
 
@@ -404,7 +407,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                 log.debug("Parsed FatSecret food entry: {}", entry);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse FatSecret JSON", e);
+            throw new ExternalApiException("Failed to parse FatSecret JSON", e);
         }
         return new NutritionDay(userId, date, entries);
     }

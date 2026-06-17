@@ -2,6 +2,8 @@ package com.fit.fitnessapp.auth.infrastructure.config;
 
 import com.fit.fitnessapp.auth.infrastructure.utils.AuthRateLimitFilter;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
+import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
+import com.fit.fitnessapp.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +18,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -24,6 +25,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Configuration
@@ -34,6 +36,7 @@ public class SecurityConfig {
 
     private final TokenFilter tokenFilter;
     private final SecurityProperties securityProperties;
+    private final ApiErrorResponseWriter errorResponseWriter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -41,7 +44,21 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(UNAUTHORIZED)))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) ->
+                                errorResponseWriter.write(
+                                        request,
+                                        response,
+                                        UNAUTHORIZED,
+                                        ErrorCode.UNAUTHORIZED,
+                                        "Authentication required"))
+                        .accessDeniedHandler((request, response, exception) ->
+                                errorResponseWriter.write(
+                                        request,
+                                        response,
+                                        FORBIDDEN,
+                                        ErrorCode.FORBIDDEN,
+                                        "Access denied")))
                 .authorizeHttpRequests(auth -> auth
                         // File import API is limited to VIP users because it can mutate workout data in bulk.
                         .requestMatchers("/api/import/**").hasRole("VIP")
@@ -64,7 +81,7 @@ public class SecurityConfig {
 
     @Bean
     public AuthRateLimitFilter authRateLimitFilter() {
-        return new AuthRateLimitFilter(securityProperties);
+        return new AuthRateLimitFilter(securityProperties, errorResponseWriter);
     }
 
     @Bean

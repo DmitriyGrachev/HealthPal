@@ -44,7 +44,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     @Transactional
     public void syncDay(Long userId, LocalDate date) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret."));
+                .orElseThrow(() -> new MissingFatSecretConnectionException(userId));
 
         long daysSinceEpoch = date.toEpochDay();
         NutritionDay nutritionDay = apiPort.fetchAndParseFoodEntries(token, userId, daysSinceEpoch);
@@ -71,7 +71,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     @Transactional
     public void syncMonth(Long userId) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));
+                .orElseThrow(() -> new MissingFatSecretConnectionException(userId));
 
         long currentDaysInMonth = LocalDate.now().toEpochDay();
 

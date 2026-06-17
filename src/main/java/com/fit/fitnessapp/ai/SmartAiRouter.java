@@ -48,7 +48,7 @@ public class SmartAiRouter {
             return geminiPort.generate(promptText);
         } catch (AiUnavailableException e) {
             log.warn("Gemini fallback is unavailable: {}", e.getMessage());
-            throw new RuntimeException("All AI providers are unavailable.", e);
+            throw new AiUnavailableException("All AI providers are unavailable", e);
         }
     }
 }

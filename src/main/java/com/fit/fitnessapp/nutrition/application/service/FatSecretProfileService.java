@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
+import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
@@ -49,7 +50,7 @@ public class FatSecretProfileService {
             );
         } catch (Exception e) {
             log.error("Failed to get user summary from FatSecret for user {}: {}", userId, e.getMessage());
-            throw new RuntimeException("Failed to get user summary", e);
+            throw new ExternalApiException("Failed to get user summary from FatSecret", e);
         }
     }
     

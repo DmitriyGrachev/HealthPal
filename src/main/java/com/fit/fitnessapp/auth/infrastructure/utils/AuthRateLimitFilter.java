@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.auth.infrastructure.utils;
 
 import com.fit.fitnessapp.auth.infrastructure.config.SecurityProperties;
+import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
+import com.fit.fitnessapp.exception.ErrorCode;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
@@ -8,6 +10,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -18,13 +21,14 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/auth/login";
     private static final String REGISTER_PATH = "/auth/register";
-    private static final int TOO_MANY_REQUESTS = 429;
 
     private final SecurityProperties properties;
+    private final ApiErrorResponseWriter errorResponseWriter;
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
-    public AuthRateLimitFilter(SecurityProperties properties) {
+    public AuthRateLimitFilter(SecurityProperties properties, ApiErrorResponseWriter errorResponseWriter) {
         this.properties = properties;
+        this.errorResponseWriter = errorResponseWriter;
     }
 
     @Override
@@ -40,10 +44,12 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         Bucket bucket = buckets.computeIfAbsent(key, ignored -> newBucket());
 
         if (!bucket.tryConsume(1)) {
-            response.setStatus(TOO_MANY_REQUESTS);
-            response.setContentType("application/json");
-            response.setCharacterEncoding("UTF-8");
-            response.getWriter().write("{\"error\":\"Too many authentication attempts\"}");
+            errorResponseWriter.write(
+                    request,
+                    response,
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    ErrorCode.RATE_LIMIT_EXCEEDED,
+                    "Too many authentication attempts");
             return;
         }
 

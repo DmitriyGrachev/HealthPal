@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
@@ -63,9 +64,12 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"john","password":"wrong"}
-                                """))
+                """))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Wrong login or password"));
+                .andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Wrong login or password"))
+                .andExpect(jsonPath("$.path").value("/auth/login"));
     }
 
     @Test
@@ -91,9 +95,11 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"john","email":"john@example.com","password":"Secret123!"}
-                                """))
+                """))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("User already exists"));
+                .andExpect(jsonPath("$.code").value("USER_ALREADY_EXISTS"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("User already exists"));
     }
 
     @Test
@@ -102,8 +108,12 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":" ","email":"not-an-email","password":""}
-                                """))
-                .andExpect(status().isBadRequest());
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.username").exists())
+                .andExpect(jsonPath("$.fieldErrors.email").exists())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
 
         verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
     }
@@ -114,8 +124,10 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"john","email":"john@example.com","password":"password"}
-                                """))
-                .andExpect(status().isBadRequest());
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
 
         verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
     }
@@ -126,8 +138,11 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":" ","password":""}
-                                """))
-                .andExpect(status().isBadRequest());
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.username").exists())
+                .andExpect(jsonPath("$.fieldErrors.password").exists());
 
         verify(loginService, never()).userLogin(any(LoginRequest.class));
     }

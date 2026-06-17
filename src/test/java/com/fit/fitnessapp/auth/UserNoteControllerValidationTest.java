@@ -18,6 +18,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserNoteController.class)
@@ -41,7 +42,11 @@ class UserNoteControllerValidationTest {
                         .content("""
                                 {"userId":999,"relatedDate":null,"content":" ","type":null}
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.relatedDate").exists())
+                .andExpect(jsonPath("$.fieldErrors.content").exists())
+                .andExpect(jsonPath("$.fieldErrors.type").exists());
 
         verify(userNoteUseCase, never()).createNote(any());
     }

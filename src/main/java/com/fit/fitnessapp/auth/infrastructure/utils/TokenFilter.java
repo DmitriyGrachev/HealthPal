@@ -1,11 +1,14 @@
 package com.fit.fitnessapp.auth.infrastructure.utils;
 
 import com.fit.fitnessapp.auth.application.service.UserDetailsService;
+import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
+import com.fit.fitnessapp.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,6 +27,7 @@ public class TokenFilter extends OncePerRequestFilter {
 
     private final JwtCore jwtCore;
     private final UserDetailsService userDetailsService;
+    private final ApiErrorResponseWriter errorResponseWriter;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -47,17 +51,11 @@ public class TokenFilter extends OncePerRequestFilter {
             }
         } catch (ExpiredJwtException e) {
         log.warn("Expired token: {}", e.getMessage());
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"error\": \"Token expired\"}");
+        errorResponseWriter.write(request, response, HttpStatus.UNAUTHORIZED, ErrorCode.TOKEN_EXPIRED, "Token expired");
         return;
     } catch (JwtException | IllegalArgumentException e) {
         log.warn("Invalid token: {}", e.getMessage());
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"error\": \"Invalid token\"}");
+        errorResponseWriter.write(request, response, HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_TOKEN, "Invalid token");
         return;
     }
 

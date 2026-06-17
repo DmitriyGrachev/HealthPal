@@ -6,6 +6,7 @@ import com.fit.fitnessapp.auth.infrastructure.config.SecurityProperties;
 import com.fit.fitnessapp.auth.infrastructure.utils.JwtCore;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.ai.RateLimitInterceptor;
+import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -32,10 +33,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = SecurityConfigWebTest.TestEndpoints.class)
-@Import({SecurityConfig.class, TokenFilter.class, JwtCore.class, SecurityConfigWebTest.TestEndpoints.class})
+@Import({
+        SecurityConfig.class,
+        TokenFilter.class,
+        JwtCore.class,
+        ApiErrorResponseWriter.class,
+        SecurityConfigWebTest.TestEndpoints.class
+})
 @EnableConfigurationProperties(SecurityProperties.class)
 @TestPropertySource(properties = {
         "fitness.app.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -60,14 +68,18 @@ class SecurityConfigWebTest {
     @Test
     void testEndpointsAreAdminOnly() throws Exception {
         mockMvc.perform(get("/test/probe"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.status").value(401));
 
         when(userDetailsService.loadUserByUsername("user"))
                 .thenReturn(User.withUsername("user").password("n/a").roles("USER").build());
 
         mockMvc.perform(get("/test/probe")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("user", 3_600_000)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.status").value(403));
 
         when(userDetailsService.loadUserByUsername("admin"))
                 .thenReturn(User.withUsername("admin").password("n/a").roles("ADMIN").build());
@@ -80,7 +92,9 @@ class SecurityConfigWebTest {
     @Test
     void protectedEndpointsRequireJwt() throws Exception {
         mockMvc.perform(get("/protected/probe"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.status").value(401));
 
         when(userDetailsService.loadUserByUsername("user"))
                 .thenReturn(User.withUsername("user").password("n/a").roles("USER").build());
@@ -94,11 +108,15 @@ class SecurityConfigWebTest {
     void invalidAndExpiredTokenReturnUnauthorized() throws Exception {
         mockMvc.perform(get("/protected/probe")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"))
+                .andExpect(jsonPath("$.status").value(401));
 
         mockMvc.perform(get("/protected/probe")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenFor("user", -1_000)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TOKEN_EXPIRED"))
+                .andExpect(jsonPath("$.status").value(401));
     }
 
     @Test
