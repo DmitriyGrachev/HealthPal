@@ -82,7 +82,8 @@ public class WeightCommandHandler implements CommandHandler {
                     LocalDate.now()
             ));
 
-            botService.sendMessage(chatId, String.format("Got it! Weight of %.1f kg recorded. ⚖️", weight));
+            String formattedWeight = weight.stripTrailingZeros().toPlainString();
+            botService.sendMessage(chatId, "Got it! " + formattedWeight + " kg recorded.");
             stateUseCase.clearState(chatId);
             
         } catch (NumberFormatException e) {
