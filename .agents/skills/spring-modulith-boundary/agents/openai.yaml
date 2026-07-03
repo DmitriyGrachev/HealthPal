@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spring Modulith Boundary"
+  short_description: "Spring Modulith boundary fixes"
+  default_prompt: "Use $spring-modulith-boundary to investigate and fix module boundary issues."

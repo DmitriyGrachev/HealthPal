@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fitness AI Prompts"
+  short_description: "FitnessApp AI prompt workflows"
+  default_prompt: "Use $fitness-ai-prompts to refactor or test AI prompts in FitnessApp."
