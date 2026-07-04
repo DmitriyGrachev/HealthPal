@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.memory;
 
+import com.fit.fitnessapp.memory.application.service.MemoryCleanupService;
 import com.fit.fitnessapp.memory.application.service.MemoryService;
 import com.fit.fitnessapp.memory.domain.UserMemory;
 import com.fit.fitnessapp.support.AbstractPostgresIntegrationTest;
@@ -37,6 +38,8 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
     private VectorStore vectorStore;
     @Autowired
     private MemoryService memoryService;
+    @Autowired
+    private MemoryCleanupService memoryCleanupService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -102,6 +105,38 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                 .doesNotContain(secondUserContent);
     }
 
+    @Test
+    void cleanupExpiredMemoriesDeletesOnlyExpiredRows() {
+        assertPgvectorSchemaMigrated();
+        Long userId = 303L;
+        Instant now = Instant.parse("2026-07-05T00:00:00Z");
+
+        vectorStore.add(List.of(
+                memoryDocument(userId, "expired short term note", now.minusSeconds(60), "SHORT_TERM"),
+                memoryDocument(userId, "active short term note", now.plusSeconds(60), "SHORT_TERM"),
+                memoryDocument(userId, "long term allergy fact")));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_memory WHERE metadata->>'user_id' = ?",
+                Long.class,
+                userId.toString()))
+                .isEqualTo(3L);
+
+        int deleted = memoryCleanupService.cleanupExpiredMemories(now);
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForList(
+                """
+                SELECT content
+                FROM user_memory
+                WHERE metadata->>'user_id' = ?
+                ORDER BY content
+                """,
+                String.class,
+                userId.toString()))
+                .containsExactly("active short term note", "long term allergy fact");
+    }
+
     private void assertPgvectorSchemaMigrated() {
         assertThat(jdbcTemplate.queryForObject(
                 """
@@ -134,6 +169,18 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                         "memory_type", "FACT",
                         "memory_horizon", "LONG_TERM",
                         "created_at", Instant.now().toString()));
+    }
+
+    private static Document memoryDocument(Long userId, String content, Instant expiresAt, String horizon) {
+        return new Document(
+                UUID.randomUUID().toString(),
+                content,
+                Map.of(
+                        "user_id", userId,
+                        "memory_type", "EPISODIC",
+                        "memory_horizon", horizon,
+                        "created_at", Instant.now().toString(),
+                        "expires_at", expiresAt.toString()));
     }
 
     private static float[] embeddingFor(String text) {

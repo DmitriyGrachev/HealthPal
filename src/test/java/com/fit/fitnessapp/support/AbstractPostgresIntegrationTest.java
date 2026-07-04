@@ -60,5 +60,6 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.ai.vectorstore.pgvector.initialize-schema", () -> "false");
         registry.add("spring.ai.vectorstore.pgvector.table-name", () -> "user_memory");
         registry.add("spring.ai.vectorstore.pgvector.dimension", () -> "2048");
+        registry.add("memory.cleanup.enabled", () -> "false");
     }
 }
