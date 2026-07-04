@@ -187,6 +187,22 @@ class CodeHygieneTest {
                 .contains("embedding vector_cosine_ops");
     }
 
+    @Test
+    void pgvectorConfigurationMatchesRuntimeUserMemoryTable() throws IOException {
+        Properties properties = loadProperties("src/main/resources/application.properties");
+        String memoryConfig = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/memory/infrastructure/config/MemoryConfig.java"));
+
+        assertThat(properties)
+                .containsEntry("spring.ai.vectorstore.pgvector.table-name", "user_memory")
+                .containsEntry("spring.ai.vectorstore.pgvector.dimension", "2048");
+        assertThat(memoryConfig)
+                .contains(".vectorTableName(\"user_memory\")")
+                .contains(".dimensions(2048)")
+                .doesNotContain("vector_store")
+                .doesNotContain("pgvector max 2000");
+    }
+
     private boolean containsConsolePrint(Path path) {
         try {
             String source = Files.readString(path);

@@ -58,5 +58,7 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.ai.google.genai.embedding.enabled", () -> "false");
         registry.add("spring.ai.openai.embedding.options.model", () -> "test-embedding-model");
         registry.add("spring.ai.vectorstore.pgvector.initialize-schema", () -> "false");
+        registry.add("spring.ai.vectorstore.pgvector.table-name", () -> "user_memory");
+        registry.add("spring.ai.vectorstore.pgvector.dimension", () -> "2048");
     }
 }
