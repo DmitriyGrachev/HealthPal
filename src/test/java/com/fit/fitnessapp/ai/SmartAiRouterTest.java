@@ -13,6 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,10 +41,18 @@ class SmartAiRouterTest {
     private AiProperties.OpenRouterProperties openRouterProperties;
 
     private SmartAiRouter smartAiRouter;
+    private MutableClock clock;
 
     @BeforeEach
     void setUp() {
-        smartAiRouter = new SmartAiRouter(openRouterPort, geminiPort, aiProperties);
+        clock = new MutableClock(Instant.parse("2026-07-05T00:00:00Z"));
+        smartAiRouter = new SmartAiRouter(
+                openRouterPort,
+                geminiPort,
+                aiProperties,
+                clock,
+                Duration.ofSeconds(30)
+        );
         lenient().when(aiProperties.openrouter()).thenReturn(openRouterProperties);
     }
 
@@ -138,6 +151,59 @@ class SmartAiRouterTest {
         assertThat(output).doesNotContain(" ERROR ");
     }
 
+    @Test
+    @DisplayName("When model is cooling down, should skip it on repeated call")
+    void repeatedCallInsideCooldown_skipsRecentlyUnavailableModel() {
+        when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b"));
+
+        when(openRouterPort.generate(anyString(), eq("model-a")))
+                .thenThrow(new AiUnavailableException("model-a down", new RuntimeException()));
+
+        NutritionInsightResponse modelBResponse = createMockResponse("Answer from model-b");
+        when(openRouterPort.generate(anyString(), eq("model-b")))
+                .thenReturn(modelBResponse);
+
+        NutritionInsightResponse firstResult = smartAiRouter.callWithFallback("Prompt 1");
+        NutritionInsightResponse secondResult = smartAiRouter.callWithFallback("Prompt 2");
+
+        assertThat(firstResult.summary()).isEqualTo("Answer from model-b");
+        assertThat(secondResult.summary()).isEqualTo("Answer from model-b");
+        verify(openRouterPort, times(1)).generate(anyString(), eq("model-a"));
+        verify(openRouterPort, times(2)).generate(anyString(), eq("model-b"));
+        verifyNoInteractions(geminiPort);
+    }
+
+    @Test
+    @DisplayName("When recovered model succeeds, should reset backoff state")
+    void successfulCall_resetsBackoffState() {
+        when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b"));
+
+        NutritionInsightResponse modelAResponse = createMockResponse("Answer from model-a");
+        when(openRouterPort.generate(anyString(), eq("model-a")))
+                .thenThrow(new AiUnavailableException("first outage", new RuntimeException()))
+                .thenReturn(modelAResponse)
+                .thenThrow(new AiUnavailableException("second outage", new RuntimeException()))
+                .thenReturn(modelAResponse);
+
+        NutritionInsightResponse modelBResponse = createMockResponse("Answer from model-b");
+        when(openRouterPort.generate(anyString(), eq("model-b")))
+                .thenReturn(modelBResponse);
+
+        assertThat(smartAiRouter.callWithFallback("Prompt 1").summary()).isEqualTo("Answer from model-b");
+
+        clock.advance(Duration.ofSeconds(31));
+        assertThat(smartAiRouter.callWithFallback("Prompt 2").summary()).isEqualTo("Answer from model-a");
+
+        assertThat(smartAiRouter.callWithFallback("Prompt 3").summary()).isEqualTo("Answer from model-b");
+
+        clock.advance(Duration.ofSeconds(31));
+        assertThat(smartAiRouter.callWithFallback("Prompt 4").summary()).isEqualTo("Answer from model-a");
+
+        verify(openRouterPort, times(4)).generate(anyString(), eq("model-a"));
+        verify(openRouterPort, times(2)).generate(anyString(), eq("model-b"));
+        verifyNoInteractions(geminiPort);
+    }
+
     private NutritionInsightResponse createMockResponse(String summary) {
         return new NutritionInsightResponse(
                 null, null, summary, summary,
@@ -145,6 +211,34 @@ class SmartAiRouterTest {
                 List.of(), List.of(), List.of(),
                 1.0f, 1.0f
         );
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private Instant instant;
+
+        private MutableClock(Instant instant) {
+            this.instant = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+
+        private void advance(Duration duration) {
+            instant = instant.plus(duration);
+        }
     }
 }
 
