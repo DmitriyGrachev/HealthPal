@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
+import com.fit.fitnessapp.ai.RateLimiterService;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
@@ -22,6 +23,7 @@ public class AskCommandHandler implements CommandHandler {
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final RateLimiterService rateLimiterService;
 
     @Override
     public boolean canHandle(Update update) {
@@ -48,10 +50,17 @@ public class AskCommandHandler implements CommandHandler {
             return;
         }
 
+        Long userId = userOpt.get().getUserId();
+        if (!rateLimiterService.resolveBucket(userId).tryConsume(1)) {
+            log.info("Telegram AI request rate limited userId={} chatId={}", userId, chatId);
+            botService.sendMessage(chatId, TelegramMessages.ASK_RATE_LIMITED);
+            return;
+        }
+
         botService.sendMessage(chatId, TelegramMessages.ASK_THINKING);
 
         eventPublisher.publishEvent(new TelegramAskRequestedEvent(
-                userOpt.get().getUserId(),
+                userId,
                 chatId,
                 question
         ));

@@ -11,6 +11,7 @@ public final class TelegramMessages {
     public static final String ASK_REQUIRED =
             "Please provide a question: `/ask How much protein did I have today?`.";
     public static final String ASK_THINKING = "Thinking...";
+    public static final String ASK_RATE_LIMITED = "Too many AI requests. Please wait a moment and try again.";
     public static final String TODAY_GENERATING =
             "Analysing your data and generating daily insight...";
     public static final String NOTE_TYPE_PROMPT = "What type of note is this?";
