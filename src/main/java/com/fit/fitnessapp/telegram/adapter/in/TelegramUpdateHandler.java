@@ -5,6 +5,7 @@ import com.fit.fitnessapp.telegram.infrastructure.config.TelegramProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.util.List;
@@ -31,19 +32,27 @@ public class TelegramUpdateHandler extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        log.debug("Update received: {}", update);
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String text = update.getMessage().getText();
-            log.info("Message from {}: {}", update.getMessage().getChatId(), text);
-            for (CommandHandler handler : handlers) {
-                if (handler.canHandle(update)) {
-                    handler.handle(update);
-                    return;
-                }
-            }
-            
-            // Default response if no handler matched
-            log.info("No handler found for message: {}", update.getMessage().getText());
+        if (!update.hasMessage()) {
+            log.debug("Telegram update ignored status=no_message");
+            return;
         }
+
+        Message message = update.getMessage();
+        Long chatId = message.getChatId();
+        if (!message.hasText()) {
+            log.debug("Telegram update ignored chatId={} status=no_text", chatId);
+            return;
+        }
+
+        for (CommandHandler handler : handlers) {
+            if (handler.canHandle(update)) {
+                log.info("Telegram message handled chatId={} command={} handler={} status=handled",
+                        chatId, handler.getCommand(), handler.getClass().getSimpleName());
+                handler.handle(update);
+                return;
+            }
+        }
+
+        log.info("Telegram message unhandled chatId={} status=unhandled", chatId);
     }
 }

@@ -60,8 +60,10 @@ public class SecurityConfig {
                                         ErrorCode.FORBIDDEN,
                                         "Access denied")))
                 .authorizeHttpRequests(auth -> auth
+                        // All-user report generation is an operational batch action.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/week", "/api/v1/month").hasRole("ADMIN")
                         // File import API is limited to VIP users because it can mutate workout data in bulk.
-                        .requestMatchers("/api/import/**").hasRole("VIP")
+                        .requestMatchers("/api/v1/workout-import/**").hasRole("VIP")
                         // Dev/test operational endpoints are restricted to administrators.
                         .requestMatchers("/test/**").hasRole("ADMIN")
                         // FatSecret redirects users here without an application JWT.
