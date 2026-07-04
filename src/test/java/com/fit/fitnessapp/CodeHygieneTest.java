@@ -157,6 +157,30 @@ class CodeHygieneTest {
     }
 
     @Test
+    void aiPromptsLiveInVersionedResources() throws IOException {
+        String fitnessAiService = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/ai/FitnessAiService.java"));
+        List<Path> promptFiles = List.of(
+                Path.of("src/main/resources/ai/prompts/daily-insight-v1.md"),
+                Path.of("src/main/resources/ai/prompts/weekly-report-v1.md"),
+                Path.of("src/main/resources/ai/prompts/monthly-report-v1.md"),
+                Path.of("src/main/resources/ai/prompts/telegram-ask-v1.md")
+        );
+
+        assertThat(fitnessAiService)
+                .doesNotContain("You are a professional fitness dietitian")
+                .doesNotContain("Act as a professional fitness dietitian and trainer")
+                .doesNotContain("Answer the user's question based on their data and history");
+        for (Path promptFile : promptFiles) {
+            assertThat(promptFile).exists();
+            String prompt = Files.readString(promptFile);
+            assertThat(prompt)
+                    .contains("name:")
+                    .contains("version: v1");
+        }
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");

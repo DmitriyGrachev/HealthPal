@@ -42,6 +42,7 @@ public class FitnessAiService {
     private final NutritionQueryUseCase nutritionQueryUseCase;
     private final ApplicationEventPublisher eventPublisher;
     private final AiProperties aiProperties;
+    private final AiPromptRenderer promptRenderer;
 
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
@@ -56,14 +57,10 @@ public class FitnessAiService {
         String model = modelFor(taskType);
         
         String memoryContext = buildMemoryContext(event.userId(), event.question());
-        
-        String prompt = String.format(
-                "You are a helpful fitness assistant. Answer the user's question based on their data and history.\n\n" +
-                "USER CONTEXT AND HISTORY:\n%s\n\n" +
-                "USER QUESTION: %s\n\n" +
-                "Answer concisely in Russian. If you don't know the answer, say so.",
-                memoryContext, event.question()
-        );
+        String prompt = promptRenderer.render("telegram-ask-v1.md", Map.of(
+                "memoryContext", memoryContext,
+                "question", event.question()
+        ));
 
         try {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
@@ -112,19 +109,14 @@ public class FitnessAiService {
                 String.format("nutrition %d calories %.1f protein", totalCalories, protein));
         String recentInsights = getRecentInsightsSummary(userId, InsightType.DAILY);
 
-        String prompt = String.format(
-                "You are a professional fitness dietitian. Analyze the user's daily macronutrients: " +
-                        "KNOWN FACTS ABOUT USER:\n%s\n\n" +
-                        "RECENT INSIGHTS:\n%s\n\n" +
-                        "Calories: %d, Protein: %.1fg, Fat: %.1fg, Carbs: %.1fg. " +
-                        "You MUST respond with a complete, valid JSON object. " +
-                        "For reportType use DAILY. For periodCovered use today's date for both start and end. " +
-                        "Provide 1-2 anomalies if relevant, 2-3 actionable recommendations. " +
-                        "The summary must be 2-3 sentences in Russian. " +
-                        "telegramSummary must be under 280 chars in Russian. " +
-                        "goalAlignment and confidenceScore must be floats between 0.0 and 1.0.",
-                memoriesText, recentInsights, totalCalories, protein, fat, carbs
-        );
+        String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
+                "memoriesText", memoriesText,
+                "recentInsights", recentInsights,
+                "totalCalories", totalCalories,
+                "protein", oneDecimal(protein),
+                "fat", oneDecimal(fat),
+                "carbs", oneDecimal(carbs)
+        ));
 
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.DAILY_INSIGHT;
         String model = modelFor(taskType);
@@ -180,37 +172,22 @@ public class FitnessAiService {
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
 
-        String prompt = String.format("""
-                        Act as a professional fitness dietitian and trainer.
-                        Analyze the relationship between workouts and nutrition for the user during the week (%s - %s).
-                        
-                        LONG-TERM USER MEMORY:
-                        %s
-                        
-                        RECENT INSIGHTS:
-                        %s
-                        
-                        USER CONTEXT:
-                        %s
-                        
-                        WEEKLY NUTRITION (total calories: %d, average: %.1f kcal, protein: %.1f, fat: %.1f, carbs: %.1f):
-                        %s
-                        
-                        WEEKLY WORKOUTS (total sessions: %d, total volume: %.1f kg):
-                        %s
-                        
-                        Task: find cause-and-effect patterns using the user context. Give concrete recommendations.
-                        """,
-                event.weekStart(), event.weekEnd(),
-                memoriesText,
-                recentInsights,
-                userContext,
-                event.nutrition().totalCalories(), event.nutrition().avgCalories(),
-                event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
-                nutritionText,
-                event.workout().totalSessions(), event.workout().totalVolumeKg(),
-                workoutText
-        );
+        String prompt = promptRenderer.render("weekly-report-v1.md", Map.ofEntries(
+                Map.entry("weekStart", event.weekStart()),
+                Map.entry("weekEnd", event.weekEnd()),
+                Map.entry("memoriesText", memoriesText),
+                Map.entry("recentInsights", recentInsights),
+                Map.entry("userContext", userContext),
+                Map.entry("totalCalories", event.nutrition().totalCalories()),
+                Map.entry("avgCalories", oneDecimal(event.nutrition().avgCalories())),
+                Map.entry("avgProtein", oneDecimal(event.nutrition().avgProtein())),
+                Map.entry("avgFat", oneDecimal(event.nutrition().avgFat())),
+                Map.entry("avgCarbs", oneDecimal(event.nutrition().avgCarbs())),
+                Map.entry("nutritionText", nutritionText),
+                Map.entry("totalSessions", event.workout().totalSessions()),
+                Map.entry("totalVolumeKg", oneDecimal(event.workout().totalVolumeKg())),
+                Map.entry("workoutText", workoutText)
+        ));
 
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.WEEKLY_REPORT;
         String model = modelFor(taskType);
@@ -263,46 +240,24 @@ public class FitnessAiService {
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
         String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
 
-        String prompt = String.format("""
-                        Act as a professional fitness dietitian and trainer.
-                        Analyze the user progress for the full month (%s - %s).
-                        
-                        LONG-TERM USER MEMORY:
-                        %s
-                        
-                        RECENT INSIGHTS:
-                        %s
-                        
-                        USER CONTEXT:
-                        %s
-                        
-                        MONTHLY NUTRITION:
-                        - Total calories: %d kcal
-                        - Daily average: %.1f kcal | Protein: %.1f g | Fat: %.1f g | Carbs: %.1f g
-                        - Days tracked: %d
-                        Daily breakdown:
-                        %s
-                        
-                        MONTHLY WORKOUTS:
-                        - Total sessions: %d
-                        - Total volume: %.1f kg | Average volume per session: %.1f kg
-                        Daily breakdown:
-                        %s
-                        
-                        Task: evaluate monthly dynamics, find patterns, and give recommendations for the next month.
-                        """,
-                event.monthStart(), event.monthEnd(),
-                memoriesText,
-                recentInsights,
-                userContext,
-                event.nutrition().totalCalories(), event.nutrition().avgCalories(),
-                event.nutrition().avgProtein(), event.nutrition().avgFat(), event.nutrition().avgCarbs(),
-                event.nutrition().daysTracked(),
-                nutritionText,
-                event.workout().totalSessions(), event.workout().totalVolumeKg(),
-                event.workout().avgVolumePerSession(),
-                workoutText
-        );
+        String prompt = promptRenderer.render("monthly-report-v1.md", Map.ofEntries(
+                Map.entry("monthStart", event.monthStart()),
+                Map.entry("monthEnd", event.monthEnd()),
+                Map.entry("memoriesText", memoriesText),
+                Map.entry("recentInsights", recentInsights),
+                Map.entry("userContext", userContext),
+                Map.entry("totalCalories", event.nutrition().totalCalories()),
+                Map.entry("avgCalories", oneDecimal(event.nutrition().avgCalories())),
+                Map.entry("avgProtein", oneDecimal(event.nutrition().avgProtein())),
+                Map.entry("avgFat", oneDecimal(event.nutrition().avgFat())),
+                Map.entry("avgCarbs", oneDecimal(event.nutrition().avgCarbs())),
+                Map.entry("daysTracked", event.nutrition().daysTracked()),
+                Map.entry("nutritionText", nutritionText),
+                Map.entry("totalSessions", event.workout().totalSessions()),
+                Map.entry("totalVolumeKg", oneDecimal(event.workout().totalVolumeKg())),
+                Map.entry("avgVolumePerSession", oneDecimal(event.workout().avgVolumePerSession())),
+                Map.entry("workoutText", workoutText)
+        ));
 
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.MONTHLY_REPORT;
         String model = modelFor(taskType);
@@ -356,6 +311,10 @@ public class FitnessAiService {
             case QUICK_ANALYSIS -> aiProperties.QUICK_ANALYSIS_MODEL();
             case WEEKLY_REPORT, MONTHLY_REPORT -> "fallback-chain";
         };
+    }
+
+    private String oneDecimal(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     private String errorCode(Exception e) {

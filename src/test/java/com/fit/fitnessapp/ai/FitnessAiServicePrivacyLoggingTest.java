@@ -68,7 +68,8 @@ class FitnessAiServicePrivacyLoggingTest {
                 weightHistoryUseCase,
                 nutritionQueryUseCase,
                 eventPublisher,
-                aiProperties
+                aiProperties,
+                new AiPromptRenderer()
         );
 
         lenient().when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
