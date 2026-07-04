@@ -95,6 +95,23 @@ class CodeHygieneTest {
     }
 
     @Test
+    void readmeDocumentsLocalRunbookAndSecretHygiene() throws IOException {
+        String readme = Files.readString(Path.of("README.md"));
+
+        assertThat(readme)
+                .contains("docker compose up")
+                .contains("mvn test")
+                .contains("mvn test -Parchitecture")
+                .contains("DB_URL")
+                .contains("TELEGRAM_BOT_TOKEN")
+                .contains("FATSECRET_TOKEN_ENCRYPTION_KEY")
+                .contains("OPENROUTER_API_KEY")
+                .contains("GEMINI_API_KEY")
+                .contains(".env")
+                .contains("must not be committed");
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");
