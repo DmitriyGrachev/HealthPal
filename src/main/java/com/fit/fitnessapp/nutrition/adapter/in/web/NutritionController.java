@@ -63,18 +63,16 @@ public class NutritionController {
     }
 
     @PostMapping("/sync/today")
-    public ResponseEntity<Void> syncToday() {
+    public ResponseEntity<NutritionSyncStatusResponse> syncToday() {
         Long userId = currentUserApi.getCurrentUserId();
         syncUseCase.syncDay(userId, LocalDate.now());
-        //  202 Accepted
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.ok(new NutritionSyncStatusResponse("completed", "today"));
     }
 
     @PostMapping("/sync/current-month")
-    public ResponseEntity<Void> syncCurrentMonth() {
+    public ResponseEntity<NutritionSyncStatusResponse> syncCurrentMonth() {
         Long userId = currentUserApi.getCurrentUserId();
         syncUseCase.syncMonth(userId);
-        //202 Accepted.
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.ok(new NutritionSyncStatusResponse("completed", "current-month"));
     }
 }

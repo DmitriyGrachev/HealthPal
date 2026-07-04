@@ -22,7 +22,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-014] Добавить pgvector integration test для memory isolation
 - [x] [FIX-015] Добавить FK для `user_notes.user_id`
 - [x] [FIX-016] Валидировать nutrition date range
-- [ ] [FIX-017] Исправить HTTP semantics sync endpoints
+- [x] [FIX-017] Исправить HTTP semantics sync endpoints
 - [ ] [FIX-018] Добавить circuit breaker/backoff для AI router
 - [ ] [FIX-019] Добавить cleanup expired `user_memory`
 - [ ] [FIX-020] Добавить CI baseline
