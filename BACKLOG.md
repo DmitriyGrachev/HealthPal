@@ -19,7 +19,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-011] Шифровать FatSecret OAuth tokens в БД
 - [x] [FIX-012] Восстановить HNSW index для `user_memory.embedding`
 - [x] [FIX-013] Синхронизировать pgvector table/dimension config
-- [ ] [FIX-014] Добавить pgvector integration test для memory isolation
+- [x] [FIX-014] Добавить pgvector integration test для memory isolation
 - [ ] [FIX-015] Добавить FK для `user_notes.user_id`
 - [ ] [FIX-016] Валидировать nutrition date range
 - [ ] [FIX-017] Исправить HTTP semantics sync endpoints
