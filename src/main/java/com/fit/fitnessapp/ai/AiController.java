@@ -1,14 +1,18 @@
 package com.fit.fitnessapp.ai;
 
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -20,41 +24,40 @@ public class AiController {
     private final AiInsightRepository insightRepository;
     private final FitnessAiService fitnessAiService;
 
-
     @GetMapping("/insights/today")
-    public ResponseEntity<?> getTodayInsight() {
+    public ResponseEntity<AiTodayInsightResponse> getTodayInsight() {
         Long userId = currentUserApi.getCurrentUserId();
         LocalDate today = LocalDate.now();
-
-        // Ищем именно DAILY инсайт
-        Optional<AiInsightEntity> insightOpt = insightRepository.findByUserIdAndDateAndInsightType(userId, today, InsightType.DAILY);
+        Optional<AiInsightEntity> insightOpt =
+                insightRepository.findByUserIdAndDateAndInsightType(userId, today, InsightType.DAILY);
 
         if (insightOpt.isEmpty()) {
-            return ResponseEntity.ok(Map.of("message", "Инсайт еще не сгенерирован. Подождите окончания ночной синхронизации или запустите вручную."));
+            return ResponseEntity.ok(new AiInsightStatusResponse(
+                    "pending",
+                    "Daily insight has not been generated yet"));
         }
 
         AiInsightEntity insight = insightOpt.get();
-        return ResponseEntity.ok(Map.of(
-                "date", today,
-                "type", insight.getInsightType().name(),
-                "summary", insight.getInsightText(),
-                "structured", insight.getStructuredResponse() != null ? insight.getStructuredResponse() : Map.of()
-        ));
+        NutritionInsightResponse structuredResponse = insight.getStructuredResponse();
+        return ResponseEntity.ok(new AiInsightResponse(
+                today,
+                insight.getInsightType().name(),
+                insight.getInsightText(),
+                structuredResponse));
     }
 
     @PostMapping("/insights/generate")
-    public ResponseEntity<?> generateInsight(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
+    public ResponseEntity<AiInsightGenerationResponse> generateInsight(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         Long userId = currentUserApi.getCurrentUserId();
         LocalDate targetDate = date != null ? date : LocalDate.now();
 
         fitnessAiService.generateDailyInsight(userId, targetDate);
 
-        return ResponseEntity.accepted().body(Map.of(
-                "message", "Генерация инсайта запущена для даты " + targetDate,
-                "userId", userId,
-                "date", targetDate
-        ));
+        return ResponseEntity.accepted().body(new AiInsightGenerationResponse(
+                "accepted",
+                "Daily insight generation accepted",
+                userId,
+                targetDate));
     }
 }

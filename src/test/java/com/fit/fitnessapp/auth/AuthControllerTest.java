@@ -79,8 +79,9 @@ class AuthControllerTest {
                         .content("""
                                 {"username":"john","email":"john@example.com","password":"Secret123!"}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Registered successfully!"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("registered"))
+                .andExpect(jsonPath("$.message").value("User registered successfully"));
 
         verify(registerUserPort).registerUser(new RegisterRequest("john", "Secret123!", "john@example.com"));
     }

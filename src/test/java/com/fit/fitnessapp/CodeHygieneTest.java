@@ -112,6 +112,21 @@ class CodeHygieneTest {
     }
 
     @Test
+    void authAndAiControllersUseTypedResponseContracts() throws IOException {
+        String aiController = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/ai/AiController.java"));
+        String authController = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/auth/adapter/in/web/AuthController.java"));
+
+        assertThat(aiController)
+                .doesNotContain("ResponseEntity<?>")
+                .doesNotContain("Map.of(");
+        assertThat(authController)
+                .doesNotContain("ResponseEntity<?>")
+                .doesNotContain("Registered successfully!");
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");

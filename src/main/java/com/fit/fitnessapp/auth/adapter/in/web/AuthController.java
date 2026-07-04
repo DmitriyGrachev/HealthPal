@@ -22,13 +22,15 @@ public class AuthController {
     private final LoginService loginService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest loginRequest) {
         return ResponseEntity.status(HttpStatus.OK).body(loginService.userLogin(loginRequest));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
         registerUserPort.registerUser(registerRequest);
-        return ResponseEntity.ok("Registered successfully!");
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new RegisterResponse("registered", "User registered successfully"));
     }
 }
