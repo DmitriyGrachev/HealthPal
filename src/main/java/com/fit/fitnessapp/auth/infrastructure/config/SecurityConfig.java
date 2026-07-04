@@ -69,6 +69,8 @@ public class SecurityConfig {
                         // Health is public for runtime probes; other actuator endpoints expose operational data.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
+                        // Generated API docs expose route and schema metadata; keep them behind admin access.
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").hasRole("ADMIN")
                         // FatSecret redirects users here without an application JWT.
                         .requestMatchers("/api/v1/nutrition/callback").permitAll()
                         // Preflight requests are handled by the configured CORS policy before auth.
