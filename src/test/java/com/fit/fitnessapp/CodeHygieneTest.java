@@ -167,6 +167,26 @@ class CodeHygieneTest {
         assertThat(offenders).isEmpty();
     }
 
+    @Test
+    void userMemoryHnswIndexIsRecreatedAfterDimensionMigration() throws IOException {
+        List<Path> hnswMigrations;
+        try (var files = Files.list(Path.of("src/main/resources/db/migration"))) {
+            hnswMigrations = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString()
+                            .contains("recreate_user_memory_hnsw_index"))
+                    .toList();
+        }
+
+        assertThat(hnswMigrations).hasSize(1);
+        String migrationSql = Files.readString(hnswMigrations.getFirst()).toLowerCase();
+
+        assertThat(migrationSql)
+                .contains("create index if not exists idx_user_memory_embedding")
+                .contains("on user_memory using hnsw")
+                .contains("embedding vector_cosine_ops");
+    }
+
     private boolean containsConsolePrint(Path path) {
         try {
             String source = Files.readString(path);
