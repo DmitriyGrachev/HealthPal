@@ -32,6 +32,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
     private final FatSecretConnectionJpaRepository connectionRepository;
     private final FatsecretDayJpaRepository dayRepository;
     private final FatsecretFoodEntryJpaRepository foodEntryRepository;
+    private final FatSecretTokenCipher tokenCipher;
 
     @Override
     public void saveToken(Long userId, FatSecretToken token) {
@@ -42,8 +43,8 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
                     return newEntity;
                 });
 
-        entity.setAccessToken(token.accessToken());
-        entity.setAccessTokenSecret(token.accessTokenSecret());
+        entity.setAccessToken(tokenCipher.encrypt(token.accessToken()));
+        entity.setAccessTokenSecret(tokenCipher.encrypt(token.accessTokenSecret()));
 
         connectionRepository.save(entity);
     }
@@ -51,7 +52,10 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
     @Override
     public Optional<FatSecretToken> getToken(Long userId) {
         return connectionRepository.findByUserId(userId)
-                .map(entity -> new FatSecretToken(entity.getAccessToken(), entity.getAccessTokenSecret()));
+                .map(entity -> new FatSecretToken(
+                        tokenCipher.decrypt(entity.getAccessToken()),
+                        tokenCipher.decrypt(entity.getAccessTokenSecret())
+                ));
     }
 
     /**

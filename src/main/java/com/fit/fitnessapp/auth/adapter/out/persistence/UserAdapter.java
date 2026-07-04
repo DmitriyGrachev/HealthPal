@@ -17,14 +17,4 @@ public class UserAdapter implements UserPort {
     public List<Long> getUserIdsWithFatSecretTokens() {
         return userRepository.findUserIdsWithFatSecretTokens();
     }
-
-    @Override
-    public String getFatSecretAccessTokenByUserId(Long userId) {
-        return userRepository.getFatSecretAccessTokenByUserId(userId);
-    }
-
-    @Override
-    public String getFatSecretAccessTokenSecretByUserId(Long userId) {
-        return userRepository.getFatSecretAccessTokenSecretByUserId(userId);
-    }
 }

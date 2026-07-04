@@ -46,6 +46,7 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("fatsecret.redirect-uri", () -> "http://localhost/test/redirect");
         registry.add("fatsecret.callback-url", () -> "http://localhost/test/callback");
         registry.add("fatsecret.config-check.enabled", () -> "false");
+        registry.add("fatsecret.token-encryption.key", () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
 
         registry.add("telegram.bot.username", () -> "test_bot");
         registry.add("telegram.bot.token", () -> "0000000000:test-token");

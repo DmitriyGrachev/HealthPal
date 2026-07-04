@@ -89,6 +89,7 @@ class CodeHygieneTest {
                 .containsEntry("fatsecret.client-secret", "${FATSECRET_CLIENT_SECRET}")
                 .containsEntry("fatsecret.redirect-uri", "${FATSECRET_REDIRECT_URI}")
                 .containsEntry("fatsecret.callback-url", "${FATSECRET_CALLBACK_URL}")
+                .containsEntry("fatsecret.token-encryption.key", "${FATSECRET_TOKEN_ENCRYPTION_KEY:}")
                 .containsEntry("spring.ai.openai.api-key", "${OPENROUTER_API_KEY}")
                 .containsEntry("spring.ai.google.genai.api-key", "${GEMINI_API_KEY}");
     }

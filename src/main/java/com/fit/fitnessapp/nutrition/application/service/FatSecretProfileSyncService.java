@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
 import com.fit.fitnessapp.auth.api.UserPort;
+import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.List;
 public class FatSecretProfileSyncService {
 
     private final UserPort userPort;
+    private final NutritionCommandPort nutritionCommandPort;
     private final FatSecretProfileService fatSecretProfileService;
 
     @Scheduled(cron = "0 0 3 * * ?")
@@ -46,14 +48,15 @@ public class FatSecretProfileSyncService {
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncUserProfile(Long userId) {
-        String accessToken = userPort.getFatSecretAccessTokenByUserId(userId);
-        if (accessToken == null || accessToken.isEmpty()) {
+        FatSecretToken token = nutritionCommandPort.getToken(userId).orElse(null);
+        if (token == null || token.accessToken() == null || token.accessToken().isEmpty()) {
             log.debug("User {} has no FatSecret access token", userId);
             return;
         }
-        
-        String accessTokenSecret = userPort.getFatSecretAccessTokenSecretByUserId(userId);
-        FatSecretToken token = new FatSecretToken(accessToken, accessTokenSecret != null ? accessTokenSecret : "");
+
+        if (token.accessTokenSecret() == null) {
+            token = new FatSecretToken(token.accessToken(), "");
+        }
         FatSecretAuthResult authResult = new FatSecretAuthResult(userId, token);
         
         fatSecretProfileService.syncProfileFromFatSecret(userId, authResult);

@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.adapter.in.web;
 
-import com.fit.fitnessapp.auth.api.UserPort;
+import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileService;
 import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileSyncService;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
@@ -20,7 +20,7 @@ public class TestController {
 
     private final FatSecretProfileSyncService fatSecretProfileSyncService;
     private final FatSecretProfileService fatSecretProfileService;
-    private final UserPort userPort;
+    private final NutritionCommandPort nutritionCommandPort;
 
     @PostMapping("/test/sync-weight")
     public void testSync(@RequestParam Long userId) {
@@ -29,10 +29,11 @@ public class TestController {
 
     @GetMapping("/test/user-summary")
     public FatSecretUserSummaryDto getUserSummary(@RequestParam Long userId) {
-        String accessToken = userPort.getFatSecretAccessTokenByUserId(userId);
-        String accessTokenSecret = userPort.getFatSecretAccessTokenSecretByUserId(userId);
-        
-        FatSecretToken token = new FatSecretToken(accessToken, accessTokenSecret != null ? accessTokenSecret : "");
+        FatSecretToken token = nutritionCommandPort.getToken(userId)
+                .map(savedToken -> new FatSecretToken(
+                        savedToken.accessToken(),
+                        savedToken.accessTokenSecret() != null ? savedToken.accessTokenSecret() : ""))
+                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));
         FatSecretAuthResult authResult = new FatSecretAuthResult(userId, token);
         
         return fatSecretProfileService.getUserSummary(userId, authResult);
