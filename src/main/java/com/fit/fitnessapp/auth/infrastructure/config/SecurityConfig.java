@@ -66,6 +66,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/workout-import/**").hasRole("VIP")
                         // Dev/test operational endpoints are restricted to administrators.
                         .requestMatchers("/test/**").hasRole("ADMIN")
+                        // Health is public for runtime probes; other actuator endpoints expose operational data.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         // FatSecret redirects users here without an application JWT.
                         .requestMatchers("/api/v1/nutrition/callback").permitAll()
                         // Preflight requests are handled by the configured CORS policy before auth.
