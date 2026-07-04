@@ -12,7 +12,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-004] Убрать raw Telegram message text из логов
 - [x] [FIX-005] Обновить Spring AI из-за CVE-2026-22729
 - [x] [FIX-006] Починить Spring Modulith cycles
-- [ ] [FIX-007] Обновить Tomcat/Spring Boot patch line
+- [x] [FIX-007] Обновить Tomcat/Spring Boot patch line
 - [ ] [FIX-008] Обновить JJWT до актуальной линии
 - [ ] [FIX-009] Добавить rate limit для Telegram `/ask`
 - [ ] [FIX-010] Ограничить brute force Telegram link codes

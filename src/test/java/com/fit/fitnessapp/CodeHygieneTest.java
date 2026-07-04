@@ -2,6 +2,7 @@ package com.fit.fitnessapp;
 
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
 import java.io.IOException;
@@ -113,6 +114,15 @@ class CodeHygieneTest {
     }
 
     @Test
+    void springBootParentUsesTomcatCveFixedPatchLine() throws Exception {
+        String springBootVersion = mavenParentVersion();
+
+        assertThat(compareVersions(springBootVersion, "3.4.4"))
+                .as("Spring Boot parent must be >= 3.4.4 so managed Tomcat is outside CVE-2025-24813")
+                .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
     void architectureHotspotsUsePublicModuleContracts() throws IOException {
         String fitnessAiService = Files.readString(Path.of(
                 "src/main/java/com/fit/fitnessapp/ai/FitnessAiService.java"));
@@ -218,12 +228,24 @@ class CodeHygieneTest {
 
     private String mavenProperty(String propertyName)
             throws IOException, ParserConfigurationException, SAXException {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        Document document = factory.newDocumentBuilder().parse(Path.of("pom.xml").toFile());
+        Document document = pomDocument();
         var nodes = document.getElementsByTagName(propertyName);
         assertThat(nodes.getLength()).as(propertyName + " exists in pom.xml").isEqualTo(1);
         return nodes.item(0).getTextContent().trim();
+    }
+
+    private String mavenParentVersion()
+            throws IOException, ParserConfigurationException, SAXException {
+        Document document = pomDocument();
+        Element parent = (Element) document.getElementsByTagName("parent").item(0);
+        assertThat(parent).as("pom.xml has a parent").isNotNull();
+        return parent.getElementsByTagName("version").item(0).getTextContent().trim();
+    }
+
+    private Document pomDocument() throws ParserConfigurationException, SAXException, IOException {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        return factory.newDocumentBuilder().parse(Path.of("pom.xml").toFile());
     }
 
     private int compareVersions(String actual, String minimum) {
