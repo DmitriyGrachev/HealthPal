@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -27,7 +26,7 @@ public class WorkoutExerciseJpaEntity {
     private Long jefitLogId;
     private String exerciseName;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workout_id")
     private WorkoutJpaEntity workoutJpaEntity;
 

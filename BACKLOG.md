@@ -34,7 +34,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-026] Заменить untyped controller responses на DTO
 - [x] [FIX-027] Удалить obsolete `TelegramLinkService`
 - [x] [FIX-028] Сделать Jefit CSV parser observable
-- [ ] [FIX-029] Сделать workout `@ManyToOne` lazy
+- [x] [FIX-029] Сделать workout `@ManyToOne` lazy
 - [ ] [FIX-030] Вынести AI prompts в versioned resources
 
 ## Resolved since audit

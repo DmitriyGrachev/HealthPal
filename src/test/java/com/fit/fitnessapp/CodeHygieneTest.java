@@ -146,6 +146,17 @@ class CodeHygieneTest {
     }
 
     @Test
+    void workoutManyToOneAssociationsAreLazy() throws IOException {
+        String workoutExerciseEntity = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/workout/adapter/out/persistence/entity/WorkoutExerciseJpaEntity.java"));
+        String workoutSetEntity = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/workout/adapter/out/persistence/entity/WorkoutSetJpaEntity.java"));
+
+        assertThat(workoutExerciseEntity).contains("@ManyToOne(fetch = FetchType.LAZY)");
+        assertThat(workoutSetEntity).contains("@ManyToOne(fetch = FetchType.LAZY)");
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");
