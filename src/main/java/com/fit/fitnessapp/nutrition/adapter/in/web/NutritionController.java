@@ -55,6 +55,9 @@ public class NutritionController {
     public ResponseEntity<List<NutritionDaySummary>> getDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("from must be on or before to");
+        }
         Long userId = currentUserApi.getCurrentUserId();
         return ResponseEntity.ok(queryUseCase.getDateRange(userId, from, to));
     }
