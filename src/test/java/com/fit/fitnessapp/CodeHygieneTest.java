@@ -1,12 +1,16 @@
 package com.fit.fitnessapp;
 
 import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -99,6 +103,16 @@ class CodeHygieneTest {
     }
 
     @Test
+    void springAiVersionUsesCveFixedLine() throws Exception {
+        String springAiVersion = mavenProperty("spring-ai.version");
+
+        assertThat(compareVersions(springAiVersion, "1.1.3"))
+                .as("spring-ai.version must be >= 1.1.3 for CVE-2026-22729")
+                .isGreaterThanOrEqualTo(0);
+        assertThat(springAiVersion).isNotEqualTo("1.1.2");
+    }
+
+    @Test
     void productionCodeDoesNotContainMojibakeArtifacts() throws IOException {
         List<String> offenders;
         try (var files = Files.walk(Path.of("src/main/java"))) {
@@ -185,5 +199,29 @@ class CodeHygieneTest {
             properties.load(reader);
         }
         return properties;
+    }
+
+    private String mavenProperty(String propertyName)
+            throws IOException, ParserConfigurationException, SAXException {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        Document document = factory.newDocumentBuilder().parse(Path.of("pom.xml").toFile());
+        var nodes = document.getElementsByTagName(propertyName);
+        assertThat(nodes.getLength()).as(propertyName + " exists in pom.xml").isEqualTo(1);
+        return nodes.item(0).getTextContent().trim();
+    }
+
+    private int compareVersions(String actual, String minimum) {
+        String[] actualParts = actual.split("\\.");
+        String[] minimumParts = minimum.split("\\.");
+        int length = Math.max(actualParts.length, minimumParts.length);
+        for (int i = 0; i < length; i++) {
+            int actualPart = i < actualParts.length ? Integer.parseInt(actualParts[i]) : 0;
+            int minimumPart = i < minimumParts.length ? Integer.parseInt(minimumParts[i]) : 0;
+            if (actualPart != minimumPart) {
+                return Integer.compare(actualPart, minimumPart);
+            }
+        }
+        return 0;
     }
 }

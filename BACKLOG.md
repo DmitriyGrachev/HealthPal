@@ -10,7 +10,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-002] Закрыть `/api/v1/month` от обычных пользователей
 - [x] [FIX-003] Исправить VIP matcher для workout import
 - [x] [FIX-004] Убрать raw Telegram message text из логов
-- [ ] [FIX-005] Обновить Spring AI из-за CVE-2026-22729
+- [x] [FIX-005] Обновить Spring AI из-за CVE-2026-22729
 - [ ] [FIX-006] Починить Spring Modulith cycles
 - [ ] [FIX-007] Обновить Tomcat/Spring Boot patch line
 - [ ] [FIX-008] Обновить JJWT до актуальной линии
