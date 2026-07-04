@@ -8,6 +8,7 @@ import org.xml.sax.SAXException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -120,6 +121,18 @@ class CodeHygieneTest {
         assertThat(compareVersions(springBootVersion, "3.4.4"))
                 .as("Spring Boot parent must be >= 3.4.4 so managed Tomcat is outside CVE-2025-24813")
                 .isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void jjwtDependenciesUseCurrentLine() throws Exception {
+        List<String> jjwtVersions = mavenDependencyVersions("io.jsonwebtoken");
+
+        assertThat(jjwtVersions).hasSize(3);
+        assertThat(jjwtVersions).doesNotContain("0.11.5");
+        assertThat(jjwtVersions)
+                .allSatisfy(version -> assertThat(compareVersions(version, "0.13.0"))
+                        .as("JJWT dependencies must use the current 0.13.x line")
+                        .isGreaterThanOrEqualTo(0));
     }
 
     @Test
@@ -240,6 +253,26 @@ class CodeHygieneTest {
         Element parent = (Element) document.getElementsByTagName("parent").item(0);
         assertThat(parent).as("pom.xml has a parent").isNotNull();
         return parent.getElementsByTagName("version").item(0).getTextContent().trim();
+    }
+
+    private List<String> mavenDependencyVersions(String groupId)
+            throws IOException, ParserConfigurationException, SAXException {
+        Document document = pomDocument();
+        var dependencies = document.getElementsByTagName("dependency");
+        List<String> versions = new ArrayList<>();
+        for (int i = 0; i < dependencies.getLength(); i++) {
+            Element dependency = (Element) dependencies.item(i);
+            if (groupId.equals(childText(dependency, "groupId"))) {
+                versions.add(childText(dependency, "version"));
+            }
+        }
+        return versions;
+    }
+
+    private String childText(Element element, String tagName) {
+        var nodes = element.getElementsByTagName(tagName);
+        assertThat(nodes.getLength()).as(tagName + " exists").isEqualTo(1);
+        return nodes.item(0).getTextContent().trim();
     }
 
     private Document pomDocument() throws ParserConfigurationException, SAXException, IOException {

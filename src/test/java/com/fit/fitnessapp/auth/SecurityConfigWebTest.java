@@ -8,7 +8,6 @@ import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.ai.RateLimitInterceptor;
 import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
@@ -131,10 +130,10 @@ class SecurityConfigWebTest {
     private String tokenFor(String subject, long expiresInMillis) {
         Date now = new Date();
         return Jwts.builder()
-                .setSubject(subject)
-                .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + expiresInMillis))
-                .signWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")), SignatureAlgorithm.HS256)
+                .subject(subject)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + expiresInMillis))
+                .signWith(Keys.hmacShaKeyFor(Decoders.BASE64.decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")))
                 .compact();
     }
 
