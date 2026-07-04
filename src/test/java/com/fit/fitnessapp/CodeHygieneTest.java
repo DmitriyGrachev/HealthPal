@@ -203,6 +203,31 @@ class CodeHygieneTest {
                 .doesNotContain("pgvector max 2000");
     }
 
+    @Test
+    void userNotesForeignKeyIsAddedByDedicatedMigration() throws IOException {
+        List<Path> fkMigrations;
+        try (var files = Files.list(Path.of("src/main/resources/db/migration"))) {
+            fkMigrations = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString()
+                            .contains("add_user_notes_user_fk"))
+                    .toList();
+        }
+
+        assertThat(fkMigrations).hasSize(1);
+        String migrationSql = Files.readString(fkMigrations.getFirst()).toLowerCase()
+                .replaceAll("\\s+", " ");
+        String originalUserNotesMigration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V3__create_user_notes_table.sql")).toLowerCase();
+
+        assertThat(migrationSql)
+                .contains("alter table user_notes")
+                .contains("add constraint fk_user_notes_user")
+                .contains("foreign key (user_id) references users (id)")
+                .contains("on delete cascade");
+        assertThat(originalUserNotesMigration).doesNotContain("fk_user_notes_user");
+    }
+
     private boolean containsConsolePrint(Path path) {
         try {
             String source = Files.readString(path);
