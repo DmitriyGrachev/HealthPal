@@ -332,9 +332,15 @@ class CodeHygieneTest {
     }
 
     private String childText(Element element, String tagName) {
-        var nodes = element.getElementsByTagName(tagName);
-        assertThat(nodes.getLength()).as(tagName + " exists").isEqualTo(1);
-        return nodes.item(0).getTextContent().trim();
+        List<String> values = new ArrayList<>();
+        for (var node = element.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (node instanceof Element child && tagName.equals(child.getTagName())) {
+                values.add(child.getTextContent().trim());
+            }
+        }
+
+        assertThat(values).as(tagName + " exists").hasSize(1);
+        return values.get(0);
     }
 
     private Document pomDocument() throws ParserConfigurationException, SAXException, IOException {

@@ -27,7 +27,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-019] Добавить cleanup expired `user_memory`
 - [x] [FIX-020] Добавить CI baseline
 - [x] [FIX-021] Добавить Actuator health/metrics
-- [ ] [FIX-022] Привести Maven dependencies в порядок
+- [x] [FIX-022] Привести Maven dependencies в порядок
 - [ ] [FIX-023] Добавить реальный OpenAPI endpoint
 - [ ] [FIX-024] Добавить README и env/runbook
 - [ ] [FIX-025] Исправить `/api/v1/workout-analitic` typo совместимо

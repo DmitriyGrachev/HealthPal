@@ -175,11 +175,22 @@
             <groupId>org.telegram</groupId>
             <artifactId>telegrambots-spring-boot-starter</artifactId>
             <version>6.8.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.jupiter</groupId>
+                    <artifactId>junit-jupiter-engine</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -267,6 +278,70 @@
                         <exclude>**/*IntegrationTest.java</exclude>
                         <exclude>**/*ArchitectureTest.java</exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <configuration>
+                    <!--
+                        dependency:analyze does not model Spring Boot starters, Spring AI/Modulith
+                        starters, or framework-reflection usage well. Keep this baseline narrow and
+                        explicit so newly introduced non-starter drift still shows up as a warning.
+                    -->
+                    <ignoredUsedUndeclaredDependencies>
+                        <ignoredUsedUndeclaredDependency>org.springframework:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.springframework.boot:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.springframework.security:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.springframework.data:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.springframework.ai:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.springframework.modulith:*:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.hibernate.orm:hibernate-core:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>jakarta.persistence:jakarta.persistence-api:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>jakarta.transaction:jakarta.transaction-api:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>jakarta.validation:jakarta.validation-api:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.apache.tomcat.embed:tomcat-embed-core:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.mockito:mockito-core:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.mockito:mockito-junit-jupiter:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.assertj:assertj-core:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.core:jackson-annotations:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.core:jackson-databind:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.slf4j:slf4j-api:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>io.swagger.core.v3:swagger-annotations-jakarta:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>commons-codec:commons-codec:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>com.github.scribejava:scribejava-core:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.telegram:telegrambots:jar:*</ignoredUsedUndeclaredDependency>
+                        <ignoredUsedUndeclaredDependency>org.telegram:telegrambots-meta:jar:*</ignoredUsedUndeclaredDependency>
+                    </ignoredUsedUndeclaredDependencies>
+                    <ignoredUnusedDeclaredDependencies>
+                        <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-starter-core:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-events-jdbc:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-events-jackson:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-starter-test:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-starter-model-google-genai:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-starter-model-openai:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-web:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-actuator:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-validation:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-data-jpa:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-data-jdbc:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-security:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-cache:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-test:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.security:spring-security-test:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.postgresql:postgresql:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.flywaydb:flyway-core:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.flywaydb:flyway-database-postgresql:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>io.jsonwebtoken:jjwt-impl:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>io.jsonwebtoken:jjwt-jackson:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>com.github.scribejava:scribejava-apis:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>com.github.scribejava:scribejava-httpclient-apache:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-pgvector-store:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.module:jackson-module-parameter-names:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.telegram:telegrambots-spring-boot-starter:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>com.h2database:h2:jar:*</ignoredUnusedDeclaredDependency>
+                    </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>
         </plugins>
