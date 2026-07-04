@@ -15,7 +15,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-007] Обновить Tomcat/Spring Boot patch line
 - [x] [FIX-008] Обновить JJWT до актуальной линии
 - [x] [FIX-009] Добавить rate limit для Telegram `/ask`
-- [ ] [FIX-010] Ограничить brute force Telegram link codes
+- [x] [FIX-010] Ограничить brute force Telegram link codes
 - [ ] [FIX-011] Шифровать FatSecret OAuth tokens в БД
 - [ ] [FIX-012] Восстановить HNSW index для `user_memory.embedding`
 - [ ] [FIX-013] Синхронизировать pgvector table/dimension config

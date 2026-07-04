@@ -8,6 +8,8 @@ public final class TelegramMessages {
             "Success! Your account is now linked. You can start using FitnessApp commands.";
     public static final String LINK_INVALID =
             "Invalid or expired code. Please generate a new one on the website.";
+    public static final String LINK_RATE_LIMITED =
+            "Too many invalid link attempts. Please wait before trying again.";
     public static final String ASK_REQUIRED =
             "Please provide a question: `/ask How much protein did I have today?`.";
     public static final String ASK_THINKING = "Thinking...";

@@ -39,6 +39,11 @@ public class LinkCommandHandler implements CommandHandler {
         }
 
         String code = parts[1];
+        if (codeManager.isLinkAttemptLocked(chatId)) {
+            botService.sendMessage(chatId, TelegramMessages.LINK_RATE_LIMITED);
+            return;
+        }
+
         Optional<Long> userIdOpt = codeManager.getUserIdByCode(code);
 
         if (userIdOpt.isPresent()) {
@@ -53,10 +58,15 @@ public class LinkCommandHandler implements CommandHandler {
 
             telegramUserRepository.save(entity);
             codeManager.invalidateCode(code);
+            codeManager.clearInvalidLinkAttempts(chatId);
 
             botService.sendMessage(chatId, TelegramMessages.LINK_SUCCESS);
         } else {
-            botService.sendMessage(chatId, TelegramMessages.LINK_INVALID);
+            codeManager.recordInvalidLinkAttempt(chatId);
+            String response = codeManager.isLinkAttemptLocked(chatId)
+                    ? TelegramMessages.LINK_RATE_LIMITED
+                    : TelegramMessages.LINK_INVALID;
+            botService.sendMessage(chatId, response);
         }
     }
 
