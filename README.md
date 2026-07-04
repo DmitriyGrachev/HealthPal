@@ -67,6 +67,7 @@ mvn spring-boot:run
 Useful local checks:
 
 - Health: `GET /actuator/health`
+- Workout summary: `GET /api/v1/workout-analytic/summary`
 - OpenAPI JSON: `GET /v3/api-docs` when `SPRINGDOC_API_DOCS_ENABLED=true`
 - Swagger UI: `/swagger-ui.html` when `SPRINGDOC_SWAGGER_UI_ENABLED=true`
 

@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.workout.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
-import com.fit.fitnessapp.auth.application.service.CurrentUserService;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryWeeklyDto;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutQueryUseCase;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/workout-analitic")
+@RequestMapping({"/api/v1/workout-analytic", "/api/v1/workout-analitic"})
 @RequiredArgsConstructor
 public class WorkoutAnalyticController {
 
