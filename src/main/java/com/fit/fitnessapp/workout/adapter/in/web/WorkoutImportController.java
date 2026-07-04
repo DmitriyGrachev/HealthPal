@@ -2,6 +2,7 @@ package com.fit.fitnessapp.workout.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
+import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,12 +23,17 @@ public class WorkoutImportController {
     private final CurrentUserApi currentUserService;
 
     @PostMapping("/import/{format}")
-    public ResponseEntity<String> importFile(
+    public ResponseEntity<WorkoutImportResponse> importFile(
             @PathVariable String format,
             @RequestParam("file") MultipartFile file
     ) throws IOException {
         Long userId = currentUserService.getCurrentUserId();
-        importUseCase.importWorkouts(file.getInputStream(), format, userId);
-        return ResponseEntity.ok("Workouts in " + format + " format imported successfully!");
+        WorkoutImportResult result = importUseCase.importWorkouts(file.getInputStream(), format, userId);
+        return ResponseEntity.ok(new WorkoutImportResponse(
+                "completed",
+                format,
+                result.importedCount(),
+                result.skippedCount(),
+                result.warnings()));
     }
 }

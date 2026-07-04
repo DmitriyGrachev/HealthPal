@@ -3,7 +3,7 @@ package com.fit.fitnessapp.workout.application.service;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
-import com.fit.fitnessapp.workout.domain.WorkoutSession;
+import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,17 +22,17 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
 
     @Override
     @Transactional
-    public List<WorkoutSession> importWorkouts(InputStream fileStream, String format, Long userId) {
+    public WorkoutImportResult importWorkouts(InputStream fileStream, String format, Long userId) {
 
         WorkoutParserPort parser = parsers.stream()
                 .filter(p -> p.supports(format))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported workout format: " + format));
 
-        List<WorkoutSession> sessions = parser.parse(fileStream);
+        WorkoutImportResult result = parser.parse(fileStream);
 
-        persistencePort.saveAll(sessions, userId);
+        persistencePort.saveAll(result.sessions(), userId);
 
-        return sessions;
+        return result;
     }
 }

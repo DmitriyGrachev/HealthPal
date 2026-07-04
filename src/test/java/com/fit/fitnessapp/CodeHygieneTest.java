@@ -136,6 +136,16 @@ class CodeHygieneTest {
     }
 
     @Test
+    void jefitParserDoesNotSilentlyIgnoreMalformedRows() throws IOException {
+        String parser = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/workout/adapter/out/parser/JefitCsvParserAdapter.java"));
+
+        assertThat(parser)
+                .doesNotContain("catch (Exception ignored)")
+                .contains("WorkoutImportWarning");
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");

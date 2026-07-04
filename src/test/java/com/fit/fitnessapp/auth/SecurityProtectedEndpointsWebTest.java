@@ -13,6 +13,8 @@ import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
 import com.fit.fitnessapp.workout.adapter.in.web.WorkoutImportController;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
+import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
+import com.fit.fitnessapp.workout.domain.WorkoutImportWarning;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -31,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -144,11 +147,20 @@ class SecurityProtectedEndpointsWebTest {
 
         stubUser("vip", "VIP");
         when(currentUserApi.getCurrentUserId()).thenReturn(42L);
+        when(importWorkoutUseCase.importWorkouts(any(InputStream.class), eq("jefit"), eq(42L)))
+                .thenReturn(WorkoutImportResult.from(
+                        List.of(),
+                        List.of(new WorkoutImportWarning("WORKOUT SESSIONS", 4, "invalid workout session number"))));
 
         mockMvc.perform(multipart("/api/v1/workout-import/import/jefit")
                         .file(workoutFile())
                         .header(HttpHeaders.AUTHORIZATION, bearerTokenFor("vip")))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.format").value("jefit"))
+                .andExpect(jsonPath("$.importedCount").value(0))
+                .andExpect(jsonPath("$.skippedCount").value(1))
+                .andExpect(jsonPath("$.warnings[0].section").value("WORKOUT SESSIONS"));
 
         verify(currentUserApi).getCurrentUserId();
         verify(importWorkoutUseCase).importWorkouts(any(InputStream.class), eq("jefit"), eq(42L));
