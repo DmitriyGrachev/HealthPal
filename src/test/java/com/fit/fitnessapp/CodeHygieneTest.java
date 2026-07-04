@@ -127,6 +127,15 @@ class CodeHygieneTest {
     }
 
     @Test
+    void telegramLinkCodeHasSingleProductionService() throws IOException {
+        List<String> offenders = new ArrayList<>();
+        collectObsoleteTelegramLinkOffenders(Path.of("src/main/java"), offenders);
+        collectObsoleteTelegramLinkOffenders(Path.of("src/test/java"), offenders);
+
+        assertThat(offenders).isEmpty();
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");
@@ -322,6 +331,29 @@ class CodeHygieneTest {
                     || source.contains("�");
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + path, e);
+        }
+    }
+
+    private void collectObsoleteTelegramLinkOffenders(Path root, List<String> offenders) throws IOException {
+        String obsoleteService = "Telegram" + "LinkService";
+        String obsoleteVerifyMethod = "verify" + "Code(";
+        String obsoleteLookupMethod = "getExisting" + "Code(";
+
+        try (var files = Files.walk(root)) {
+            files.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> {
+                        try {
+                            String source = Files.readString(path);
+                            return source.contains(obsoleteService)
+                                    || source.contains(obsoleteVerifyMethod)
+                                    || source.contains(obsoleteLookupMethod);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("Could not read " + path, e);
+                        }
+                    })
+                    .map(Path::toString)
+                    .forEach(offenders::add);
         }
     }
 

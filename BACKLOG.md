@@ -32,7 +32,7 @@ Summary: 30 fixes total: P0=6, P1=15, P2=9. Effort split: S=13, M=14, L=3.
 - [x] [FIX-024] Добавить README и env/runbook
 - [x] [FIX-025] Исправить `/api/v1/workout-analitic` typo совместимо
 - [x] [FIX-026] Заменить untyped controller responses на DTO
-- [ ] [FIX-027] Удалить obsolete `TelegramLinkService`
+- [x] [FIX-027] Удалить obsolete `TelegramLinkService`
 - [ ] [FIX-028] Сделать Jefit CSV parser observable
 - [ ] [FIX-029] Сделать workout `@ManyToOne` lazy
 - [ ] [FIX-030] Вынести AI prompts в versioned resources
