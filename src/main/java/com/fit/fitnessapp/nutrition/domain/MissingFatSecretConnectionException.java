@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.nutrition.domain;
 
-public class MissingFatSecretConnectionException extends RuntimeException {
+import com.fit.fitnessapp.exception.RequiredExternalConnectionMissingException;
+
+public class MissingFatSecretConnectionException extends RequiredExternalConnectionMissingException {
     public MissingFatSecretConnectionException(Long userId) {
         super("User " + userId + " is not connected to FatSecret");
     }

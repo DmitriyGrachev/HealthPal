@@ -113,6 +113,21 @@ class CodeHygieneTest {
     }
 
     @Test
+    void architectureHotspotsUsePublicModuleContracts() throws IOException {
+        String fitnessAiService = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/ai/FitnessAiService.java"));
+        String globalExceptionHandler = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/exception/GlobalExceptionHandler.java"));
+
+        assertThat(fitnessAiService)
+                .doesNotContain("com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent")
+                .doesNotContain("com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent");
+        assertThat(globalExceptionHandler)
+                .doesNotContain("com.fit.fitnessapp.ai.exception")
+                .doesNotContain("com.fit.fitnessapp.nutrition.domain.MissingFatSecretConnectionException");
+    }
+
+    @Test
     void productionCodeDoesNotContainMojibakeArtifacts() throws IOException {
         List<String> offenders;
         try (var files = Files.walk(Path.of("src/main/java"))) {

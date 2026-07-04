@@ -1,12 +1,12 @@
-package com.fit.fitnessapp.analytics;
+package com.fit.fitnessapp.api;
 
 import java.time.LocalDate;
 import java.util.Map;
 
-public record WeeklyReportRequestedEvent(
+public record MonthlyReportRequestedEvent(
         Long userId,
-        LocalDate weekStart,
-        LocalDate weekEnd,
+        LocalDate monthStart,
+        LocalDate monthEnd,
         NutritionSnapshot nutrition,
         WorkoutSnapshot workout
 ) {
@@ -16,6 +16,7 @@ public record WeeklyReportRequestedEvent(
             double avgProtein,
             double avgFat,
             double avgCarbs,
+            int daysTracked,
             Map<String, DailyMacrosSnapshot> dailyBreakdown
     ) {}
 
@@ -29,6 +30,7 @@ public record WeeklyReportRequestedEvent(
     public record WorkoutSnapshot(
             int totalSessions,
             double totalVolumeKg,
+            double avgVolumePerSession,
             Map<String, Double> volumeByDay
     ) {}
 }

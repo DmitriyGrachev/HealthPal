@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.analytics.application;
 
-import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
+import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.nutrition.NutritionMonthlyApi;
 import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutMonthlyApi;

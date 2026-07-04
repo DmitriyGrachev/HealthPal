@@ -1,6 +1,5 @@
 package com.fit.fitnessapp.analytics.application;
 
-import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.UserApi;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyStatsDto;

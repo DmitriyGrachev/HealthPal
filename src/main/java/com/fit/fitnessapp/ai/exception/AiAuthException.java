@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.ai.exception;
 
-public class AiAuthException extends RuntimeException {
+import com.fit.fitnessapp.exception.ExternalApiException;
+
+public class AiAuthException extends ExternalApiException {
     public AiAuthException(String message, Throwable cause) {
         super(message, cause);
     }

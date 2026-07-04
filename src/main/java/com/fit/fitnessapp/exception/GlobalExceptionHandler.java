@@ -1,9 +1,5 @@
 package com.fit.fitnessapp.exception;
 
-import com.fit.fitnessapp.ai.exception.AiAuthException;
-import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
-import com.fit.fitnessapp.ai.exception.AiUnavailableException;
-import com.fit.fitnessapp.nutrition.domain.MissingFatSecretConnectionException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -58,19 +54,21 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, ErrorCode.USER_ALREADY_EXISTS, exception.getMessage(), request);
     }
 
-    @ExceptionHandler(MissingFatSecretConnectionException.class)
-    public ResponseEntity<ApiError> missingFatSecretConnection(
-            MissingFatSecretConnectionException exception,
+    @ExceptionHandler(RequiredExternalConnectionMissingException.class)
+    public ResponseEntity<ApiError> missingExternalConnection(
+            RequiredExternalConnectionMissingException exception,
             HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ErrorCode.FATSECRET_NOT_CONNECTED, exception.getMessage(), request);
     }
 
-    @ExceptionHandler(AiUnavailableException.class)
-    public ResponseEntity<ApiError> aiUnavailable(AiUnavailableException exception, HttpServletRequest request) {
+    @ExceptionHandler(ExternalServiceUnavailableException.class)
+    public ResponseEntity<ApiError> externalServiceUnavailable(
+            ExternalServiceUnavailableException exception,
+            HttpServletRequest request) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.AI_UNAVAILABLE, exception.getMessage(), request);
     }
 
-    @ExceptionHandler({ExternalApiException.class, AiAuthException.class, AiInvalidRequestException.class})
+    @ExceptionHandler(ExternalApiException.class)
     public ResponseEntity<ApiError> externalApiFailure(RuntimeException exception, HttpServletRequest request) {
         return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE, exception.getMessage(), request);
     }
@@ -104,7 +102,7 @@ public class GlobalExceptionHandler {
         if (isExternalApiFailure(exception)) {
             return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE, exception.getMessage(), request);
         }
-        if (exception.getCause() instanceof AiUnavailableException) {
+        if (exception.getCause() instanceof ExternalServiceUnavailableException) {
             return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.AI_UNAVAILABLE, exception.getMessage(), request);
         }
         return error(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, "Internal server error", request);

@@ -2,12 +2,12 @@ package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
+import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
-import com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent;
-import com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
