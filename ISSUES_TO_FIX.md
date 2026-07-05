@@ -1,6 +1,7 @@
 # FitnessApp Roadmap and Issue Tracker
 
-Last reviewed: 2026-05-15
+> Legacy note, 2026-07-05: this file is now a learning roadmap, not the active issue tracker. Use `BACKLOG.md`, `TESTING.md`, current code, and the Maven gates as the source of truth. Historical `SUPERSEDED` items may already be fixed or reshaped; re-verify before starting work from this file.
+Last reviewed: 2026-07-05
 
 This file is intentionally written as a learning roadmap, not only a bug list. The goal is to make the project stronger while understanding why each change matters.
 
@@ -66,7 +67,7 @@ Helpful plugins:
 
 Status values:
 
-- TODO
+- SUPERSEDED: historical item; verify against BACKLOG.md and current code before using
 - IN_PROGRESS
 - DONE
 - DEFERRED
@@ -207,7 +208,7 @@ Understand how to choose the right test type for each risk.
 
 ### P1-01: Add global exception handling
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -225,7 +226,7 @@ Understand API error contracts.
 
 ### P1-02: Add request validation
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -243,7 +244,7 @@ Understand boundary validation vs domain validation.
 
 ### P1-03: Harden Spring Security configuration
 
-Status: TODO
+Status: SUPERSEDED
 
 Location:
 
@@ -274,7 +275,7 @@ Understand Spring Security filter chains and stateless JWT auth.
 
 ### P1-04: Stop logging sensitive AI/user context
 
-Status: TODO
+Status: SUPERSEDED
 
 Location:
 
@@ -301,7 +302,7 @@ Understand privacy-aware logging.
 
 ### P1-05: Fix Spring Modulith cycles
 
-Status: TODO
+Status: SUPERSEDED
 
 Observed cycle:
 
@@ -326,7 +327,7 @@ Understand modular monolith boundaries.
 
 ### P1-06: Split `FitnessAiService`
 
-Status: TODO
+Status: SUPERSEDED
 
 Location:
 
@@ -352,7 +353,7 @@ Understand service responsibility boundaries.
 
 ### P1-07: Standardize module layout
 
-Status: TODO
+Status: SUPERSEDED
 
 Target layout:
 
@@ -384,7 +385,7 @@ Understand hexagonal architecture without over-engineering.
 
 ### P1-08: Fix `MoeOrchestrator` fallback logic
 
-Status: TODO
+Status: SUPERSEDED
 
 Location:
 
@@ -409,7 +410,7 @@ Understand fallback design and testable routing.
 
 ### P1-09: Fix OpenRouter error handling
 
-Status: TODO
+Status: SUPERSEDED
 
 Location:
 
@@ -431,7 +432,7 @@ Understand exception classification and external adapter design.
 
 ### P2-01: Extract prompts from service methods
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -449,7 +450,7 @@ Understand maintainable AI prompt engineering.
 
 ### P2-02: Add AI cost and usage controls
 
-Status: TODO
+Status: SUPERSEDED
 
 Fix:
 
@@ -467,7 +468,7 @@ Understand production AI operations.
 
 ### P1-10: Use PostgreSQL-compatible integration tests
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -484,7 +485,7 @@ Understand why test databases should match production behavior.
 
 ### P2-03: Review Flyway migration quality
 
-Status: TODO
+Status: SUPERSEDED
 
 Problems to inspect:
 
@@ -505,7 +506,7 @@ Understand migration discipline.
 
 ### P2-04: Make event handlers idempotent
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -522,7 +523,7 @@ Understand event-driven reliability.
 
 ### P2-05: Improve FatSecret sync resilience
 
-Status: TODO
+Status: SUPERSEDED
 
 Problem:
 
@@ -545,7 +546,7 @@ Understand external API reliability.
 
 ### P1-11: Add CI pipeline
 
-Status: TODO
+Status: SUPERSEDED
 
 Fix:
 
@@ -561,7 +562,7 @@ Understand automated quality gates.
 
 ### P2-06: Add README
 
-Status: TODO
+Status: SUPERSEDED
 
 Include:
 
@@ -580,7 +581,7 @@ Understand project onboarding docs.
 
 ### P2-07: Add formatting and static analysis
 
-Status: TODO
+Status: SUPERSEDED
 
 Options:
 
@@ -601,7 +602,7 @@ Understand automated maintainability checks.
 
 ### P2-08: Add Actuator and basic observability
 
-Status: TODO
+Status: SUPERSEDED
 
 Fix:
 

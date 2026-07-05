@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.analytics.application;
 
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
-import com.fit.fitnessapp.auth.UserApi;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyApi;
 import com.fit.fitnessapp.nutrition.NutritionWeeklyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
@@ -28,35 +27,44 @@ public class WeeklyReportTransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void generateForUser(Long userId, LocalDate weekStart, LocalDate weekEnd) {
-        log.info("Сбор данных для юзера {} за период {} - {}", userId, weekStart, weekEnd);
+        log.info("Collecting weekly report data userId={} periodStart={} periodEnd={}",
+                userId, weekStart, weekEnd);
 
         NutritionWeeklyStatsDto nDto = nutritionApi.getWeeklyStats(userId, weekStart, weekEnd);
         WorkoutWeeklyStatsDto wDto = workoutApi.getWeeklyStats(userId, weekStart, weekEnd);
 
-        WeeklyReportRequestedEvent event = buildEvent(userId, weekStart, weekEnd, nDto, wDto);
-        eventPublisher.publishEvent(event); // Летит в БД Outbox
+        eventPublisher.publishEvent(buildEvent(userId, weekStart, weekEnd, nDto, wDto));
     }
 
-    private WeeklyReportRequestedEvent buildEvent(Long userId, LocalDate start, LocalDate end,
-                                                  NutritionWeeklyStatsDto nDto, WorkoutWeeklyStatsDto wDto) {
+    private WeeklyReportRequestedEvent buildEvent(
+            Long userId,
+            LocalDate start,
+            LocalDate end,
+            NutritionWeeklyStatsDto nDto,
+            WorkoutWeeklyStatsDto wDto) {
 
-        Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown = nDto.getDailyBreakdown().entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> new WeeklyReportRequestedEvent.DailyMacrosSnapshot(
-                                e.getValue().getCalories(), e.getValue().getProtein(),
-                                e.getValue().getFat(), e.getValue().getCarbs()
-                        )
-                ));
+        Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown =
+                nDto.getDailyBreakdown().entrySet().stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey,
+                                e -> new WeeklyReportRequestedEvent.DailyMacrosSnapshot(
+                                        e.getValue().getCalories(),
+                                        e.getValue().getProtein(),
+                                        e.getValue().getFat(),
+                                        e.getValue().getCarbs())));
 
         WeeklyReportRequestedEvent.NutritionSnapshot nutrition = new WeeklyReportRequestedEvent.NutritionSnapshot(
-                nDto.getTotalCalories(), nDto.getAvgCalories(), nDto.getAvgProtein(),
-                nDto.getAvgFat(), nDto.getAvgCarbs(), dailyBreakdown
-        );
+                nDto.getTotalCalories(),
+                nDto.getAvgCalories(),
+                nDto.getAvgProtein(),
+                nDto.getAvgFat(),
+                nDto.getAvgCarbs(),
+                dailyBreakdown);
 
         WeeklyReportRequestedEvent.WorkoutSnapshot workout = new WeeklyReportRequestedEvent.WorkoutSnapshot(
-                wDto.getTotalSessions(), wDto.getTotalVolumeKg(), wDto.getVolumeByDay()
-        );
+                wDto.getTotalSessions(),
+                wDto.getTotalVolumeKg(),
+                wDto.getVolumeByDay());
 
         return new WeeklyReportRequestedEvent(userId, start, end, nutrition, workout);
     }

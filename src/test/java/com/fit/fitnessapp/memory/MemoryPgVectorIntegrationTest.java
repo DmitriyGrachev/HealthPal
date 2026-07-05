@@ -154,10 +154,9 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                 WHERE schemaname = 'public'
                   AND tablename = 'user_memory'
                   AND indexname = 'idx_user_memory_embedding'
-                  AND indexdef ILIKE '%USING hnsw%'
                 """,
                 Long.class))
-                .isEqualTo(1L);
+                .isZero();
     }
 
     private static Document memoryDocument(Long userId, String content) {

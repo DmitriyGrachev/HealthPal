@@ -5,21 +5,21 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Tag("integration")
-@Testcontainers
 @SpringBootTest
 public abstract class AbstractPostgresIntegrationTest {
 
     private static final String PGVECTOR_IMAGE = "pgvector/pgvector:pg16";
 
-    @Container
     protected static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(PGVECTOR_IMAGE)
             .withDatabaseName("fitnessapp_test")
             .withUsername("fitness")
             .withPassword("fitness");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void registerPostgresProperties(DynamicPropertyRegistry registry) {
@@ -59,6 +59,7 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.ai.openai.embedding.options.model", () -> "test-embedding-model");
         registry.add("spring.ai.vectorstore.pgvector.initialize-schema", () -> "false");
         registry.add("spring.ai.vectorstore.pgvector.table-name", () -> "user_memory");
+        registry.add("spring.ai.vectorstore.pgvector.index-type", () -> "NONE");
         registry.add("spring.ai.vectorstore.pgvector.dimension", () -> "2048");
         registry.add("memory.cleanup.enabled", () -> "false");
     }

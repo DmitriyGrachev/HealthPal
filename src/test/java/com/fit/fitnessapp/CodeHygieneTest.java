@@ -181,6 +181,41 @@ class CodeHygieneTest {
     }
 
     @Test
+    void fatSecretAdapterDoesNotLogOrExposeRawApiBodies() throws IOException {
+        String adapter = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/nutrition/adapter/out/api/FatSecretApiAdapter.java"));
+
+        assertThat(adapter)
+                .doesNotContain("log.debug(\"FatSecret food entries response [{}]: {}\", response.getCode(), response.getBody())")
+                .doesNotContain("log.debug(\"FatSecret monthly food entries response [{}]: {}\", response.getCode(), response.getBody())")
+                .doesNotContain("log.debug(\"FatSecret getWeightHistory response [{}]: {}\", response.getCode(), response.getBody())")
+                .doesNotContain("log.debug(\"FatSecret updateWeight response [{}]: {}\", response.getCode(), response.getBody())")
+                .doesNotContain("\" + response.getBody()");
+    }
+
+    @Test
+    void aiInsightResponseContractHasSingleCanonicalType() {
+        assertThat(Path.of("src/main/java/com/fit/fitnessapp/api/NutritionInsightResponse.java"))
+                .doesNotExist();
+        assertThat(Path.of("src/main/java/com/fit/fitnessapp/ai/domain/response/NutritionInsightResponse.java"))
+                .exists();
+    }
+
+    @Test
+    void defaultTestProfileDoesNotDependOnH2() throws IOException {
+        String pom = Files.readString(Path.of("pom.xml"));
+        String testProperties = Files.readString(Path.of("src/test/resources/application-test.properties"));
+
+        assertThat(pom)
+                .doesNotContain("com.h2database")
+                .doesNotContain("<artifactId>h2</artifactId>");
+        assertThat(testProperties)
+                .doesNotContain("jdbc:h2")
+                .doesNotContain("MODE=PostgreSQL")
+                .doesNotContain("spring.flyway.enabled=false");
+    }
+
+    @Test
     void jwtExpirationIsExternalizedToApplicationProperties() throws IOException {
         String jwtCore = Files.readString(Path.of("src/main/java/com/fit/fitnessapp/auth/infrastructure/utils/JwtCore.java"));
         Properties properties = loadProperties("src/main/resources/application.properties");
@@ -254,23 +289,56 @@ class CodeHygieneTest {
     }
 
     @Test
-    void userMemoryHnswIndexIsRecreatedAfterDimensionMigration() throws IOException {
-        List<Path> hnswMigrations;
+    void productionCodeDoesNotContainKnownUtf8MojibakeSequences() throws IOException {
+        List<String> mojibakeArtifacts = List.of(
+                "\u0420\u045f",
+                "\u0420\u2019",
+                "\u0420\u2014",
+                "\u0432\u20ac",
+                "\u0432\u2020",
+                "\ufffd"
+        );
+
+        List<String> offenders;
+        try (var files = Files.walk(Path.of("src/main/java"))) {
+            offenders = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java")
+                            || path.toString().endsWith(".properties"))
+                    .filter(path -> {
+                        try {
+                            String source = Files.readString(path);
+                            return mojibakeArtifacts.stream().anyMatch(source::contains);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("Could not read " + path, e);
+                        }
+                    })
+                    .map(Path::toString)
+                    .toList();
+        }
+
+        assertThat(offenders).isEmpty();
+    }
+
+    @Test
+    void userMemoryDoesNotCreateInvalidHnswIndexFor2048Dimensions() throws IOException {
+        List<Path> memoryIndexMigrations;
         try (var files = Files.list(Path.of("src/main/resources/db/migration"))) {
-            hnswMigrations = files
+            memoryIndexMigrations = files
                     .filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString()
                             .contains("recreate_user_memory_hnsw_index"))
                     .toList();
         }
 
-        assertThat(hnswMigrations).hasSize(1);
-        String migrationSql = Files.readString(hnswMigrations.getFirst()).toLowerCase();
+        assertThat(memoryIndexMigrations).hasSize(1);
+        String migrationSql = Files.readString(memoryIndexMigrations.getFirst()).toLowerCase();
 
         assertThat(migrationSql)
-                .contains("create index if not exists idx_user_memory_embedding")
-                .contains("on user_memory using hnsw")
-                .contains("embedding vector_cosine_ops");
+                .contains("vector(2048)")
+                .contains("at most 2000 dimensions")
+                .contains("drop index if exists idx_user_memory_embedding")
+                .doesNotContain("using hnsw");
     }
 
     @Test
@@ -281,6 +349,7 @@ class CodeHygieneTest {
 
         assertThat(properties)
                 .containsEntry("spring.ai.vectorstore.pgvector.table-name", "user_memory")
+                .containsEntry("spring.ai.vectorstore.pgvector.index-type", "NONE")
                 .containsEntry("spring.ai.vectorstore.pgvector.dimension", "2048");
         assertThat(memoryConfig)
                 .contains(".vectorTableName(\"user_memory\")")

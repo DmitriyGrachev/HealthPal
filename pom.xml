@@ -210,17 +210,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -350,7 +340,6 @@
                         <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-pgvector-store:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.module:jackson-module-parameter-names:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.telegram:telegrambots-spring-boot-starter:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>com.h2database:h2:jar:*</ignoredUnusedDeclaredDependency>
                     </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>

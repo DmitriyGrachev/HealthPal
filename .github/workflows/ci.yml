@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  maven:
-    name: Maven
+  test:
+    name: Unit and architecture tests
     runs-on: ubuntu-latest
 
     steps:
@@ -31,3 +31,40 @@ jobs:
 
       - name: Run architecture tests
         run: mvn -B -Parchitecture test
+
+  integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run integration tests
+        run: mvn -B verify -Pintegration
+
+  dependency-hygiene:
+    name: Dependency hygiene
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Analyze dependencies
+        run: mvn -B dependency:analyze

@@ -32,3 +32,9 @@ Thumbs.db
 
 # Local environment variables
 .env
+
+# Graphify local runtime/cache state
+.graphify/branch.json
+.graphify/worktree.json
+.graphify/needs_update
+.graphify/cache/

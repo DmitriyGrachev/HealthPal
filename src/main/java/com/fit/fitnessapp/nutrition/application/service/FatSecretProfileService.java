@@ -49,7 +49,7 @@ public class FatSecretProfileService {
                     exercises
             );
         } catch (Exception e) {
-            log.error("Failed to get user summary from FatSecret for user {}: {}", userId, e.getMessage());
+            log.error("FatSecret user summary failed userId={} errorCode={}", userId, e.getClass().getSimpleName());
             throw new ExternalApiException("Failed to get user summary from FatSecret", e);
         }
     }
@@ -73,12 +73,13 @@ public class FatSecretProfileService {
                             WeightHistoryDto.WeightSource.FATSECRET
                     );
                     weightHistoryRepository.saveWeight(dto);
-                    log.info("Synced weight from FatSecret for user {}: {}kg on {}", 
-                            userId, latestWeight.weight(), latestWeight.date());
+                    log.info("FatSecret profile sync completed userId={} date={} status=success",
+                            userId, latestWeight.date());
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to sync profile from FatSecret for user {}: {}", userId, e.getMessage());
+            log.warn("FatSecret profile sync failed userId={} status=error errorCode={}",
+                    userId, e.getClass().getSimpleName());
         }
     }
     
@@ -110,7 +111,8 @@ public class FatSecretProfileService {
                         savedCount, userId, date);
             }
         } catch (Exception e) {
-            log.warn("Failed to sync weight history from FatSecret for user {}: {}", userId, e.getMessage());
+            log.warn("FatSecret weight history sync failed userId={} status=error errorCode={}",
+                    userId, e.getClass().getSimpleName());
         }
     }
 
@@ -119,8 +121,9 @@ public class FatSecretProfileService {
         try {
             boolean success = fatSecretApi.updateWeight(authResult.token(), weightEntry);
             if (success) {
-                log.info("Successfully updated weight on FatSecret for user {}: {}kg", 
-                        authResult.userId(), weightEntry.weight());
+                log.info("FatSecret weight update completed userId={} date={} status=success",
+                        authResult.userId(),
+                        weightEntry.date() != null ? weightEntry.date() : LocalDate.now());
                 
                 // Also save to local history
                 WeightHistoryDto dto = new WeightHistoryDto(
@@ -133,7 +136,8 @@ public class FatSecretProfileService {
             }
             return success;
         } catch (Exception e) {
-            log.error("Failed to update weight on FatSecret for user {}: {}", authResult.userId(), e.getMessage());
+            log.error("FatSecret weight update failed userId={} status=error errorCode={}",
+                    authResult.userId(), e.getClass().getSimpleName());
             return false;
         }
     }

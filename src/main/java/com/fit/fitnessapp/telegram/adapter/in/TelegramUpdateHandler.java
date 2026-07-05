@@ -22,7 +22,7 @@ public class TelegramUpdateHandler extends TelegramLongPollingBot {
         super(properties.getToken());
         this.properties = properties;
         this.handlers = handlers;
-        log.info("🤖 Telegram Bot Handler initialized for user: {}", properties.getUsername());
+        log.info("Telegram Bot Handler initialized username={}", properties.getUsername());
     }
 
     @Override

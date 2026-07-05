@@ -45,7 +45,7 @@ class UserNoteForeignKeyIntegrationTest extends AbstractPostgresIntegrationTest 
     }
 
     private Long insertUser() {
-        String suffix = UUID.randomUUID().toString();
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
         return jdbcTemplate.queryForObject(
                 """
                 INSERT INTO users (username, email, password)

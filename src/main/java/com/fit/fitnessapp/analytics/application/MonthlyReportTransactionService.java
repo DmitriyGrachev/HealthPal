@@ -27,38 +27,46 @@ public class MonthlyReportTransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void generateForUser(Long userId, LocalDate monthStart, LocalDate monthEnd) {
-        log.info("Сбор месячных данных для юзера {} за период {} - {}", userId, monthStart, monthEnd);
+        log.info("Collecting monthly report data userId={} periodStart={} periodEnd={}",
+                userId, monthStart, monthEnd);
 
         NutritionMonthlyStatsDto nDto = nutritionApi.getMonthlyStats(userId, monthStart, monthEnd);
         WorkoutMonthlyStatsDto wDto = workoutApi.getMonthlyStats(userId, monthStart, monthEnd);
 
-        MonthlyReportRequestedEvent event = buildEvent(userId, monthStart, monthEnd, nDto, wDto);
-        eventPublisher.publishEvent(event);
+        eventPublisher.publishEvent(buildEvent(userId, monthStart, monthEnd, nDto, wDto));
     }
 
-    private MonthlyReportRequestedEvent buildEvent(Long userId, LocalDate start, LocalDate end,
-                                                   NutritionMonthlyStatsDto nDto,
-                                                   WorkoutMonthlyStatsDto wDto) {
+    private MonthlyReportRequestedEvent buildEvent(
+            Long userId,
+            LocalDate start,
+            LocalDate end,
+            NutritionMonthlyStatsDto nDto,
+            WorkoutMonthlyStatsDto wDto) {
 
         Map<String, MonthlyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown =
                 nDto.getDailyBreakdown().entrySet().stream()
                         .collect(Collectors.toMap(
                                 Map.Entry::getKey,
                                 e -> new MonthlyReportRequestedEvent.DailyMacrosSnapshot(
-                                        e.getValue().getCalories(), e.getValue().getProtein(),
-                                        e.getValue().getFat(), e.getValue().getCarbs()
-                                )
-                        ));
+                                        e.getValue().getCalories(),
+                                        e.getValue().getProtein(),
+                                        e.getValue().getFat(),
+                                        e.getValue().getCarbs())));
 
         MonthlyReportRequestedEvent.NutritionSnapshot nutrition = new MonthlyReportRequestedEvent.NutritionSnapshot(
-                nDto.getTotalCalories(), nDto.getAvgCalories(), nDto.getAvgProtein(),
-                nDto.getAvgFat(), nDto.getAvgCarbs(), nDto.getDaysTracked(), dailyBreakdown
-        );
+                nDto.getTotalCalories(),
+                nDto.getAvgCalories(),
+                nDto.getAvgProtein(),
+                nDto.getAvgFat(),
+                nDto.getAvgCarbs(),
+                nDto.getDaysTracked(),
+                dailyBreakdown);
 
         MonthlyReportRequestedEvent.WorkoutSnapshot workout = new MonthlyReportRequestedEvent.WorkoutSnapshot(
-                wDto.getTotalSessions(), wDto.getTotalVolumeKg(),
-                wDto.getAvgVolumePerSession(), wDto.getVolumeByDay()
-        );
+                wDto.getTotalSessions(),
+                wDto.getTotalVolumeKg(),
+                wDto.getAvgVolumePerSession(),
+                wDto.getVolumeByDay());
 
         return new MonthlyReportRequestedEvent(userId, start, end, nutrition, workout);
     }

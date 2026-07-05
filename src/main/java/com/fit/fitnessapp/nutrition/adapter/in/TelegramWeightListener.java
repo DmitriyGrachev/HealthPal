@@ -17,7 +17,8 @@ public class TelegramWeightListener {
 
     @ApplicationModuleListener
     public void onWeightRequested(TelegramWeightRequestedEvent event) {
-        log.info("Nutrition module received WeightRequestedEvent for user {}", event.userId());
+        log.info("Nutrition module received WeightRequestedEvent userId={} chatId={} status=received",
+                event.userId(), event.chatId());
 
         WeightHistoryDto dto = new WeightHistoryDto(
                 null,
@@ -28,6 +29,6 @@ public class TelegramWeightListener {
         );
 
         weightHistoryUseCase.saveWeight(dto);
-        log.info("Saved weight {}kg for user {}", event.weightKg(), event.userId());
+        log.info("Telegram weight saved userId={} date={} status=saved", event.userId(), event.date());
     }
 }

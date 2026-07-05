@@ -9,7 +9,11 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,7 +25,7 @@ public class NutritionController {
 
     private final ConnectFatSecretUseCase connectUseCase;
     private final SyncNutritionUseCase syncUseCase;
-    private final NutritionQueryUseCase queryUseCase;  // ← был пропущен
+    private final NutritionQueryUseCase queryUseCase;
     private final CurrentUserApi currentUserApi;
 
     @GetMapping("/connect")
