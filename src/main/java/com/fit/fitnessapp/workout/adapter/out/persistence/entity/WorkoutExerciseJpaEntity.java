@@ -30,6 +30,6 @@ public class WorkoutExerciseJpaEntity {
     @JoinColumn(name = "workout_id")
     private WorkoutJpaEntity workoutJpaEntity;
 
-    @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<WorkoutSetJpaEntity> sets = new ArrayList<>();
 }

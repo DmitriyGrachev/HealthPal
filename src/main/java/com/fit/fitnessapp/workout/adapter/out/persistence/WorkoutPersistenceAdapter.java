@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -57,8 +58,13 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
                 .filter(e -> e.getJefitLogId() != null)
                 .collect(Collectors.toMap(WorkoutExerciseJpaEntity::getJefitLogId, Function.identity()));
 
-        if (!existingExercises.isEmpty()) {
-            setJpaRepository.deleteAllByExerciseIdIn(existingExercises.keySet());
+        List<Long> existingExerciseDbIds = existingExercises.values().stream()
+                .map(WorkoutExerciseJpaEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (!existingExerciseDbIds.isEmpty()) {
+            setJpaRepository.deleteAllByExerciseIdIn(existingExerciseDbIds);
             existingExercises.values().forEach(ex -> ex.getSets().clear());
         }
 
@@ -71,6 +77,14 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             workout.setJefitId(session.externalId());
             workout.setDate(session.date());
             workout.setUserId(userId);
+
+            java.util.Set<Long> incomingExerciseLogIds = session.exercises().stream()
+                    .map(Exercise::jefitLogId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            workout.getExercises().removeIf(existing ->
+                    existing.getJefitLogId() != null
+                            && !incomingExerciseLogIds.contains(existing.getJefitLogId()));
 
             for (Exercise domainExercise : session.exercises()) {
                 Long logId = domainExercise.jefitLogId();
