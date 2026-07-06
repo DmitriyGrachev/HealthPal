@@ -14,6 +14,7 @@ import com.fit.fitnessapp.workout.domain.WorkoutSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
     private final CurrentUserApi currentUserApi;
 
     @Override
+    @Transactional
     public void saveAll(List<WorkoutSession> sessions, Long userId) {
         currentUserApi.findUserById(userId);
 
