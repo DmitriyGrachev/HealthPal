@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.out.parser;
 
 import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
+import com.fit.fitnessapp.workout.domain.CardioExercise;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
@@ -16,9 +17,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +42,7 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
         log.debug("Starting Jefit CSV parse");
         Map<Long, TempWorkout> tempWorkouts = new HashMap<>();
         Map<Long, TempExercise> tempExercises = new HashMap<>();
+        List<TempCardio> tempCardio = new ArrayList<>();
         List<WorkoutImportWarning> warnings = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
@@ -74,13 +79,13 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                 String[] data = cleanColumns(line.split(
                         Pattern.quote(delimiter) + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)",
                         -1));
-                parseRow(currentSection, headers, data, lineNumber, tempWorkouts, tempExercises, warnings);
+                parseRow(currentSection, headers, data, lineNumber, tempWorkouts, tempExercises, tempCardio, warnings);
             }
         } catch (IOException | RuntimeException e) {
             throw new RuntimeException("Parse error", e);
         }
 
-        return WorkoutImportResult.from(buildDomainObjects(tempWorkouts), warnings);
+        return WorkoutImportResult.from(buildDomainObjects(tempWorkouts, tempCardio), warnings);
     }
 
     private void parseRow(
@@ -90,11 +95,16 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
             int lineNumber,
             Map<Long, TempWorkout> tempWorkouts,
             Map<Long, TempExercise> tempExercises,
+            List<TempCardio> tempCardio,
             List<WorkoutImportWarning> warnings) {
         try {
             if (currentSection.contains("WORKOUT SESSIONS")) {
                 parseSession(currentSection, headers, data, lineNumber, tempWorkouts, warnings);
-            } else if (currentSection.contains("EXERCISE LOGS") && !currentSection.contains("SET")) {
+            } else if (currentSection.equalsIgnoreCase("CARDIO LOGS")) {
+                parseCardioLog(currentSection, headers, data, lineNumber, tempCardio, warnings);
+            } else if (currentSection.contains("EXERCISE LOGS")
+                    && !currentSection.contains("SET")
+                    && !currentSection.contains("CARDIO")) {
                 parseExerciseLog(currentSection, headers, data, lineNumber, tempWorkouts, tempExercises, warnings);
             } else if (currentSection.contains("EXERCISE SET LOGS")) {
                 parseSetLog(currentSection, headers, data, lineNumber, tempExercises, warnings);
@@ -107,6 +117,46 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                     lineNumber,
                     "invalid row",
                     e.getClass().getSimpleName());
+        }
+    }
+
+    private void parseCardioLog(
+            String section,
+            String[] headers,
+            String[] data,
+            int lineNumber,
+            List<TempCardio> tempCardio,
+            List<WorkoutImportWarning> warnings) {
+        int idIdx = findIndex(headers, "row_id");
+        if (idIdx == -1) {
+            idIdx = findIndex(headers, "_id");
+        }
+        int timestampIdx = findIndex(headers, "TIMESTAMP");
+        int dateIdx = findIndex(headers, "mydate");
+
+        if (!hasValue(data, idIdx) || (!hasValue(data, timestampIdx) && !hasValue(data, dateIdx))) {
+            recordWarning(warnings, section, lineNumber, "missing required cardio columns");
+            return;
+        }
+
+        try {
+            Long jefitId = Long.parseLong(data[idIdx]);
+            Long exerciseId = parseOptionalLong(headers, data, "eid");
+            int durationSeconds = parseOptionalInt(headers, data, "duration");
+            double distance = parseOptionalDouble(headers, data, "distance");
+            double calories = parseOptionalDouble(headers, data, "calorie");
+            LocalDateTime date = parseCardioDate(data, timestampIdx, dateIdx);
+            String exerciseName = exerciseId == null ? "Cardio" : "Cardio exercise " + exerciseId;
+
+            tempCardio.add(new TempCardio(
+                    jefitId,
+                    date,
+                    new CardioExercise(jefitId, exerciseId, exerciseName, durationSeconds, distance, calories)
+            ));
+        } catch (NumberFormatException e) {
+            recordWarning(warnings, section, lineNumber, "invalid cardio number");
+        } catch (DateTimeException e) {
+            recordWarning(warnings, section, lineNumber, "invalid cardio date");
         }
     }
 
@@ -224,7 +274,7 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
         }
     }
 
-    private List<WorkoutSession> buildDomainObjects(Map<Long, TempWorkout> tempWorkouts) {
+    private List<WorkoutSession> buildDomainObjects(Map<Long, TempWorkout> tempWorkouts, List<TempCardio> tempCardio) {
         List<WorkoutSession> sessions = new ArrayList<>();
         for (TempWorkout workout : tempWorkouts.values()) {
             List<Exercise> domainExercises = new ArrayList<>();
@@ -237,7 +287,34 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                 sessions.add(new WorkoutSession(workout.id, workout.date, domainExercises));
             }
         }
+        for (TempCardio cardio : tempCardio) {
+            sessions.add(new WorkoutSession(cardio.id, cardio.date, List.of(), List.of(cardio.exercise)));
+        }
+        sessions.sort(Comparator.comparing(WorkoutSession::date)
+                .thenComparing(WorkoutSession::externalId, Comparator.nullsLast(Long::compareTo)));
         return sessions;
+    }
+
+    private LocalDateTime parseCardioDate(String[] data, int timestampIdx, int dateIdx) {
+        if (hasValue(data, timestampIdx)) {
+            return LocalDateTime.parse(data[timestampIdx], DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        }
+        return LocalDate.parse(data[dateIdx]).atStartOfDay();
+    }
+
+    private Long parseOptionalLong(String[] headers, String[] data, String column) {
+        int index = findIndex(headers, column);
+        return hasValue(data, index) ? Long.parseLong(data[index]) : null;
+    }
+
+    private int parseOptionalInt(String[] headers, String[] data, String column) {
+        int index = findIndex(headers, column);
+        return hasValue(data, index) ? Integer.parseInt(data[index]) : 0;
+    }
+
+    private double parseOptionalDouble(String[] headers, String[] data, String column) {
+        int index = findIndex(headers, column);
+        return hasValue(data, index) ? Double.parseDouble(data[index]) : 0.0;
     }
 
     private void recordWarning(
@@ -298,5 +375,8 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
             this.id = id;
             this.name = name;
         }
+    }
+
+    private record TempCardio(Long id, LocalDateTime date, CardioExercise exercise) {
     }
 }

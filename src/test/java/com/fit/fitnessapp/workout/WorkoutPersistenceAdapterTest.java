@@ -2,11 +2,14 @@ package com.fit.fitnessapp.workout;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutPersistenceAdapter;
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutCardioJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
+import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutCardioJpaRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutExerciseJpaRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
+import com.fit.fitnessapp.workout.domain.CardioExercise;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
@@ -22,6 +25,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +40,9 @@ class WorkoutPersistenceAdapterTest {
     private WorkoutExerciseJpaRepository exerciseRepository;
 
     @Mock
+    private WorkoutCardioJpaRepository cardioRepository;
+
+    @Mock
     private CurrentUserApi currentUserApi;
 
     private WorkoutPersistenceAdapter adapter;
@@ -44,6 +52,7 @@ class WorkoutPersistenceAdapterTest {
         adapter = new WorkoutPersistenceAdapter(
                 workoutRepository,
                 exerciseRepository,
+                cardioRepository,
                 currentUserApi
         );
     }
@@ -60,12 +69,13 @@ class WorkoutPersistenceAdapterTest {
         when(exerciseRepository.findExercisesWithSetsByWorkoutIdIn(List.of(10L)))
                 .thenReturn(List.of(existingExercise));
 
-        adapter.saveAll(List.of(new WorkoutSession(
+        var result = adapter.saveAll(List.of(new WorkoutSession(
                 1770220318L,
                 LocalDateTime.of(2026, 2, 4, 18, 0),
                 List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0)))))
         ), 42L);
 
+        assertThat(result.changedDates()).containsExactly(LocalDateTime.of(2026, 2, 4, 18, 0).toLocalDate());
         assertThat(existingExercise.getSets())
                 .singleElement()
                 .satisfies(set -> {
@@ -91,12 +101,13 @@ class WorkoutPersistenceAdapterTest {
         when(exerciseRepository.findExercisesWithSetsByWorkoutIdIn(List.of(10L)))
                 .thenReturn(List.of(keptExercise, staleExercise));
 
-        adapter.saveAll(List.of(new WorkoutSession(
+        var result = adapter.saveAll(List.of(new WorkoutSession(
                 1770220318L,
                 LocalDateTime.of(2026, 2, 4, 18, 0),
                 List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0)))))
         ), 42L);
 
+        assertThat(result.changedDates()).containsExactly(LocalDateTime.of(2026, 2, 4, 18, 0).toLocalDate());
         assertThat(existingWorkout.getExercises())
                 .extracting(WorkoutExerciseJpaEntity::getJefitLogId)
                 .containsExactly(1L);
@@ -133,6 +144,49 @@ class WorkoutPersistenceAdapterTest {
         verify(workoutRepository).saveAll(List.of(firstWorkout, secondWorkout));
     }
 
+    @Test
+    void reimportUnchangedSessionReturnsNoChangedDatesAndSkipsSave() {
+        WorkoutJpaEntity existingWorkout = workoutEntity(10L, 1770220318L, 42L);
+        WorkoutExerciseJpaEntity existingExercise = exerciseEntity(100L, 1L, existingWorkout);
+        existingExercise.getSets().add(setEntity(500L, existingExercise, 0, 5, 65.0));
+        existingWorkout.getExercises().add(existingExercise);
+
+        when(workoutRepository.findWithExercisesByJefitIdInAndUserId(List.of(1770220318L), 42L))
+                .thenReturn(List.of(existingWorkout));
+        when(exerciseRepository.findExercisesWithSetsByWorkoutIdIn(List.of(10L)))
+                .thenReturn(List.of(existingExercise));
+
+        var result = adapter.saveAll(List.of(new WorkoutSession(
+                1770220318L,
+                LocalDateTime.of(2026, 2, 4, 18, 0),
+                List.of(new Exercise(1L, "Old Bench Press", List.of(new Set(0, 5, 65.0)))))
+        ), 42L);
+
+        assertThat(result.changedDates()).isEmpty();
+        verify(workoutRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void reimportUnchangedCardioReturnsNoChangedDatesAndSkipsSave() {
+        LocalDateTime date = LocalDateTime.of(2026, 3, 20, 11, 34);
+        WorkoutCardioJpaEntity existingCardio = cardioEntity(200L, 23937347L, 42L, date);
+
+        when(cardioRepository.findByJefitIdInAndUserId(List.of(23937347L), 42L))
+                .thenReturn(List.of(existingCardio));
+
+        var result = adapter.saveAll(List.of(new WorkoutSession(
+                23937347L,
+                date,
+                List.of(),
+                List.of(new CardioExercise(23937347L, 321L, "Cardio exercise 321", 3600, 1.5, 220.0))
+        )), 42L);
+
+        assertThat(result.changedDates()).isEmpty();
+        verify(workoutRepository, never()).findWithExercisesByJefitIdInAndUserId(any(), any());
+        verify(workoutRepository, never()).saveAll(any());
+        verify(cardioRepository, never()).saveAll(any());
+    }
+
     private WorkoutJpaEntity workoutEntity(Long id, Long jefitId, Long userId) {
         WorkoutJpaEntity entity = new WorkoutJpaEntity();
         ReflectionTestUtils.setField(entity, "id", id);
@@ -163,6 +217,20 @@ class WorkoutPersistenceAdapterTest {
         entity.setSetIndex(setIndex);
         entity.setReps(reps);
         entity.setWeight(weight);
+        return entity;
+    }
+
+    private WorkoutCardioJpaEntity cardioEntity(Long id, Long jefitId, Long userId, LocalDateTime date) {
+        WorkoutCardioJpaEntity entity = new WorkoutCardioJpaEntity();
+        ReflectionTestUtils.setField(entity, "id", id);
+        entity.setJefitId(jefitId);
+        entity.setUserId(userId);
+        entity.setDate(date);
+        entity.setExerciseId(321L);
+        entity.setExerciseName("Cardio exercise 321");
+        entity.setDurationSeconds(3600);
+        entity.setDistance(1.5);
+        entity.setCalories(220.0);
         return entity;
     }
 }

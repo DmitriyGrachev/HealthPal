@@ -12,6 +12,9 @@ public record DailyInsightSnapshot(
         double carbohydrate,
         int workoutSessions,
         double workoutVolumeKg,
+        int cardioSessions,
+        int cardioDurationSeconds,
+        double cardioCalories,
         Map<String, Object> sourceMetadata
 ) {
     public DailyInsightSnapshot {

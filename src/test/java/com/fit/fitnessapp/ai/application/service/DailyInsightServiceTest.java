@@ -6,6 +6,7 @@ import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,9 +78,7 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(
-                eq(userId),
-                eq("nutrition 850 calories 65.0 protein workout 1 sessions 1250.0 kg volume")))
+        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
                 .thenReturn("memory context");
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
@@ -98,7 +98,11 @@ class DailyInsightServiceTest {
                 .containsEntry("date", date)
                 .containsEntry("totalCalories", 850)
                 .containsEntry("workoutSessions", 1)
-                .containsEntry("workoutVolumeKg", "1250.0");
+                .containsEntry("workoutVolumeKg", "1250.0")
+                .containsEntry("cardioSessions", 0)
+                .containsEntry("cardioDurationMinutes", "0.0")
+                .containsEntry("cardioCalories", "0.0")
+                .containsEntry("sourceCoverage", "nutrition_workout");
 
         ArgumentCaptor<AiInsightEntity> insightCaptor = ArgumentCaptor.forClass(AiInsightEntity.class);
         verify(insightRepository).save(insightCaptor.capture());
@@ -120,7 +124,10 @@ class DailyInsightServiceTest {
         Map<String, Object> workout = (Map<String, Object>) saved.getMetadata().get("workout_at_generation_time");
         assertThat(workout)
                 .containsEntry("sessions", 1)
-                .containsEntry("volumeKg", 1250.0);
+                .containsEntry("volumeKg", 1250.0)
+                .containsEntry("cardioSessions", 0)
+                .containsEntry("cardioDurationSeconds", 0)
+                .containsEntry("cardioCalories", 0.0);
 
         ArgumentCaptor<InsightGeneratedEvent> eventCaptor = ArgumentCaptor.forClass(InsightGeneratedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -129,7 +136,8 @@ class DailyInsightServiceTest {
                 date,
                 InsightType.DAILY,
                 "Daily summary",
-                "Telegram summary"
+                "Telegram summary",
+                "hash-1"
         ));
     }
 
@@ -180,7 +188,8 @@ class DailyInsightServiceTest {
                 date,
                 InsightType.DAILY,
                 "Cached summary",
-                "Cached telegram"
+                "Cached telegram",
+                "hash-1"
         ));
     }
 
@@ -199,9 +208,7 @@ class DailyInsightServiceTest {
                 .thenReturn(Optional.of(existing));
         when(snapshotService.build(userId, date))
                 .thenReturn(snapshot(userId, date, "new", 900, 70.0, 20.0, 100.0, 2, 2500.0));
-        when(aiContextService.buildMemoryContext(
-                eq(userId),
-                eq("nutrition 900 calories 70.0 protein workout 2 sessions 2500.0 kg volume")))
+        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
                 .thenReturn("memory context");
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
@@ -237,6 +244,31 @@ class DailyInsightServiceTest {
     }
 
     @Test
+    void deletesStaleDailyInsightWhenSnapshotBecomesUnavailable() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        AiInsightEntity stale = AiInsightEntity.builder()
+                .id(7L)
+                .userId(userId)
+                .date(date)
+                .insightType(InsightType.DAILY)
+                .insightText("Old summary")
+                .metadata(Map.of("snapshot_hash", "old"))
+                .build();
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.of(stale));
+        when(snapshotService.build(userId, date)).thenReturn(null);
+
+        DailyInsightResult result = service.generate(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.NO_SNAPSHOT);
+        verify(insightRepository).delete(stale);
+        verify(eventPublisher).publishEvent(new InsightDeletedEvent(userId, date, InsightType.DAILY));
+        verifyNoInteractions(moeOrchestrator);
+        verify(insightRepository, never()).save(any());
+    }
+
+    @Test
     void reportsAiFailureWhenProviderCannotGenerateDailyInsight() {
         Long userId = 42L;
         LocalDate date = LocalDate.of(2026, 7, 6);
@@ -244,9 +276,7 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(
-                eq(userId),
-                eq("nutrition 850 calories 65.0 protein workout 1 sessions 1250.0 kg volume")))
+        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
                 .thenReturn("memory context");
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
@@ -271,9 +301,7 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(
-                eq(userId),
-                eq("nutrition 850 calories 65.0 protein workout 1 sessions 1250.0 kg volume")))
+        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
                 .thenThrow(new IllegalStateException("context down"));
 
         DailyInsightResult result = service.generateOrPublishExisting(userId, date);
@@ -303,7 +331,13 @@ class DailyInsightServiceTest {
                 carbs,
                 workoutSessions,
                 workoutVolumeKg,
-                Map.of("snapshot_hash", hash)
+                0,
+                0,
+                0.0,
+                Map.of(
+                        "snapshot_hash", hash,
+                        "source_coverage", "nutrition_workout"
+                )
         );
     }
 

@@ -8,6 +8,7 @@ import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
 import com.fit.fitnessapp.workout.domain.WorkoutImportWarning;
+import com.fit.fitnessapp.workout.domain.WorkoutPersistenceResult;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,7 +24,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +52,8 @@ class WorkoutImportServiceTest {
 
         when(parser.supports("jefit-csv")).thenReturn(true);
         when(parser.parse(stream)).thenReturn(parseResult);
+        when(persistencePort.saveAll(sessions, 42L))
+                .thenReturn(new WorkoutPersistenceResult(List.of(LocalDate.of(2026, 3, 16))));
 
         WorkoutImportResult result = service.importWorkouts(stream, "jefit-csv", 42L);
 
@@ -71,6 +76,8 @@ class WorkoutImportServiceTest {
 
         when(parser.supports("jefit-csv")).thenReturn(true);
         when(parser.parse(stream)).thenReturn(parseResult);
+        when(persistencePort.saveAll(sessions, 42L))
+                .thenReturn(new WorkoutPersistenceResult(List.of(LocalDate.of(2026, 7, 1))));
 
         service.importWorkouts(stream, "jefit-csv", 42L);
 
@@ -79,10 +86,26 @@ class WorkoutImportServiceTest {
         inOrder.verify(eventPublisher).publishEvent(new WorkoutImportedEvent(
                 42L,
                 LocalDate.of(2026, 7, 1),
-                LocalDate.of(2026, 7, 5),
+                LocalDate.of(2026, 7, 1),
                 2,
                 1,
-                List.of(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 5))));
+                List.of(LocalDate.of(2026, 7, 1))));
+    }
+
+    @Test
+    void importWorkoutsDoesNotPublishEventWhenPersistenceReportsNoChangedDates() {
+        ByteArrayInputStream stream = new ByteArrayInputStream(new byte[0]);
+        List<WorkoutSession> sessions = List.of(session(1L, LocalDateTime.of(2026, 7, 1, 18, 0)));
+        WorkoutImportResult parseResult = WorkoutImportResult.from(sessions, List.of());
+        WorkoutImportService service = new WorkoutImportService(List.of(parser), persistencePort, eventPublisher);
+
+        when(parser.supports("jefit-csv")).thenReturn(true);
+        when(parser.parse(stream)).thenReturn(parseResult);
+        when(persistencePort.saveAll(sessions, 42L)).thenReturn(new WorkoutPersistenceResult(List.of()));
+
+        service.importWorkouts(stream, "jefit-csv", 42L);
+
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     private WorkoutSession session() {

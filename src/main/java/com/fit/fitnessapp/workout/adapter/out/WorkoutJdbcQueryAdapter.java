@@ -100,25 +100,51 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
     @Override
     public WorkoutDailyStatsDto getDailyStats(Long userId, LocalDate date) {
         String sql = """
+                WITH strength_stats AS (
+                    SELECT
+                        COUNT(DISTINCT w.id)                  AS strength_sessions,
+                        COALESCE(SUM(ws.weight * ws.reps), 0) AS total_volume
+                    FROM workout w
+                    LEFT JOIN workout_exercises we ON w.id = we.workout_id
+                    LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
+                    WHERE w.user_id = :userId
+                      AND w.date >= :startDate
+                      AND w.date < :endDatePlusOne
+                ),
+                cardio_stats AS (
+                    SELECT
+                        COUNT(c.id)                                  AS cardio_sessions,
+                        COALESCE(SUM(c.duration_seconds), 0)         AS cardio_duration_seconds,
+                        COALESCE(SUM(c.calories), 0)                 AS cardio_calories
+                    FROM workout_cardio c
+                    WHERE c.user_id = :userId
+                      AND c.date >= :startDate
+                      AND c.date < :endDatePlusOne
+                )
                 SELECT
-                    COUNT(DISTINCT w.id)                       AS total_sessions,
-                    COALESCE(SUM(ws.weight * ws.reps), 0)      AS total_volume
-                FROM workout w
-                LEFT JOIN workout_exercises we ON w.id = we.workout_id
-                LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
-                WHERE w.user_id = :userId
-                  AND w.date >= :startDate
-                  AND w.date < :endDatePlusOne
+                    strength_stats.strength_sessions + cardio_stats.cardio_sessions AS total_sessions,
+                    strength_stats.total_volume                                     AS total_volume,
+                    cardio_stats.cardio_sessions                                    AS cardio_sessions,
+                    cardio_stats.cardio_duration_seconds                            AS cardio_duration_seconds,
+                    cardio_stats.cardio_calories                                    AS cardio_calories
+                FROM strength_stats
+                CROSS JOIN cardio_stats
                 """;
 
         WorkoutDailyStatsDto.WorkoutDailyStatsDtoBuilder builder = WorkoutDailyStatsDto.builder()
                 .date(date)
                 .totalSessions(0)
-                .totalVolumeKg(0.0);
+                .totalVolumeKg(0.0)
+                .cardioSessions(0)
+                .cardioDurationSeconds(0)
+                .cardioCalories(0.0);
 
         jdbc.query(sql, statsParams(userId, date, date), rs -> {
             builder.totalSessions(rs.getInt("total_sessions"));
             builder.totalVolumeKg(rs.getDouble("total_volume"));
+            builder.cardioSessions(rs.getInt("cardio_sessions"));
+            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
+            builder.cardioCalories(rs.getDouble("cardio_calories"));
         });
 
         return builder.build();

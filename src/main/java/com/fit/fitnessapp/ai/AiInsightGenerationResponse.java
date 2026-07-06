@@ -6,6 +6,8 @@ public record AiInsightGenerationResponse(
         String status,
         String message,
         Long userId,
-        LocalDate date
+        LocalDate date,
+        String resultStatus,
+        String errorCode
 ) {
 }

@@ -147,6 +147,20 @@ class FitnessAiServiceDelegationTest {
     }
 
     @Test
+    void telegramTodayEventPublishesFallbackWhenInsightWorkflowReturnsNull() {
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        when(dailyInsightService.generateOrPublishExisting(42L, date)).thenReturn(null);
+
+        service.onTelegramTodayRequested(new TelegramTodayRequestedEvent(42L, 100L, date));
+
+        verify(eventPublisher).publishEvent(new TelegramAiResponseEvent(
+                42L,
+                100L,
+                FitnessAiService.TODAY_FALLBACK_MESSAGE
+        ));
+    }
+
+    @Test
     void nutritionSyncedEventDelegatesToDailyInsightWorkflow() {
         LocalDate date = LocalDate.of(2026, 7, 6);
 

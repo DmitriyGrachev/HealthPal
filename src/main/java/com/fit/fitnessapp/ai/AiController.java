@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import lombok.RequiredArgsConstructor;
@@ -52,12 +53,34 @@ public class AiController {
         Long userId = currentUserApi.getCurrentUserId();
         LocalDate targetDate = date != null ? date : LocalDate.now();
 
-        fitnessAiService.generateDailyInsight(userId, targetDate);
+        DailyInsightResult result = fitnessAiService.generateDailyInsight(userId, targetDate);
 
-        return ResponseEntity.accepted().body(new AiInsightGenerationResponse(
-                "accepted",
-                "Daily insight generation accepted",
+        return ResponseEntity.ok(new AiInsightGenerationResponse(
+                status(result),
+                message(result),
                 userId,
-                targetDate));
+                targetDate,
+                result.status().name(),
+                result.errorCode()));
+    }
+
+    private String status(DailyInsightResult result) {
+        return switch (result.status()) {
+            case GENERATED -> "generated";
+            case PUBLISHED_EXISTING -> "published_existing";
+            case SKIPPED_FRESH -> "skipped_fresh";
+            case NO_SNAPSHOT -> "no_snapshot";
+            case AI_FAILED -> "ai_failed";
+        };
+    }
+
+    private String message(DailyInsightResult result) {
+        return switch (result.status()) {
+            case GENERATED -> "Daily insight generated";
+            case PUBLISHED_EXISTING -> "Existing daily insight published";
+            case SKIPPED_FRESH -> "Daily insight is already fresh";
+            case NO_SNAPSHOT -> "No nutrition or workout data is available for this date";
+            case AI_FAILED -> "Daily insight generation failed";
+        };
     }
 }

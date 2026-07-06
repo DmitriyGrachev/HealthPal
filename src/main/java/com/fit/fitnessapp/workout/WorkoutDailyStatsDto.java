@@ -13,4 +13,7 @@ public class WorkoutDailyStatsDto {
     private LocalDate date;
     private int totalSessions;
     private double totalVolumeKg;
+    private int cardioSessions;
+    private int cardioDurationSeconds;
+    private double cardioCalories;
 }

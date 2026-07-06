@@ -76,6 +76,11 @@ public class FitnessAiService {
             return;
         }
         if (result == null) {
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    TODAY_FALLBACK_MESSAGE
+            ));
             return;
         }
 
@@ -115,8 +120,8 @@ public class FitnessAiService {
     }
 
     @Transactional
-    public void generateDailyInsight(Long userId, LocalDate date) {
-        dailyInsightService.generate(userId, date);
+    public DailyInsightResult generateDailyInsight(Long userId, LocalDate date) {
+        return dailyInsightService.generate(userId, date);
     }
 
     @ApplicationModuleListener
@@ -176,7 +181,12 @@ public class FitnessAiService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    event.userId(), event.weekStart(), InsightType.WEEKLY, aiResponse.summary(), aiResponse.telegramSummary()
+                    event.userId(),
+                    event.weekStart(),
+                    InsightType.WEEKLY,
+                    aiResponse.summary(),
+                    aiResponse.telegramSummary(),
+                    snapshotHash
             ));
 
         } catch (Exception e) {
@@ -248,7 +258,12 @@ public class FitnessAiService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    event.userId(), event.monthStart(), InsightType.MONTHLY, aiResponse.summary(), aiResponse.telegramSummary()
+                    event.userId(),
+                    event.monthStart(),
+                    InsightType.MONTHLY,
+                    aiResponse.summary(),
+                    aiResponse.telegramSummary(),
+                    snapshotHash
             ));
 
         } catch (Exception e) {

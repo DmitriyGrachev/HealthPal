@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.auth.application.service.UserDetailsService;
@@ -97,16 +98,36 @@ class AiControllerTest {
     void generateInsightReturnsTypedAcceptedResponse() throws Exception {
         LocalDate targetDate = LocalDate.of(2026, 3, 16);
         allowCurrentUser();
+        when(fitnessAiService.generateDailyInsight(USER_ID, targetDate))
+                .thenReturn(DailyInsightResult.generated());
 
         mockMvc.perform(post("/api/v1/ai/insights/generate")
                         .param("date", targetDate.toString()))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("accepted"))
-                .andExpect(jsonPath("$.message").value("Daily insight generation accepted"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("generated"))
+                .andExpect(jsonPath("$.message").value("Daily insight generated"))
+                .andExpect(jsonPath("$.resultStatus").value("GENERATED"))
                 .andExpect(jsonPath("$.userId").value(USER_ID))
                 .andExpect(jsonPath("$.date").value(targetDate.toString()));
 
         verify(fitnessAiService).generateDailyInsight(USER_ID, targetDate);
+    }
+
+    @Test
+    void generateInsightReturnsNoSnapshotStatusWhenNoDailySourceExists() throws Exception {
+        LocalDate targetDate = LocalDate.of(2026, 3, 16);
+        allowCurrentUser();
+        when(fitnessAiService.generateDailyInsight(USER_ID, targetDate))
+                .thenReturn(DailyInsightResult.noSnapshot());
+
+        mockMvc.perform(post("/api/v1/ai/insights/generate")
+                        .param("date", targetDate.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("no_snapshot"))
+                .andExpect(jsonPath("$.message").value("No nutrition or workout data is available for this date"))
+                .andExpect(jsonPath("$.resultStatus").value("NO_SNAPSHOT"))
+                .andExpect(jsonPath("$.userId").value(USER_ID))
+                .andExpect(jsonPath("$.date").value(targetDate.toString()));
     }
 
     private void allowCurrentUser() {

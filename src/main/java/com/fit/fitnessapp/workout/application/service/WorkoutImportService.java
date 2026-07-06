@@ -5,7 +5,7 @@ import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
 import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
-import com.fit.fitnessapp.workout.domain.WorkoutSession;
+import com.fit.fitnessapp.workout.domain.WorkoutPersistenceResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,20 +36,18 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
 
         WorkoutImportResult result = parser.parse(fileStream);
 
-        persistencePort.saveAll(result.sessions(), userId);
-        publishImportedEvent(userId, result);
+        WorkoutPersistenceResult persistenceResult = persistencePort.saveAll(result.sessions(), userId);
+        publishImportedEvent(userId, result, persistenceResult.changedDates());
 
         return result;
     }
 
-    private void publishImportedEvent(Long userId, WorkoutImportResult result) {
-        if (result.sessions().isEmpty()) {
+    private void publishImportedEvent(Long userId, WorkoutImportResult result, List<LocalDate> changedDates) {
+        if (changedDates.isEmpty()) {
             return;
         }
 
-        List<LocalDate> affectedDates = result.sessions().stream()
-                .map(WorkoutSession::date)
-                .map(dateTime -> dateTime.toLocalDate())
+        List<LocalDate> affectedDates = changedDates.stream()
                 .distinct()
                 .sorted()
                 .toList();

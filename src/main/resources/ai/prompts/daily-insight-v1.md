@@ -11,12 +11,14 @@ RECENT INSIGHTS:
 {{recentInsights}}
 
 Report date: {{date}}.
+Available source coverage: {{sourceCoverage}}.
 
 Daily macros:
 Calories: {{totalCalories}}, Protein: {{protein}}g, Fat: {{fat}}g, Carbs: {{carbs}}g.
 
 Daily workouts:
 Sessions: {{workoutSessions}}, Volume: {{workoutVolumeKg}} kg.
+Cardio: {{cardioSessions}} sessions, {{cardioDurationMinutes}} min, {{cardioCalories}} kcal.
 
 You MUST respond with a complete, valid JSON object.
 For reportType use DAILY. For periodCovered use the report date for both start and end.

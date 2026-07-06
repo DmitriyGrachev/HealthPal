@@ -141,13 +141,17 @@ class FitnessAiServiceReportFreshnessTest {
         assertThat(existing.getMetadata())
                 .containsKey("snapshot_hash")
                 .doesNotContainEntry("snapshot_hash", "stale");
-        verify(eventPublisher).publishEvent(new InsightGeneratedEvent(
-                42L,
-                event.weekStart(),
-                InsightType.WEEKLY,
-                "Updated weekly",
-                "Updated weekly telegram"
-        ));
+        ArgumentCaptor<InsightGeneratedEvent> eventCaptor = ArgumentCaptor.forClass(InsightGeneratedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        InsightGeneratedEvent published = eventCaptor.getValue();
+        assertThat(published.userId()).isEqualTo(42L);
+        assertThat(published.date()).isEqualTo(event.weekStart());
+        assertThat(published.insightType()).isEqualTo(InsightType.WEEKLY);
+        assertThat(published.content()).isEqualTo("Updated weekly");
+        assertThat(published.telegramSummary()).isEqualTo("Updated weekly telegram");
+        assertThat(published.snapshotHash())
+                .isNotBlank()
+                .isEqualTo(existing.getMetadata().get("snapshot_hash"));
     }
 
     @Test
@@ -175,13 +179,17 @@ class FitnessAiServiceReportFreshnessTest {
                 .containsEntry("snapshot_period_start", event.monthStart().toString())
                 .containsEntry("snapshot_period_end", event.monthEnd().toString())
                 .doesNotContainEntry("snapshot_hash", "stale");
-        verify(eventPublisher).publishEvent(new InsightGeneratedEvent(
-                42L,
-                event.monthStart(),
-                InsightType.MONTHLY,
-                "Updated monthly",
-                "Updated monthly telegram"
-        ));
+        ArgumentCaptor<InsightGeneratedEvent> eventCaptor = ArgumentCaptor.forClass(InsightGeneratedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        InsightGeneratedEvent published = eventCaptor.getValue();
+        assertThat(published.userId()).isEqualTo(42L);
+        assertThat(published.date()).isEqualTo(event.monthStart());
+        assertThat(published.insightType()).isEqualTo(InsightType.MONTHLY);
+        assertThat(published.content()).isEqualTo("Updated monthly");
+        assertThat(published.telegramSummary()).isEqualTo("Updated monthly telegram");
+        assertThat(published.snapshotHash())
+                .isNotBlank()
+                .isEqualTo(existing.getMetadata().get("snapshot_hash"));
     }
 
     private void stubReportContext() {

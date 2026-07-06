@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.memory.application.service;
 
+import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
 import com.fit.fitnessapp.memory.domain.MemoryType;
 import lombok.RequiredArgsConstructor;
@@ -47,11 +49,22 @@ public class MemoryEventListener {
         metadata.put("memory_type", MemoryType.SEMANTIC.name());
         metadata.put("memory_horizon", horizon);
         metadata.put("created_at", Instant.now().toString());
+        String memoryId = insightMemoryId(event);
+        metadata.put("insight_memory_id", memoryId);
+        if (event.snapshotHash() != null && !event.snapshotHash().isBlank()) {
+            metadata.put("snapshot_hash", event.snapshotHash());
+        }
         if (expiresAt != null) {
             metadata.put("expires_at", expiresAt.toString());
         }
 
-        vectorStore.add(List.of(new Document(event.content(), metadata)));
+        vectorStore.delete(List.of(memoryId));
+        vectorStore.add(List.of(new Document(memoryId, event.content(), metadata)));
+    }
+
+    @ApplicationModuleListener
+    public void onInsightDeleted(InsightDeletedEvent event) {
+        vectorStore.delete(List.of(insightMemoryId(event.userId(), event.insightType(), event.date())));
     }
 
     @ApplicationModuleListener
@@ -80,5 +93,17 @@ public class MemoryEventListener {
         }
 
         vectorStore.add(List.of(new Document(event.content(), metadata)));
+    }
+
+    private String insightMemoryId(InsightGeneratedEvent event) {
+        return insightMemoryId(event.userId(), event.insightType(), event.date());
+    }
+
+    private String insightMemoryId(Long userId, InsightType insightType, java.time.LocalDate date) {
+        return "insight:%d:%s:%s".formatted(
+                userId,
+                insightType.name(),
+                date
+        );
     }
 }

@@ -6,6 +6,7 @@ import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,11 @@ public class DailyInsightService {
         var existingInsight = insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY);
         DailyInsightSnapshot snapshot = snapshotService.build(userId, date);
         if (snapshot == null) {
-            log.info("No nutrition data for user {} on {}. Skipping insight generation.", userId, date);
+            log.info("No source data for user {} on {}. Skipping insight generation.", userId, date);
+            existingInsight.ifPresent(insight -> {
+                insightRepository.delete(insight);
+                eventPublisher.publishEvent(new InsightDeletedEvent(userId, date, InsightType.DAILY));
+            });
             return DailyInsightResult.noSnapshot();
         }
 
@@ -66,23 +71,31 @@ public class DailyInsightService {
         long startedAt = System.nanoTime();
         try {
             String memoriesText = aiContextService.buildMemoryContext(userId,
-                    String.format(Locale.ROOT, "nutrition %d calories %.1f protein workout %d sessions %.1f kg volume",
+                    String.format(Locale.ROOT,
+                            "nutrition %d calories %.1f protein workout %d sessions %.1f kg volume cardio %d sessions %d seconds %.1f kcal",
                             snapshot.totalCalories(),
                             snapshot.protein(),
                             snapshot.workoutSessions(),
-                            snapshot.workoutVolumeKg()));
+                            snapshot.workoutVolumeKg(),
+                            snapshot.cardioSessions(),
+                            snapshot.cardioDurationSeconds(),
+                            snapshot.cardioCalories()));
             String recentInsights = aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY);
 
-            String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
-                    "date", date,
-                    "memoriesText", memoriesText,
-                    "recentInsights", recentInsights,
-                    "totalCalories", snapshot.totalCalories(),
-                    "protein", oneDecimal(snapshot.protein()),
-                    "fat", oneDecimal(snapshot.fat()),
-                    "carbs", oneDecimal(snapshot.carbohydrate()),
-                    "workoutSessions", snapshot.workoutSessions(),
-                    "workoutVolumeKg", oneDecimal(snapshot.workoutVolumeKg())
+            String prompt = promptRenderer.render("daily-insight-v1.md", Map.ofEntries(
+                    Map.entry("date", date),
+                    Map.entry("memoriesText", memoriesText),
+                    Map.entry("recentInsights", recentInsights),
+                    Map.entry("totalCalories", snapshot.totalCalories()),
+                    Map.entry("protein", oneDecimal(snapshot.protein())),
+                    Map.entry("fat", oneDecimal(snapshot.fat())),
+                    Map.entry("carbs", oneDecimal(snapshot.carbohydrate())),
+                    Map.entry("workoutSessions", snapshot.workoutSessions()),
+                    Map.entry("workoutVolumeKg", oneDecimal(snapshot.workoutVolumeKg())),
+                    Map.entry("cardioSessions", snapshot.cardioSessions()),
+                    Map.entry("cardioDurationMinutes", oneDecimal(snapshot.cardioDurationSeconds() / 60.0)),
+                    Map.entry("cardioCalories", oneDecimal(snapshot.cardioCalories())),
+                    Map.entry("sourceCoverage", snapshot.sourceMetadata().getOrDefault("source_coverage", "unknown"))
             ));
 
             model = aiProperties.DAILY_INSIGHT_MODEL();
@@ -98,7 +111,10 @@ public class DailyInsightService {
             ));
             meta.put("workout_at_generation_time", Map.of(
                     "sessions", snapshot.workoutSessions(),
-                    "volumeKg", snapshot.workoutVolumeKg()
+                    "volumeKg", snapshot.workoutVolumeKg(),
+                    "cardioSessions", snapshot.cardioSessions(),
+                    "cardioDurationSeconds", snapshot.cardioDurationSeconds(),
+                    "cardioCalories", snapshot.cardioCalories()
             ));
 
             AiInsightEntity insight = existingInsight.orElseGet(AiInsightEntity::new);
@@ -113,7 +129,12 @@ public class DailyInsightService {
             insightRepository.save(insight);
 
             eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse.telegramSummary()
+                    userId,
+                    date,
+                    InsightType.DAILY,
+                    aiResponse.summary(),
+                    aiResponse.telegramSummary(),
+                    snapshotHash
             ));
             return DailyInsightResult.generated();
         } catch (Exception e) {
@@ -126,12 +147,15 @@ public class DailyInsightService {
     private void publishExistingInsight(AiInsightEntity insight) {
         NutritionInsightResponse structuredResponse = insight.getStructuredResponse();
         String telegramSummary = structuredResponse != null ? structuredResponse.telegramSummary() : null;
+        Object snapshotHashValue = insight.getMetadata() == null ? null : insight.getMetadata().get("snapshot_hash");
+        String snapshotHash = snapshotHashValue == null ? null : snapshotHashValue.toString();
         eventPublisher.publishEvent(new InsightGeneratedEvent(
                 insight.getUserId(),
                 insight.getDate(),
                 insight.getInsightType(),
                 insight.getInsightText(),
-                telegramSummary
+                telegramSummary,
+                snapshotHash
         ));
     }
 

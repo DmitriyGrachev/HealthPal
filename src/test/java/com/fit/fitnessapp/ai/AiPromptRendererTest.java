@@ -13,16 +13,20 @@ class AiPromptRendererTest {
 
     @Test
     void rendersDailyInsightPromptWithFixtureContext() {
-        String prompt = renderer.render("daily-insight-v1.md", Map.of(
-                "date", "2026-03-16",
-                "memoriesText", "PERMANENT USER FACTS:\n- lactose intolerance",
-                "recentInsights", "No previous insights.",
-                "totalCalories", 2_100,
-                "protein", "155.0",
-                "fat", "70.0",
-                "carbs", "220.0",
-                "workoutSessions", 1,
-                "workoutVolumeKg", "1250.0"
+        String prompt = renderer.render("daily-insight-v1.md", Map.ofEntries(
+                entry("date", "2026-03-16"),
+                entry("memoriesText", "PERMANENT USER FACTS:\n- lactose intolerance"),
+                entry("recentInsights", "No previous insights."),
+                entry("sourceCoverage", "nutrition_workout"),
+                entry("totalCalories", 2_100),
+                entry("protein", "155.0"),
+                entry("fat", "70.0"),
+                entry("carbs", "220.0"),
+                entry("workoutSessions", 1),
+                entry("workoutVolumeKg", "1250.0"),
+                entry("cardioSessions", 1),
+                entry("cardioDurationMinutes", "30.0"),
+                entry("cardioCalories", "320.0")
         ));
 
         assertThat(prompt)
@@ -34,6 +38,7 @@ class AiPromptRendererTest {
                 .contains("Protein: 155.0g")
                 .contains("Sessions: 1")
                 .contains("Volume: 1250.0 kg")
+                .contains("Cardio: 1 sessions, 30.0 min, 320.0 kcal")
                 .doesNotContain("{{");
     }
 

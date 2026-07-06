@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,7 +45,14 @@ class DailyInsightSnapshotServiceTest {
         assertThat(snapshot.carbohydrate()).isEqualTo(95.0);
         assertThat(snapshot.workoutSessions()).isEqualTo(1);
         assertThat(snapshot.workoutVolumeKg()).isEqualTo(1250.0);
-        assertThat(snapshot.sourceMetadata()).containsKeys("snapshot_hash", "nutrition_entries");
+        assertThat(snapshot.cardioSessions()).isZero();
+        assertThat(snapshot.cardioDurationSeconds()).isZero();
+        assertThat(snapshot.cardioCalories()).isZero();
+        assertThat(snapshot.sourceMetadata())
+                .containsKeys("snapshot_hash", "nutrition_entries")
+                .containsEntry("cardio_sessions", 0)
+                .containsEntry("cardio_duration_seconds", 0)
+                .containsEntry("cardio_calories", 0.0);
     }
 
     @Test
@@ -70,10 +76,82 @@ class DailyInsightSnapshotServiceTest {
     }
 
     @Test
-    void returnsNullWhenNutritionHasNoEntries() {
+    void buildReturnsWorkoutOnlySnapshotWhenNutritionIsMissingButWorkoutExists() {
         Long userId = 42L;
         LocalDate date = LocalDate.of(2026, 7, 6);
         when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
+        when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 1, 1250.0));
+
+        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
+                nutritionQueryUseCase,
+                workoutDailyApi
+        ).build(userId, date);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.totalCalories()).isZero();
+        assertThat(snapshot.protein()).isZero();
+        assertThat(snapshot.workoutSessions()).isEqualTo(1);
+        assertThat(snapshot.workoutVolumeKg()).isEqualTo(1250.0);
+        assertThat(snapshot.sourceMetadata())
+                .containsEntry("source_coverage", "workout_only")
+                .containsEntry("nutrition_entries", 0)
+                .containsEntry("has_nutrition", false)
+                .containsEntry("has_workout", true);
+    }
+
+    @Test
+    void buildReturnsWorkoutOnlySnapshotWhenOnlyCardioExists() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
+        when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(cardioStats(date, 1, 1800, 320.0));
+
+        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
+                nutritionQueryUseCase,
+                workoutDailyApi
+        ).build(userId, date);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.totalCalories()).isZero();
+        assertThat(snapshot.workoutSessions()).isEqualTo(1);
+        assertThat(snapshot.workoutVolumeKg()).isZero();
+        assertThat(snapshot.cardioSessions()).isEqualTo(1);
+        assertThat(snapshot.cardioDurationSeconds()).isEqualTo(1800);
+        assertThat(snapshot.cardioCalories()).isEqualTo(320.0);
+        assertThat(snapshot.sourceMetadata())
+                .containsEntry("source_coverage", "workout_only")
+                .containsEntry("has_workout", true)
+                .containsEntry("cardio_sessions", 1)
+                .containsEntry("cardio_duration_seconds", 1800)
+                .containsEntry("cardio_calories", 320.0);
+    }
+
+    @Test
+    void snapshotHashChangesWhenCardioContextChanges() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(day(userId, date));
+        when(workoutDailyApi.getDailyStats(userId, date))
+                .thenReturn(cardioStats(date, 1, 1800, 320.0))
+                .thenReturn(cardioStats(date, 1, 2400, 420.0));
+        DailyInsightSnapshotService service = new DailyInsightSnapshotService(
+                nutritionQueryUseCase,
+                workoutDailyApi
+        );
+
+        DailyInsightSnapshot first = service.build(userId, date);
+        DailyInsightSnapshot second = service.build(userId, date);
+
+        assertThat(first.sourceMetadata().get("snapshot_hash"))
+                .isNotEqualTo(second.sourceMetadata().get("snapshot_hash"));
+    }
+
+    @Test
+    void returnsNullWhenNutritionAndWorkoutAreMissing() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
+        when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 0, 0.0));
 
         DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
                 nutritionQueryUseCase,
@@ -81,7 +159,6 @@ class DailyInsightSnapshotServiceTest {
         ).build(userId, date);
 
         assertThat(snapshot).isNull();
-        verifyNoInteractions(workoutDailyApi);
     }
 
     private NutritionDay day(Long userId, LocalDate date) {
@@ -96,6 +173,17 @@ class DailyInsightSnapshotServiceTest {
                 .date(date)
                 .totalSessions(sessions)
                 .totalVolumeKg(volumeKg)
+                .build();
+    }
+
+    private WorkoutDailyStatsDto cardioStats(LocalDate date, int sessions, int durationSeconds, double calories) {
+        return WorkoutDailyStatsDto.builder()
+                .date(date)
+                .totalSessions(sessions)
+                .totalVolumeKg(0.0)
+                .cardioSessions(sessions)
+                .cardioDurationSeconds(durationSeconds)
+                .cardioCalories(calories)
                 .build();
     }
 }

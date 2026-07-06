@@ -71,6 +71,29 @@ class JefitCsvParserAdapterTest {
         assertThat(result.sessions().getFirst().exercises().getFirst().sets()).hasSize(2);
     }
 
+    @Test
+    void parsesJefitCardioLogsAsWorkoutContext() {
+        WorkoutImportResult result = parser.parse(csv("""
+                ### CARDIO LOGS
+                row_id,TIMESTAMP,USERID,_id,weeklyLogId,eid,belongSys,lap,duration,speed,distance,calorie,mydate
+                23937347,"2026-03-20 11:34:02",13687197,2,0,321,1,0,3600,0,1.5,220,2026-03-20
+                """));
+
+        assertThat(result.warnings()).isEmpty();
+        assertThat(result.sessions()).hasSize(1);
+        assertThat(result.sessions().getFirst().externalId()).isEqualTo(23937347L);
+        assertThat(result.sessions().getFirst().exercises()).isEmpty();
+        assertThat(result.sessions().getFirst().cardioExercises())
+                .singleElement()
+                .satisfies(cardio -> {
+                    assertThat(cardio.jefitId()).isEqualTo(23937347L);
+                    assertThat(cardio.exerciseId()).isEqualTo(321L);
+                    assertThat(cardio.durationSeconds()).isEqualTo(3600);
+                    assertThat(cardio.distance()).isEqualTo(1.5);
+                    assertThat(cardio.calories()).isEqualTo(220.0);
+                });
+    }
+
     private ByteArrayInputStream csv(String content) {
         return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
     }
