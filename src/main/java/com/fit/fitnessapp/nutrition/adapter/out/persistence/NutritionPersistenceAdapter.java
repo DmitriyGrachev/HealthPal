@@ -58,6 +58,14 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
                 ));
     }
 
+    @Override
+    public List<Long> getAllConnectedUserIds() {
+        return connectionRepository.findAll()
+                .stream()
+                .map(FatSecretConnectionJpaEntity::getUserId)
+                .toList();
+    }
+
     /**
      * Идемпотентный upsert полного дня: обновляет агрегаты, синхронизирует записи (update/create/delete).
      */
