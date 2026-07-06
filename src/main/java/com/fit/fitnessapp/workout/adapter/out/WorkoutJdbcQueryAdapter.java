@@ -164,11 +164,31 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
                       AND w.date >= :startDate
                       AND w.date < :endDatePlusOne
                     GROUP BY w.id, w.date
+                ),
+                strength_stats AS (
+                    SELECT
+                        COUNT(workout_date)            AS total_sessions,
+                        COALESCE(SUM(daily_volume), 0) AS total_volume
+                    FROM daily_stats
+                ),
+                cardio_stats AS (
+                    SELECT
+                        COUNT(c.id)                          AS cardio_sessions,
+                        COALESCE(SUM(c.duration_seconds), 0) AS cardio_duration_seconds,
+                        COALESCE(SUM(c.calories), 0)         AS cardio_calories
+                    FROM workout_cardio c
+                    WHERE c.user_id = :userId
+                      AND c.date >= :startDate
+                      AND c.date < :endDatePlusOne
                 )
                 SELECT
-                    COUNT(workout_date)            AS total_sessions,
-                    COALESCE(SUM(daily_volume), 0) AS total_volume
-                FROM daily_stats
+                    strength_stats.total_sessions              AS total_sessions,
+                    strength_stats.total_volume                AS total_volume,
+                    cardio_stats.cardio_sessions               AS cardio_sessions,
+                    cardio_stats.cardio_duration_seconds       AS cardio_duration_seconds,
+                    cardio_stats.cardio_calories               AS cardio_calories
+                FROM strength_stats
+                CROSS JOIN cardio_stats
                 """;
 
         String volumeByDaySql = """
@@ -193,6 +213,9 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
         jdbc.query(aggregateSql, params, rs -> {
             builder.totalSessions(rs.getInt("total_sessions"));
             builder.totalVolumeKg(rs.getDouble("total_volume"));
+            builder.cardioSessions(rs.getInt("cardio_sessions"));
+            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
+            builder.cardioCalories(rs.getDouble("cardio_calories"));
         });
 
         Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {
@@ -221,12 +244,33 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
                       AND w.date >= :startDate
                       AND w.date < :endDatePlusOne
                     GROUP BY w.id, w.date
+                ),
+                strength_stats AS (
+                    SELECT
+                        COUNT(workout_date)            AS total_sessions,
+                        COALESCE(SUM(daily_volume), 0) AS total_volume,
+                        COALESCE(AVG(daily_volume), 0) AS avg_volume
+                    FROM daily_stats
+                ),
+                cardio_stats AS (
+                    SELECT
+                        COUNT(c.id)                          AS cardio_sessions,
+                        COALESCE(SUM(c.duration_seconds), 0) AS cardio_duration_seconds,
+                        COALESCE(SUM(c.calories), 0)         AS cardio_calories
+                    FROM workout_cardio c
+                    WHERE c.user_id = :userId
+                      AND c.date >= :startDate
+                      AND c.date < :endDatePlusOne
                 )
                 SELECT
-                    COUNT(workout_date)            AS total_sessions,
-                    COALESCE(SUM(daily_volume), 0) AS total_volume,
-                    COALESCE(AVG(daily_volume), 0) AS avg_volume
-                FROM daily_stats
+                    strength_stats.total_sessions              AS total_sessions,
+                    strength_stats.total_volume                AS total_volume,
+                    strength_stats.avg_volume                  AS avg_volume,
+                    cardio_stats.cardio_sessions               AS cardio_sessions,
+                    cardio_stats.cardio_duration_seconds       AS cardio_duration_seconds,
+                    cardio_stats.cardio_calories               AS cardio_calories
+                FROM strength_stats
+                CROSS JOIN cardio_stats
                 """;
 
         String volumeByDaySql = """
@@ -253,6 +297,9 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
             builder.totalSessions(rs.getInt("total_sessions"));
             builder.totalVolumeKg(rs.getDouble("total_volume"));
             builder.avgVolumePerSession(rs.getDouble("avg_volume"));
+            builder.cardioSessions(rs.getInt("cardio_sessions"));
+            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
+            builder.cardioCalories(rs.getDouble("cardio_calories"));
         });
 
         Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {

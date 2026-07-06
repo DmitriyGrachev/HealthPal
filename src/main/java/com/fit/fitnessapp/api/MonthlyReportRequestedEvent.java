@@ -31,6 +31,17 @@ public record MonthlyReportRequestedEvent(
             int totalSessions,
             double totalVolumeKg,
             double avgVolumePerSession,
+            int cardioSessions,
+            int cardioDurationSeconds,
+            double cardioCalories,
             Map<String, Double> volumeByDay
-    ) {}
+    ) {
+        public WorkoutSnapshot(
+                int totalSessions,
+                double totalVolumeKg,
+                double avgVolumePerSession,
+                Map<String, Double> volumeByDay) {
+            this(totalSessions, totalVolumeKg, avgVolumePerSession, 0, 0, 0.0, volumeByDay);
+        }
+    }
 }

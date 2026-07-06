@@ -8,6 +8,7 @@ public record WorkoutImportResponse(
         String status,
         String format,
         int importedCount,
+        int changedCount,
         int skippedCount,
         List<WorkoutImportWarning> warnings
 ) {

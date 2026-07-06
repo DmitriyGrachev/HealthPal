@@ -66,6 +66,9 @@ public class MonthlyReportTransactionService {
                 wDto.getTotalSessions(),
                 wDto.getTotalVolumeKg(),
                 wDto.getAvgVolumePerSession(),
+                wDto.getCardioSessions(),
+                wDto.getCardioDurationSeconds(),
+                wDto.getCardioCalories(),
                 wDto.getVolumeByDay());
 
         return new MonthlyReportRequestedEvent(userId, start, end, nutrition, workout);

@@ -159,6 +159,9 @@ public class FitnessAiService {
                 Map.entry("nutritionText", nutritionText),
                 Map.entry("totalSessions", event.workout().totalSessions()),
                 Map.entry("totalVolumeKg", oneDecimal(event.workout().totalVolumeKg())),
+                Map.entry("cardioSessions", event.workout().cardioSessions()),
+                Map.entry("cardioDurationMinutes", oneDecimal(event.workout().cardioDurationSeconds() / 60.0)),
+                Map.entry("cardioCalories", oneDecimal(event.workout().cardioCalories())),
                 Map.entry("workoutText", workoutText)
         ));
 
@@ -236,6 +239,9 @@ public class FitnessAiService {
                 Map.entry("totalSessions", event.workout().totalSessions()),
                 Map.entry("totalVolumeKg", oneDecimal(event.workout().totalVolumeKg())),
                 Map.entry("avgVolumePerSession", oneDecimal(event.workout().avgVolumePerSession())),
+                Map.entry("cardioSessions", event.workout().cardioSessions()),
+                Map.entry("cardioDurationMinutes", oneDecimal(event.workout().cardioDurationSeconds() / 60.0)),
+                Map.entry("cardioCalories", oneDecimal(event.workout().cardioCalories())),
                 Map.entry("workoutText", workoutText)
         ));
 
@@ -403,7 +409,10 @@ public class FitnessAiService {
     private void appendWeeklyWorkout(StringBuilder sb, WeeklyReportRequestedEvent.WorkoutSnapshot workout) {
         sb.append("|workout")
                 .append('|').append(workout.totalSessions())
-                .append('|').append(workout.totalVolumeKg());
+                .append('|').append(workout.totalVolumeKg())
+                .append('|').append(workout.cardioSessions())
+                .append('|').append(workout.cardioDurationSeconds())
+                .append('|').append(workout.cardioCalories());
         appendVolumeByDay(sb, workout.volumeByDay());
     }
 
@@ -411,7 +420,10 @@ public class FitnessAiService {
         sb.append("|workout")
                 .append('|').append(workout.totalSessions())
                 .append('|').append(workout.totalVolumeKg())
-                .append('|').append(workout.avgVolumePerSession());
+                .append('|').append(workout.avgVolumePerSession())
+                .append('|').append(workout.cardioSessions())
+                .append('|').append(workout.cardioDurationSeconds())
+                .append('|').append(workout.cardioCalories());
         appendVolumeByDay(sb, workout.volumeByDay());
     }
 

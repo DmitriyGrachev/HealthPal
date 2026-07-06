@@ -59,6 +59,7 @@ class WorkoutImportServiceTest {
 
         assertThat(result.importedCount()).isEqualTo(1);
         assertThat(result.skippedCount()).isEqualTo(1);
+        assertThat(result.changedCount()).isEqualTo(1);
         assertThat(result.warnings()).hasSize(1);
         verify(persistencePort).saveAll(sessions, 42L);
     }
@@ -106,6 +107,23 @@ class WorkoutImportServiceTest {
         service.importWorkouts(stream, "jefit-csv", 42L);
 
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void importWorkoutsReturnsZeroChangedCountWhenPersistenceIsNoOp() {
+        ByteArrayInputStream stream = new ByteArrayInputStream(new byte[0]);
+        List<WorkoutSession> sessions = List.of(session(1L, LocalDateTime.of(2026, 7, 1, 18, 0)));
+        WorkoutImportResult parseResult = WorkoutImportResult.from(sessions, List.of());
+        WorkoutImportService service = new WorkoutImportService(List.of(parser), persistencePort, eventPublisher);
+
+        when(parser.supports("jefit-csv")).thenReturn(true);
+        when(parser.parse(stream)).thenReturn(parseResult);
+        when(persistencePort.saveAll(sessions, 42L)).thenReturn(new WorkoutPersistenceResult(List.of()));
+
+        WorkoutImportResult result = service.importWorkouts(stream, "jefit-csv", 42L);
+
+        assertThat(result.importedCount()).isEqualTo(1);
+        assertThat(result.changedCount()).isZero();
     }
 
     private WorkoutSession session() {

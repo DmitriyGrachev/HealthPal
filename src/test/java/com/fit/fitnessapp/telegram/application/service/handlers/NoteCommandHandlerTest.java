@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,6 +77,27 @@ class NoteCommandHandlerTest {
         String eventType = eventCaptor.getValue().type();
         assertThat(eventType).isEqualTo(storedType);
         assertThatCode(() -> UserNoteDto.NoteType.valueOf(eventType));
+    }
+
+    @Test
+    void invalidNoteTypeKeepsWaitingForTypeAndDoesNotPublishNote() {
+        Long chatId = 10L;
+        Long telegramId = 20L;
+        Long appUserId = 30L;
+
+        TelegramUserEntity linkedUser = TelegramUserEntity.builder()
+                .telegramId(telegramId)
+                .userId(appUserId)
+                .chatId(chatId)
+                .build();
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(linkedUser));
+        when(stateUseCase.getState(chatId)).thenReturn(ConversationState.WAITING_NOTE_TYPE);
+
+        handler.handle(update(chatId, telegramId, "Sleep"));
+
+        verify(stateUseCase, never()).updateState(eq(chatId), eq(ConversationState.WAITING_NOTE_CONTENT), any());
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(botService).sendMessage(chatId, com.fit.fitnessapp.telegram.application.service.TelegramMessages.NOTE_TYPE_INVALID);
     }
 
     private Update update(Long chatId, Long telegramId, String text) {

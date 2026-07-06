@@ -33,6 +33,7 @@ public class WorkoutImportController {
                 "completed",
                 format,
                 result.importedCount(),
+                result.changedCount(),
                 result.skippedCount(),
                 result.warnings()));
     }

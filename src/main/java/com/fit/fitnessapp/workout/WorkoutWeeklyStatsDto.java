@@ -15,5 +15,8 @@ public class WorkoutWeeklyStatsDto {
     private LocalDate weekEnd;
     private int totalSessions;
     private double totalVolumeKg;
+    private int cardioSessions;
+    private int cardioDurationSeconds;
+    private double cardioCalories;
     private Map<String, Double> volumeByDay; // "MONDAY" -> 5000.0 k
 }

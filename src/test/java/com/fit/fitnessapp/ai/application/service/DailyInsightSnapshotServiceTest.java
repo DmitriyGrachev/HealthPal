@@ -100,6 +100,30 @@ class DailyInsightSnapshotServiceTest {
     }
 
     @Test
+    void buildUsesSummaryOnlyNutritionWhenFoodEntriesAreNotBackfilled() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        when(nutritionQueryUseCase.getDay(userId, date))
+                .thenReturn(new NutritionDay(userId, date, List.of(), 2100, 140.0, 70.0, 220.0));
+        when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 0, 0.0));
+
+        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
+                nutritionQueryUseCase,
+                workoutDailyApi
+        ).build(userId, date);
+
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.totalCalories()).isEqualTo(2100);
+        assertThat(snapshot.protein()).isEqualTo(140.0);
+        assertThat(snapshot.fat()).isEqualTo(70.0);
+        assertThat(snapshot.carbohydrate()).isEqualTo(220.0);
+        assertThat(snapshot.sourceMetadata())
+                .containsEntry("source_coverage", "nutrition_only")
+                .containsEntry("nutrition_entries", 0)
+                .containsEntry("has_nutrition", true);
+    }
+
+    @Test
     void buildReturnsWorkoutOnlySnapshotWhenOnlyCardioExists() {
         Long userId = 42L;
         LocalDate date = LocalDate.of(2026, 7, 6);

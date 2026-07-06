@@ -17,6 +17,8 @@ public final class TelegramMessages {
     public static final String TODAY_GENERATING =
             "Analysing your data and generating daily insight...";
     public static final String NOTE_TYPE_PROMPT = "What type of note is this?";
+    public static final String NOTE_TYPE_INVALID =
+            "Please choose one of the suggested note types.";
     public static final String NOTE_CONTENT_PROMPT = "Got it. Now, what would you like to record?";
     public static final String WEIGHT_PROMPT = "Please enter your current weight in kg (e.g., 75.5):";
     public static final String WEIGHT_UNREALISTIC = "Please enter a realistic weight value.";

@@ -17,6 +17,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +27,20 @@ public class NoteCommandHandler implements CommandHandler {
     private final TelegramUserRepository telegramUserRepository;
     private final ConversationStateUseCase stateUseCase;
     private final ApplicationEventPublisher eventPublisher;
+    private static final Set<String> NOTE_TYPES = Set.of(
+            "ILLNESS",
+            "TRAVEL",
+            "INJURY",
+            "STRESS",
+            "ALLERGY",
+            "GOAL",
+            "PREFERENCE",
+            "TRAINING",
+            "NUTRITION",
+            "GENERAL",
+            "MOOD",
+            "OTHER"
+    );
 
     @Override
     public boolean canHandle(Update update) {
@@ -88,6 +103,10 @@ public class NoteCommandHandler implements CommandHandler {
 
     private void handleNoteType(Long chatId, String type) {
         String normalizedType = type.trim().toUpperCase();
+        if (!NOTE_TYPES.contains(normalizedType)) {
+            botService.sendMessage(chatId, TelegramMessages.NOTE_TYPE_INVALID);
+            return;
+        }
         stateUseCase.updateState(chatId, ConversationState.WAITING_NOTE_CONTENT, java.util.Map.of("noteType", normalizedType));
         botService.sendMessage(chatId, TelegramMessages.NOTE_CONTENT_PROMPT);
     }

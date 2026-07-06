@@ -187,6 +187,25 @@ class WorkoutPersistenceAdapterTest {
         verify(cardioRepository, never()).saveAll(any());
     }
 
+    @Test
+    void reimportDeletesCardioMissingFromIncomingSessionDate() {
+        LocalDateTime date = LocalDateTime.of(2026, 3, 20, 11, 34);
+        WorkoutCardioJpaEntity staleCardio = cardioEntity(200L, 23937347L, 42L, date);
+
+        when(cardioRepository.findByUserIdAndDateIn(42L, List.of(date)))
+                .thenReturn(List.of(staleCardio));
+
+        var result = adapter.saveAll(List.of(new WorkoutSession(
+                1770220318L,
+                date,
+                List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0)))),
+                List.of()
+        )), 42L);
+
+        verify(cardioRepository).deleteAll(List.of(staleCardio));
+        assertThat(result.changedDates()).contains(date.toLocalDate());
+    }
+
     private WorkoutJpaEntity workoutEntity(Long id, Long jefitId, Long userId) {
         WorkoutJpaEntity entity = new WorkoutJpaEntity();
         ReflectionTestUtils.setField(entity, "id", id);

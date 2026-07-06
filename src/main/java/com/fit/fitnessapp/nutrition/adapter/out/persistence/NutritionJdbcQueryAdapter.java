@@ -26,7 +26,11 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
     public NutritionDay getDay(Long userId, LocalDate date) {
         String sql = """
             SELECT 
-                d.user_id, d.date, 
+                d.user_id, d.date,
+                d.calories AS day_calories,
+                d.protein AS day_protein,
+                d.fat AS day_fat,
+                d.carbohydrate AS day_carbohydrate,
                 f.external_food_id, f.external_entry_id, f.name, 
                 f.meal_type, f.calories, f.protein, f.fat, f.carbohydrate 
             FROM fatsecret_day d
@@ -38,9 +42,17 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
         return jdbc.query(sql, Map.of("userId", userId, "date", date), rs -> {
             List<FoodEntry> entries = new ArrayList<>();
             boolean dayFound = false;
+            int totalCalories = 0;
+            double totalProtein = 0.0;
+            double totalFat = 0.0;
+            double totalCarbohydrate = 0.0;
 
             while (rs.next()) {
                 dayFound = true;
+                totalCalories = rs.getInt("day_calories");
+                totalProtein = rs.getDouble("day_protein");
+                totalFat = rs.getDouble("day_fat");
+                totalCarbohydrate = rs.getDouble("day_carbohydrate");
                 if (rs.getObject("external_food_id") != null) {
                     entries.add(new FoodEntry(
                             rs.getLong("external_food_id"),
@@ -58,7 +70,14 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
             if (!dayFound) {
                 return new NutritionDay(userId, date, Collections.emptyList());
             }
-            return new NutritionDay(userId, date, entries);
+            return new NutritionDay(
+                    userId,
+                    date,
+                    entries,
+                    totalCalories,
+                    totalProtein,
+                    totalFat,
+                    totalCarbohydrate);
         });
     }
 

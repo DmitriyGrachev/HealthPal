@@ -58,6 +58,9 @@ class AiPromptRendererTest {
                 entry("nutritionText", "- MONDAY: 2000 kcal"),
                 entry("totalSessions", 4),
                 entry("totalVolumeKg", "12500.0"),
+                entry("cardioSessions", 2),
+                entry("cardioDurationMinutes", "60.0"),
+                entry("cardioCalories", "640.0"),
                 entry("workoutText", "- MONDAY: 5000.0 kg")
         ));
 
@@ -66,7 +69,8 @@ class AiPromptRendererTest {
                 .contains("version: v1")
                 .contains("2026-03-09 - 2026-03-15")
                 .contains("low sleep reduces training volume")
-                .contains("total sessions: 4")
+                .contains("strength sessions: 4")
+                .contains("Cardio: 2 sessions, 60.0 min, 640.0 kcal")
                 .doesNotContain("{{");
     }
 
@@ -88,6 +92,9 @@ class AiPromptRendererTest {
                 entry("totalSessions", 16),
                 entry("totalVolumeKg", "52000.0"),
                 entry("avgVolumePerSession", "3250.0"),
+                entry("cardioSessions", 8),
+                entry("cardioDurationMinutes", "240.0"),
+                entry("cardioCalories", "2560.0"),
                 entry("workoutText", "2026-03-01: 5000.0 kg")
         ));
 
@@ -97,6 +104,7 @@ class AiPromptRendererTest {
                 .contains("2026-03-01 - 2026-03-31")
                 .contains("prefers morning workouts")
                 .contains("Total sessions: 16")
+                .contains("Cardio: 8 sessions, 240.0 min, 2560.0 kcal")
                 .doesNotContain("{{");
     }
 }

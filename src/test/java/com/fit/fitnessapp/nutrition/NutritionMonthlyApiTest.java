@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.Map;
@@ -76,6 +77,34 @@ class NutritionMonthlyApiTest {
         assertThat(result.getTotalCalories()).isZero();
         assertThat(result.getDaysTracked()).isZero();
         assertThat(result.getDailyBreakdown()).isEmpty();
+    }
+
+    @Test
+    void getDayReturnsSummaryTotalsWhenFoodEntriesAreNotBackfilled() throws Exception {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.next()).thenReturn(true, false);
+        when(rs.getObject("external_food_id")).thenReturn(null);
+        when(rs.getDate("date")).thenReturn(Date.valueOf(date));
+        when(rs.getInt("day_calories")).thenReturn(2100);
+        when(rs.getDouble("day_protein")).thenReturn(140.0);
+        when(rs.getDouble("day_fat")).thenReturn(70.0);
+        when(rs.getDouble("day_carbohydrate")).thenReturn(220.0);
+
+        doAnswer(invocation -> {
+            ResultSetExtractor<?> extractor = invocation.getArgument(2);
+            return extractor.extractData(rs);
+        }).when(jdbc).query(anyString(), anyMap(), any(ResultSetExtractor.class));
+
+        var day = adapter.getDay(userId, date);
+
+        assertThat(day.entries()).isEmpty();
+        assertThat(day.getTotalCalories()).isEqualTo(2100);
+        assertThat(day.getTotalProtein()).isEqualTo(140.0);
+        assertThat(day.getTotalFat()).isEqualTo(70.0);
+        assertThat(day.getTotalCarbohydrate()).isEqualTo(220.0);
+        assertThat(day.hasNutritionData()).isTrue();
     }
 
     private void mockMonthlyQueries(ResultSet aggregateResultSet, ResultSet dailyResultSet) {

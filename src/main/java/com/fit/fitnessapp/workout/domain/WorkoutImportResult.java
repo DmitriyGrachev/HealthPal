@@ -6,11 +6,20 @@ public record WorkoutImportResult(
         List<WorkoutSession> sessions,
         int importedCount,
         int skippedCount,
+        int changedCount,
         List<WorkoutImportWarning> warnings
 ) {
     public WorkoutImportResult {
         sessions = sessions == null ? List.of() : List.copyOf(sessions);
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
+    }
+
+    public WorkoutImportResult(
+            List<WorkoutSession> sessions,
+            int importedCount,
+            int skippedCount,
+            List<WorkoutImportWarning> warnings) {
+        this(sessions, importedCount, skippedCount, importedCount, warnings);
     }
 
     public static WorkoutImportResult from(
@@ -22,6 +31,11 @@ public record WorkoutImportResult(
                 safeSessions,
                 safeSessions.size(),
                 safeWarnings.size(),
+                safeSessions.size(),
                 safeWarnings);
+    }
+
+    public WorkoutImportResult withChangedCount(int changedCount) {
+        return new WorkoutImportResult(sessions, importedCount, skippedCount, changedCount, warnings);
     }
 }

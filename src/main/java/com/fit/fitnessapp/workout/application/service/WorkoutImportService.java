@@ -39,7 +39,7 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
         WorkoutPersistenceResult persistenceResult = persistencePort.saveAll(result.sessions(), userId);
         publishImportedEvent(userId, result, persistenceResult.changedDates());
 
-        return result;
+        return result.withChangedCount(persistenceResult.changedDates().size());
     }
 
     private void publishImportedEvent(Long userId, WorkoutImportResult result, List<LocalDate> changedDates) {

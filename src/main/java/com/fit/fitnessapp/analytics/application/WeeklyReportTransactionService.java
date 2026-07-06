@@ -64,6 +64,9 @@ public class WeeklyReportTransactionService {
         WeeklyReportRequestedEvent.WorkoutSnapshot workout = new WeeklyReportRequestedEvent.WorkoutSnapshot(
                 wDto.getTotalSessions(),
                 wDto.getTotalVolumeKg(),
+                wDto.getCardioSessions(),
+                wDto.getCardioDurationSeconds(),
+                wDto.getCardioCalories(),
                 wDto.getVolumeByDay());
 
         return new WeeklyReportRequestedEvent(userId, start, end, nutrition, workout);

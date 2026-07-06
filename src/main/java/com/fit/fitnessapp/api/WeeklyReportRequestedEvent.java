@@ -29,6 +29,16 @@ public record WeeklyReportRequestedEvent(
     public record WorkoutSnapshot(
             int totalSessions,
             double totalVolumeKg,
+            int cardioSessions,
+            int cardioDurationSeconds,
+            double cardioCalories,
             Map<String, Double> volumeByDay
-    ) {}
+    ) {
+        public WorkoutSnapshot(
+                int totalSessions,
+                double totalVolumeKg,
+                Map<String, Double> volumeByDay) {
+            this(totalSessions, totalVolumeKg, 0, 0, 0.0, volumeByDay);
+        }
+    }
 }

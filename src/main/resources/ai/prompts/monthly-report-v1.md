@@ -24,6 +24,7 @@ Daily breakdown:
 MONTHLY WORKOUTS:
 - Total sessions: {{totalSessions}}
 - Total volume: {{totalVolumeKg}} kg | Average volume per session: {{avgVolumePerSession}} kg
+- Cardio: {{cardioSessions}} sessions, {{cardioDurationMinutes}} min, {{cardioCalories}} kcal
 Daily breakdown:
 {{workoutText}}
 

@@ -241,6 +241,12 @@ class CodeHygieneTest {
     }
 
     @Test
+    void aiModuleDoesNotExposeCallerScopedMemoryToolBean() {
+        assertThat(Path.of("src/main/java/com/fit/fitnessapp/ai/FitnessAiTools.java"))
+                .doesNotExist();
+    }
+
+    @Test
     void defaultTestProfileDoesNotDependOnH2() throws IOException {
         String pom = Files.readString(Path.of("pom.xml"));
         String testProperties = Files.readString(Path.of("src/test/resources/application-test.properties"));

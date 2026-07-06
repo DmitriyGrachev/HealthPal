@@ -17,7 +17,8 @@ USER CONTEXT:
 WEEKLY NUTRITION (total calories: {{totalCalories}}, average: {{avgCalories}} kcal, protein: {{avgProtein}}, fat: {{avgFat}}, carbs: {{avgCarbs}}):
 {{nutritionText}}
 
-WEEKLY WORKOUTS (total sessions: {{totalSessions}}, total volume: {{totalVolumeKg}} kg):
+WEEKLY WORKOUTS (strength sessions: {{totalSessions}}, total volume: {{totalVolumeKg}} kg):
+- Cardio: {{cardioSessions}} sessions, {{cardioDurationMinutes}} min, {{cardioCalories}} kcal
 {{workoutText}}
 
 Task: find cause-and-effect patterns using the user context. Give concrete recommendations.

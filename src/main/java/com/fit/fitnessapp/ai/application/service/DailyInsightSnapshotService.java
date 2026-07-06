@@ -21,7 +21,7 @@ public class DailyInsightSnapshotService {
 
     public DailyInsightSnapshot build(Long userId, LocalDate date) {
         NutritionDay nutritionDay = nutritionQueryUseCase.getDay(userId, date);
-        boolean hasNutrition = nutritionDay != null && !nutritionDay.entries().isEmpty();
+        boolean hasNutrition = nutritionDay != null && nutritionDay.hasNutritionData();
         WorkoutDailyStatsDto workoutStats = workoutDailyApi.getDailyStats(userId, date);
         int workoutSessions = workoutStats == null ? 0 : workoutStats.getTotalSessions();
         double workoutVolumeKg = workoutStats == null ? 0.0 : workoutStats.getTotalVolumeKg();

@@ -16,6 +16,9 @@ public class WorkoutMonthlyStatsDto {
     private int totalSessions;
     private double totalVolumeKg;
     private double avgVolumePerSession;
+    private int cardioSessions;
+    private int cardioDurationSeconds;
+    private double cardioCalories;
 
     // "2026-04-07" -> volume kg
     private Map<String, Double> volumeByDay;

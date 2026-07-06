@@ -155,6 +155,36 @@ class FitnessAiServiceReportFreshnessTest {
     }
 
     @Test
+    void weeklyReportRegeneratesExistingInsightWhenOnlyCardioChanged() {
+        WeeklyReportRequestedEvent firstEvent = weeklyEvent(2100, 1, 1800, 320.0);
+        stubReportContext();
+        when(insightRepository.findByUserIdAndDateAndInsightType(42L, firstEvent.weekStart(), InsightType.WEEKLY))
+                .thenReturn(Optional.empty());
+        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(moeOrchestrator.route("weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response("Weekly summary", "Weekly telegram"));
+
+        service.onWeeklyReportRequested(firstEvent);
+
+        ArgumentCaptor<AiInsightEntity> insightCaptor = ArgumentCaptor.forClass(AiInsightEntity.class);
+        verify(insightRepository).save(insightCaptor.capture());
+        AiInsightEntity existing = insightCaptor.getValue();
+        clearInvocations(moeOrchestrator, insightRepository, eventPublisher, promptRenderer);
+
+        WeeklyReportRequestedEvent cardioChanged = weeklyEvent(2100, 2, 3600, 640.0);
+        when(insightRepository.findByUserIdAndDateAndInsightType(42L, cardioChanged.weekStart(), InsightType.WEEKLY))
+                .thenReturn(Optional.of(existing));
+        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt after cardio");
+        when(moeOrchestrator.route("weekly prompt after cardio", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response("Updated weekly", "Updated weekly telegram"));
+
+        service.onWeeklyReportRequested(cardioChanged);
+
+        verify(insightRepository).save(existing);
+        assertThat(existing.getInsightText()).isEqualTo("Updated weekly");
+    }
+
+    @Test
     void monthlyReportRegeneratesExistingInsightWhenSnapshotChanged() {
         MonthlyReportRequestedEvent event = monthlyEvent(64000);
         AiInsightEntity existing = AiInsightEntity.builder()
@@ -201,6 +231,14 @@ class FitnessAiServiceReportFreshnessTest {
     }
 
     private WeeklyReportRequestedEvent weeklyEvent(int totalCalories) {
+        return weeklyEvent(totalCalories, 1, 1800, 320.0);
+    }
+
+    private WeeklyReportRequestedEvent weeklyEvent(
+            int totalCalories,
+            int cardioSessions,
+            int cardioDurationSeconds,
+            double cardioCalories) {
         LocalDate start = LocalDate.of(2026, 7, 6);
         LocalDate end = LocalDate.of(2026, 7, 12);
         return new WeeklyReportRequestedEvent(
@@ -218,6 +256,9 @@ class FitnessAiServiceReportFreshnessTest {
                 new WeeklyReportRequestedEvent.WorkoutSnapshot(
                         3,
                         12_500.0,
+                        cardioSessions,
+                        cardioDurationSeconds,
+                        cardioCalories,
                         Map.of(start.toString(), 4_000.0))
         );
     }
@@ -242,6 +283,9 @@ class FitnessAiServiceReportFreshnessTest {
                         12,
                         52_000.0,
                         4_333.3,
+                        4,
+                        7200,
+                        1280.0,
                         Map.of(start.toString(), 4_000.0))
         );
     }

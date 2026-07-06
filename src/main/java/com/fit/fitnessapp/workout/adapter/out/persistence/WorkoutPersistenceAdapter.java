@@ -50,14 +50,10 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
         List<WorkoutSession> strengthSessions = sessions.stream()
                 .filter(session -> !session.exercises().isEmpty())
                 .toList();
-        List<WorkoutCardioImport> cardioImports = sessions.stream()
-                .flatMap(session -> session.cardioExercises().stream()
-                        .map(cardio -> new WorkoutCardioImport(session.date(), cardio)))
-                .toList();
         List<LocalDate> changedDates = new ArrayList<>();
 
         if (strengthSessions.isEmpty()) {
-            changedDates.addAll(saveCardio(cardioImports, userId));
+            changedDates.addAll(syncCardio(sessions, userId));
             return new WorkoutPersistenceResult(changedDates);
         }
 
@@ -142,31 +138,55 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
         if (!toSave.isEmpty()) {
             workoutJpaRepository.saveAll(toSave);
         }
-        changedDates.addAll(saveCardio(cardioImports, userId));
+        changedDates.addAll(syncCardio(sessions, userId));
         return new WorkoutPersistenceResult(changedDates);
     }
 
-    private List<LocalDate> saveCardio(List<WorkoutCardioImport> cardioImports, Long userId) {
-        if (cardioImports.isEmpty()) {
+    private List<LocalDate> syncCardio(List<WorkoutSession> sessions, Long userId) {
+        if (sessions.isEmpty()) {
             return List.of();
         }
 
+        List<LocalDateTime> importedDates = sessions.stream()
+                .map(WorkoutSession::date)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<WorkoutCardioImport> cardioImports = sessions.stream()
+                .flatMap(session -> session.cardioExercises().stream()
+                        .map(cardio -> new WorkoutCardioImport(session.date(), cardio)))
+                .toList();
         List<Long> incomingJefitIds = cardioImports.stream()
                 .map(imported -> imported.cardio().jefitId())
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        if (incomingJefitIds.isEmpty()) {
-            return List.of();
-        }
+        java.util.Set<Long> incomingJefitIdSet = java.util.Set.copyOf(incomingJefitIds);
 
-        Map<Long, WorkoutCardioJpaEntity> existingCardio = cardioJpaRepository
-                .findByJefitIdInAndUserId(incomingJefitIds, userId)
-                .stream()
-                .collect(Collectors.toMap(WorkoutCardioJpaEntity::getJefitId, Function.identity()));
+        Map<Long, WorkoutCardioJpaEntity> existingCardio = incomingJefitIds.isEmpty()
+                ? Map.of()
+                : cardioJpaRepository
+                        .findByJefitIdInAndUserId(incomingJefitIds, userId)
+                        .stream()
+                        .collect(Collectors.toMap(WorkoutCardioJpaEntity::getJefitId, Function.identity()));
 
         List<WorkoutCardioJpaEntity> toSave = new ArrayList<>();
         List<LocalDate> changedDates = new ArrayList<>();
+        List<WorkoutCardioJpaEntity> staleCardio = importedDates.isEmpty()
+                ? List.of()
+                : cardioJpaRepository
+                        .findByUserIdAndDateIn(userId, importedDates)
+                        .stream()
+                        .filter(existing -> !incomingJefitIdSet.contains(existing.getJefitId()))
+                        .toList();
+        if (!staleCardio.isEmpty()) {
+            cardioJpaRepository.deleteAll(staleCardio);
+            staleCardio.stream()
+                    .map(WorkoutCardioJpaEntity::getDate)
+                    .filter(Objects::nonNull)
+                    .map(LocalDateTime::toLocalDate)
+                    .forEach(changedDates::add);
+        }
 
         for (WorkoutCardioImport imported : cardioImports) {
             CardioExercise domainCardio = imported.cardio();

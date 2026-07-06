@@ -77,4 +77,64 @@ class WorkoutJdbcQueryAdapterSqlTest {
         assertThat(stats.getCardioDurationSeconds()).isEqualTo(1800);
         assertThat(stats.getCardioCalories()).isEqualTo(320.0);
     }
+
+    @Test
+    void weeklyStatsIncludesCardioAggregates() throws Exception {
+        ResultSet aggregate = mock(ResultSet.class);
+        when(aggregate.getInt("total_sessions")).thenReturn(2);
+        when(aggregate.getDouble("total_volume")).thenReturn(1735.0);
+        when(aggregate.getInt("cardio_sessions")).thenReturn(1);
+        when(aggregate.getInt("cardio_duration_seconds")).thenReturn(1800);
+        when(aggregate.getDouble("cardio_calories")).thenReturn(320.0);
+
+        doAnswer(invocation -> {
+            RowCallbackHandler handler = invocation.getArgument(2);
+            handler.processRow(aggregate);
+            return null;
+        }).when(jdbc).query(anyString(), any(Map.class), any(RowCallbackHandler.class));
+        when(jdbc.query(anyString(), any(Map.class), any(ResultSetExtractor.class)))
+                .thenReturn(Map.of("MONDAY", 1375.0));
+
+        var stats = adapter.getWeeklyStats(
+                1L,
+                LocalDate.of(2026, 7, 6),
+                LocalDate.of(2026, 7, 12));
+
+        assertThat(stats.getTotalSessions()).isEqualTo(2);
+        assertThat(stats.getTotalVolumeKg()).isEqualTo(1735.0);
+        assertThat(stats.getCardioSessions()).isEqualTo(1);
+        assertThat(stats.getCardioDurationSeconds()).isEqualTo(1800);
+        assertThat(stats.getCardioCalories()).isEqualTo(320.0);
+    }
+
+    @Test
+    void monthlyStatsIncludesCardioAggregates() throws Exception {
+        ResultSet aggregate = mock(ResultSet.class);
+        when(aggregate.getInt("total_sessions")).thenReturn(8);
+        when(aggregate.getDouble("total_volume")).thenReturn(52000.0);
+        when(aggregate.getDouble("avg_volume")).thenReturn(6500.0);
+        when(aggregate.getInt("cardio_sessions")).thenReturn(4);
+        when(aggregate.getInt("cardio_duration_seconds")).thenReturn(7200);
+        when(aggregate.getDouble("cardio_calories")).thenReturn(1280.0);
+
+        doAnswer(invocation -> {
+            RowCallbackHandler handler = invocation.getArgument(2);
+            handler.processRow(aggregate);
+            return null;
+        }).when(jdbc).query(anyString(), any(Map.class), any(RowCallbackHandler.class));
+        when(jdbc.query(anyString(), any(Map.class), any(ResultSetExtractor.class)))
+                .thenReturn(Map.of("2026-07-06", 4000.0));
+
+        var stats = adapter.getMonthlyStats(
+                1L,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 31));
+
+        assertThat(stats.getTotalSessions()).isEqualTo(8);
+        assertThat(stats.getTotalVolumeKg()).isEqualTo(52000.0);
+        assertThat(stats.getAvgVolumePerSession()).isEqualTo(6500.0);
+        assertThat(stats.getCardioSessions()).isEqualTo(4);
+        assertThat(stats.getCardioDurationSeconds()).isEqualTo(7200);
+        assertThat(stats.getCardioCalories()).isEqualTo(1280.0);
+    }
 }

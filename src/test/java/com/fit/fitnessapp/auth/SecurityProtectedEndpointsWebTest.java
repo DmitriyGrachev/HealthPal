@@ -159,6 +159,7 @@ class SecurityProtectedEndpointsWebTest {
                 .andExpect(jsonPath("$.status").value("completed"))
                 .andExpect(jsonPath("$.format").value("jefit"))
                 .andExpect(jsonPath("$.importedCount").value(0))
+                .andExpect(jsonPath("$.changedCount").value(0))
                 .andExpect(jsonPath("$.skippedCount").value(1))
                 .andExpect(jsonPath("$.warnings[0].section").value("WORKOUT SESSIONS"));
 
