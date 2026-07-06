@@ -1,12 +1,11 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
-import com.fit.fitnessapp.ai.RateLimiterService;
+import com.fit.fitnessapp.api.AiRateLimitApi;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
-import io.github.bucket4j.Bucket;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -33,8 +32,7 @@ class AskCommandHandlerTest {
     @Mock private TelegramBotService botService;
     @Mock private TelegramUserRepository telegramUserRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private RateLimiterService rateLimiterService;
-    @Mock private Bucket bucket;
+    @Mock private AiRateLimitApi aiRateLimitApi;
 
     @InjectMocks private AskCommandHandler handler;
 
@@ -44,8 +42,7 @@ class AskCommandHandlerTest {
         Long telegramId = 123L;
         Long appUserId = 42L;
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(linkedUser(telegramId, appUserId)));
-        when(rateLimiterService.resolveBucket(appUserId)).thenReturn(bucket);
-        when(bucket.tryConsume(1)).thenReturn(true);
+        when(aiRateLimitApi.tryConsume(appUserId)).thenReturn(true);
 
         handler.handle(update(chatId, telegramId, "/ask How was my protein today?"));
 
@@ -64,13 +61,11 @@ class AskCommandHandlerTest {
         Long telegramId = 123L;
         Long appUserId = 42L;
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(linkedUser(telegramId, appUserId)));
-        when(rateLimiterService.resolveBucket(appUserId)).thenReturn(bucket);
-        when(bucket.tryConsume(1)).thenReturn(false);
+        when(aiRateLimitApi.tryConsume(appUserId)).thenReturn(false);
 
         handler.handle(update(chatId, telegramId, "/ask How was my protein today?"));
 
-        verify(rateLimiterService).resolveBucket(appUserId);
-        verify(bucket).tryConsume(1);
+        verify(aiRateLimitApi).tryConsume(appUserId);
         verify(eventPublisher, never()).publishEvent(any());
         verify(botService, never()).sendMessage(chatId, TelegramMessages.ASK_THINKING);
         verify(botService).sendMessage(chatId, TelegramMessages.ASK_RATE_LIMITED);

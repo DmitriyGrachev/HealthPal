@@ -261,6 +261,8 @@ class CodeHygieneTest {
     void architectureHotspotsUsePublicModuleContracts() throws IOException {
         String fitnessAiService = Files.readString(Path.of(
                 "src/main/java/com/fit/fitnessapp/ai/FitnessAiService.java"));
+        String askCommandHandler = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/AskCommandHandler.java"));
         String globalExceptionHandler = Files.readString(Path.of(
                 "src/main/java/com/fit/fitnessapp/exception/GlobalExceptionHandler.java"));
 
@@ -268,6 +270,8 @@ class CodeHygieneTest {
                 .doesNotContain("com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent")
                 .doesNotContain("com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent")
                 .doesNotContain("com.fit.fitnessapp.nutrition.NutritionSyncedEvent");
+        assertThat(askCommandHandler)
+                .doesNotContain("com.fit.fitnessapp.ai.RateLimiterService");
         assertThat(globalExceptionHandler)
                 .doesNotContain("com.fit.fitnessapp.ai.exception")
                 .doesNotContain("com.fit.fitnessapp.nutrition.domain.MissingFatSecretConnectionException");
