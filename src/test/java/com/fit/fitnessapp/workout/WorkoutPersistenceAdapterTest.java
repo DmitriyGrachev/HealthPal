@@ -4,9 +4,9 @@ import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.workout.adapter.out.persistence.WorkoutPersistenceAdapter;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutExerciseJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntity;
+import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutExerciseJpaRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
-import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutSetJpaRepository;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,9 +35,6 @@ class WorkoutPersistenceAdapterTest {
     private WorkoutExerciseJpaRepository exerciseRepository;
 
     @Mock
-    private WorkoutSetJpaRepository setRepository;
-
-    @Mock
     private CurrentUserApi currentUserApi;
 
     private WorkoutPersistenceAdapter adapter;
@@ -48,15 +44,15 @@ class WorkoutPersistenceAdapterTest {
         adapter = new WorkoutPersistenceAdapter(
                 workoutRepository,
                 exerciseRepository,
-                setRepository,
                 currentUserApi
         );
     }
 
     @Test
-    void reimportDeletesSetsByExerciseDatabaseIdsNotJefitLogIds() {
+    void reimportReplacesExistingSetsThroughManagedAggregate() {
         WorkoutJpaEntity existingWorkout = workoutEntity(10L, 1770220318L, 42L);
         WorkoutExerciseJpaEntity existingExercise = exerciseEntity(100L, 1L, existingWorkout);
+        existingExercise.getSets().add(setEntity(500L, existingExercise, 0, 4, 60.0));
         existingWorkout.getExercises().add(existingExercise);
 
         when(workoutRepository.findWithExercisesByJefitIdInAndUserId(List.of(1770220318L), 42L))
@@ -70,8 +66,15 @@ class WorkoutPersistenceAdapterTest {
                 List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0)))))
         ), 42L);
 
-        verify(setRepository).deleteAllByExerciseIdIn(List.of(100L));
-        verify(setRepository, never()).deleteAllByExerciseIdIn(List.of(1L));
+        assertThat(existingExercise.getSets())
+                .singleElement()
+                .satisfies(set -> {
+                    assertThat(set.getId()).isNull();
+                    assertThat(set.getSetIndex()).isZero();
+                    assertThat(set.getReps()).isEqualTo(5);
+                    assertThat(set.getWeight()).isEqualTo(65.0);
+                    assertThat(set.getExercise()).isSameAs(existingExercise);
+                });
         verify(workoutRepository).saveAll(List.of(existingWorkout));
     }
 
@@ -145,6 +148,21 @@ class WorkoutPersistenceAdapterTest {
         entity.setJefitLogId(jefitLogId);
         entity.setExerciseName("Old Bench Press");
         entity.setWorkoutJpaEntity(workout);
+        return entity;
+    }
+
+    private WorkoutSetJpaEntity setEntity(
+            Long id,
+            WorkoutExerciseJpaEntity exercise,
+            int setIndex,
+            int reps,
+            double weight) {
+        WorkoutSetJpaEntity entity = new WorkoutSetJpaEntity();
+        ReflectionTestUtils.setField(entity, "id", id);
+        entity.setExercise(exercise);
+        entity.setSetIndex(setIndex);
+        entity.setReps(reps);
+        entity.setWeight(weight);
         return entity;
     }
 }

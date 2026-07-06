@@ -6,7 +6,6 @@ import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutJpaEntit
 import com.fit.fitnessapp.workout.adapter.out.persistence.entity.WorkoutSetJpaEntity;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutExerciseJpaRepository;
 import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutJpaRepository;
-import com.fit.fitnessapp.workout.adapter.out.persistence.repository.WorkoutSetJpaRepository;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
@@ -30,7 +29,6 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
 
     private final WorkoutJpaRepository workoutJpaRepository;
     private final WorkoutExerciseJpaRepository exerciseJpaRepository;
-    private final WorkoutSetJpaRepository setJpaRepository;
     private final CurrentUserApi currentUserApi;
 
     @Override
@@ -63,15 +61,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
                                 exercise)))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        List<Long> existingExerciseDbIds = existingExercises.values().stream()
-                .map(WorkoutExerciseJpaEntity::getId)
-                .filter(Objects::nonNull)
-                .toList();
-
-        if (!existingExerciseDbIds.isEmpty()) {
-            setJpaRepository.deleteAllByExerciseIdIn(existingExerciseDbIds);
-            existingExercises.values().forEach(ex -> ex.getSets().clear());
-        }
+        existingExercises.values().forEach(ex -> ex.getSets().clear());
 
         List<WorkoutJpaEntity> toSave = new ArrayList<>();
 
