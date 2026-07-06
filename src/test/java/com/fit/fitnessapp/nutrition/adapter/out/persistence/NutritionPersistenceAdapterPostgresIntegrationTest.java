@@ -141,11 +141,12 @@ class NutritionPersistenceAdapterPostgresIntegrationTest extends AbstractPostgre
     }
 
     private long insertUser(String username) {
+        String safeUsername = username.length() > 32 ? username.substring(0, 32) : username;
         return jdbc.queryForObject(
                 "INSERT INTO users (username, email, password) VALUES (?, ?, ?) RETURNING id",
                 Long.class,
-                username,
-                username + "@example.test",
+                safeUsername,
+                safeUsername + "@t.test",
                 "{noop}password"
         );
     }
