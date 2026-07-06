@@ -27,3 +27,7 @@ Added first-pass module pages for auth, nutrition, workout, AI, memory, telegram
 ## [2026-07-06] ingest | Cross-Cutting Topics
 
 Added topic pages for testing strategy, security/privacy, CI gates, FatSecret integration, and Spring Modulith boundaries.
+
+## [2026-07-06] ingest | Workflow Pages
+
+Added workflow pages for nutrition sync, daily insight, and Telegram ask. These pages connect user-facing behavior to modules, topics, and stale GitHub issues.
