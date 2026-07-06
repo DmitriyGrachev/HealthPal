@@ -170,7 +170,7 @@ Actions:
   - null aggregate behavior, if applicable
 - Do not test SQL correctness here. Test SQL correctness later with PostgreSQL integration tests.
 
-### `src/test/java/com/fit/fitnessapp/jdbc/workoout/WorkoutQueryUseCaseTest.java`
+### `src/test/java/com/fit/fitnessapp/jdbc/workout/WorkoutQueryUseCaseTest.java`
 
 Decision: REWRITE AS POSTGRES INTEGRATION TEST LATER
 
@@ -178,7 +178,7 @@ Why:
 
 - This is a real integration test and needs a real database.
 - It currently depends on full Spring context and H2, but migrations use PostgreSQL-specific types.
-- Package path has typo: `workoout`.
+- Package path typo `workoout` was removed; keep future workout JDBC tests under `workout`.
 
 Actions:
 
@@ -250,7 +250,7 @@ Tasks:
 - Delete `AuthTest.java` or replace it with a short TODO test skeleton.
 - Keep Modulith checks tagged by naming convention as `*ArchitectureTest`.
 - Delete or replace `FitnessAppApplicationTests`.
-- Rename typo package `workoout` when recreating the workout integration test.
+- Keep workout JDBC tests under the correctly spelled `workout` package.
 
 Done when:
 

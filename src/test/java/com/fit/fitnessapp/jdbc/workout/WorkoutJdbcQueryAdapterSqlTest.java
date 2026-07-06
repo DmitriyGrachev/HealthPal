@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.jdbc.workoout;
+package com.fit.fitnessapp.jdbc.workout;
 
 import com.fit.fitnessapp.workout.adapter.out.WorkoutJdbcQueryAdapter;
 import com.fit.fitnessapp.workout.application.infrastructure.WorkoutSummaryDto;
