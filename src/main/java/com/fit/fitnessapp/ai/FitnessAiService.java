@@ -3,18 +3,18 @@ package com.fit.fitnessapp.ai;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
-import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
+import com.fit.fitnessapp.ai.application.service.AiContextService;
+import com.fit.fitnessapp.ai.application.service.DailyInsightService;
+import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
-import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
-import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,13 +33,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FitnessAiService {
 
-    private final com.fit.fitnessapp.memory.application.port.in.MemoryQueryUseCase memoryQueryUseCase;
+    private final DailyInsightService dailyInsightService;
+    private final TelegramAskAiService telegramAskAiService;
+    private final AiContextService aiContextService;
     private final MoeOrchestrator moeOrchestrator;
     private final AiInsightRepository insightRepository;
     private final UserNoteUseCase userNoteUseCase;
     private final ProfileUseCase profileUseCase;
     private final WeightHistoryUseCase weightHistoryUseCase;
-    private final NutritionQueryUseCase nutritionQueryUseCase;
     private final ApplicationEventPublisher eventPublisher;
     private final AiProperties aiProperties;
     private final AiPromptRenderer promptRenderer;
@@ -47,111 +48,23 @@ public class FitnessAiService {
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
         log.info("AI request received userId={} taskType=DAILY_INSIGHT source=telegram", event.userId());
-        generateDailyInsight(event.userId(), event.date());
+        dailyInsightService.generate(event.userId(), event.date());
     }
 
     @EventListener
     public void onTelegramAskRequested(TelegramAskRequestedEvent event) {
-        long startedAt = System.nanoTime();
-        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.QUICK_ANALYSIS;
-        String model = modelFor(taskType);
-        
-        String memoryContext = buildMemoryContext(event.userId(), event.question());
-        String prompt = promptRenderer.render("telegram-ask-v1.md", Map.of(
-                "memoryContext", memoryContext,
-                "question", event.question()
-        ));
-
-        try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
-            logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
-            
-            eventPublisher.publishEvent(new TelegramAiResponseEvent(
-                    event.userId(),
-                    event.chatId(),
-                    aiResponse.summary()
-            ));
-        } catch (Exception e) {
-            logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
-            eventPublisher.publishEvent(new TelegramAiResponseEvent(
-                    event.userId(),
-                    event.chatId(),
-                    "Sorry, an error occurred while processing your question. Please try again later."
-            ));
-        }
+        telegramAskAiService.answer(event);
     }
 
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
         log.info("AI module received NutritionSyncedEvent for user {} on {}", event.userId(), event.date());
-        generateDailyInsight(event.userId(), event.date());
+        dailyInsightService.generate(event.userId(), event.date());
     }
 
     @Transactional
     public void generateDailyInsight(Long userId, LocalDate date) {
-        if (insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY).isPresent()) {
-            log.info("Daily insight for user {} on {} already exists. Skipping.", userId, date);
-            return;
-        }
-
-        NutritionDay nutritionDay = nutritionQueryUseCase.getDay(userId, date);
-        if (nutritionDay == null || nutritionDay.entries().isEmpty()) {
-            log.info("No nutrition data for user {} on {}. Skipping insight generation.", userId, date);
-            return;
-        }
-
-        int totalCalories = nutritionDay.getTotalCalories();
-        double protein = nutritionDay.getTotalProtein();
-        double fat = nutritionDay.getTotalFat();
-        double carbs = nutritionDay.getTotalCarbohydrate();
-
-        String memoriesText = buildMemoryContext(userId,
-                String.format("nutrition %d calories %.1f protein", totalCalories, protein));
-        String recentInsights = getRecentInsightsSummary(userId, InsightType.DAILY);
-
-        String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
-                "memoriesText", memoriesText,
-                "recentInsights", recentInsights,
-                "totalCalories", totalCalories,
-                "protein", oneDecimal(protein),
-                "fat", oneDecimal(fat),
-                "carbs", oneDecimal(carbs)
-        ));
-
-        MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.DAILY_INSIGHT;
-        String model = modelFor(taskType);
-        long startedAt = System.nanoTime();
-        try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
-            logAiCall(userId, taskType, model, startedAt, "success", "NONE");
-
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("macros_at_generation_time", Map.of(
-                    "calories", totalCalories,
-                    "protein", protein,
-                    "fat", fat,
-                    "carbs", carbs
-            ));
-
-            AiInsightEntity insight = AiInsightEntity.builder()
-                    .userId(userId)
-                    .date(date)
-                    .insightType(InsightType.DAILY)
-                    .insightText(aiResponse.summary())
-                    .structuredResponse(aiResponse)
-                    .schemaVersion(1)
-                    .metadata(meta)
-                    .build();
-
-            insightRepository.save(insight);
-
-            eventPublisher.publishEvent(new InsightGeneratedEvent(
-                    userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse.telegramSummary()
-            ));
-
-        } catch (Exception e) {
-            logAiCall(userId, taskType, model, startedAt, "error", errorCode(e));
-        }
+        dailyInsightService.generate(userId, date);
     }
 
     @ApplicationModuleListener
@@ -167,10 +80,10 @@ public class FitnessAiService {
         String nutritionText = formatNutritionBreakdown(event.nutrition().dailyBreakdown());
         String workoutText = formatWorkoutVolume(event.workout().volumeByDay());
 
-        String memoriesText = buildMemoryContext(event.userId(),
+        String memoriesText = aiContextService.buildMemoryContext(event.userId(),
                 String.format("weekly report calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
-        String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
+        String recentInsights = aiContextService.getRecentInsightsSummary(event.userId(), InsightType.WEEKLY);
 
         String prompt = promptRenderer.render("weekly-report-v1.md", Map.ofEntries(
                 Map.entry("weekStart", event.weekStart()),
@@ -235,10 +148,10 @@ public class FitnessAiService {
         );
         String workoutText = formatWorkoutMonthlyVolume(event.workout().volumeByDay());
 
-        String memoriesText = buildMemoryContext(event.userId(),
+        String memoriesText = aiContextService.buildMemoryContext(event.userId(),
                 String.format("monthly progress calories %.0f protein %.1f",
                         event.nutrition().avgCalories(), event.nutrition().avgProtein()));
-        String recentInsights = getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
+        String recentInsights = aiContextService.getRecentInsightsSummary(event.userId(), InsightType.MONTHLY);
 
         String prompt = promptRenderer.render("monthly-report-v1.md", Map.ofEntries(
                 Map.entry("monthStart", event.monthStart()),
@@ -413,69 +326,5 @@ public class FitnessAiService {
         }
 
         return contextBuilder.toString();
-    }
-    // Prompt context is split into three memory sections.
-
-    private String buildMemoryContext(Long userId, String semanticQuery) {
-        StringBuilder sb = new StringBuilder();
-
-        // 1. Permanent user facts
-        var facts = memoryQueryUseCase.findLongTermFacts(userId, 5);
-        if (!facts.isEmpty()) {
-            sb.append("PERMANENT USER FACTS:\n");
-            facts.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
-        }
-
-        // 2. Relevant patterns from history
-        var patterns = memoryQueryUseCase.findRelevantMemories(userId, semanticQuery, 3);
-        if (!patterns.isEmpty()) {
-            sb.append("\nPATTERNS AND HISTORY:\n");
-            patterns.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
-        }
-
-        // 3. Short-term context from the last 7 days
-        var recentContext = memoryQueryUseCase.findRecentContext(userId, 7, 3);
-        if (!recentContext.isEmpty()) {
-            sb.append("\nCURRENT CONTEXT (last 7 days):\n");
-            recentContext.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
-        }
-
-        return sb.length() > 0 ? sb.toString() : "No user data.";
-    }
-    private String getRecentInsightsSummary(Long userId, InsightType currentType) {
-        List<AiInsightEntity> result = new ArrayList<>();
-
-        switch (currentType) {
-            case DAILY -> {
-                // For daily: last 3 daily insights
-                result.addAll(insightRepository
-                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
-            }
-            case WEEKLY -> {
-                // For weekly: 2 previous weekly insights + 3 recent daily insights
-                result.addAll(insightRepository
-                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.WEEKLY, 2));
-                result.addAll(insightRepository
-                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.DAILY, 3));
-            }
-            case MONTHLY -> {
-                // For monthly: 1 previous monthly insight + 2 recent weekly insights
-                result.addAll(insightRepository
-                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.MONTHLY, 1));
-                result.addAll(insightRepository
-                        .findTopNByUserIdAndInsightTypeOrderByDateDesc(userId, InsightType.WEEKLY, 2));
-            }
-        }
-
-        if (result.isEmpty()) return "No previous insights.";
-
-        return result.stream()
-                .sorted(Comparator.comparing(AiInsightEntity::getDate).reversed())
-                .map(i -> String.format("[%s %s] %s",
-                        i.getInsightType(), i.getDate(),
-                        i.getInsightText().length() > 150
-                                ? i.getInsightText().substring(0, 150) + "..."
-                                : i.getInsightText()))
-                .collect(Collectors.joining("\n"));
     }
 }
