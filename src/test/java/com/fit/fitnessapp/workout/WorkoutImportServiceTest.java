@@ -59,7 +59,7 @@ class WorkoutImportServiceTest {
     }
 
     @Test
-    void importWorkoutsPublishesAffectedDateRangeEventAfterPersistence() {
+    void importWorkoutsPublishesAffectedDatesEventAfterPersistence() {
         ByteArrayInputStream stream = new ByteArrayInputStream(new byte[0]);
         WorkoutSession first = session(1L, LocalDateTime.of(2026, 7, 1, 18, 0));
         WorkoutSession second = session(2L, LocalDateTime.of(2026, 7, 5, 18, 0));
@@ -81,7 +81,8 @@ class WorkoutImportServiceTest {
                 LocalDate.of(2026, 7, 1),
                 LocalDate.of(2026, 7, 5),
                 2,
-                1));
+                1,
+                List.of(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 5))));
     }
 
     private WorkoutSession session() {

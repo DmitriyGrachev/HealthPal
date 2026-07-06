@@ -4,11 +4,13 @@ import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
+import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
+import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.ai.application.service.DailyInsightService;
 import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
@@ -37,6 +39,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FitnessAiService {
 
+    static final String TODAY_NO_DATA_MESSAGE =
+            "I don't have nutrition data for today yet. Log or sync your food first, then try /today again.";
+    static final String TODAY_FALLBACK_MESSAGE =
+            "Sorry, I couldn't generate today's insight right now. Please try again later.";
+
     private final DailyInsightService dailyInsightService;
     private final TelegramAskAiService telegramAskAiService;
     private final AiContextService aiContextService;
@@ -52,7 +59,39 @@ public class FitnessAiService {
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
         log.info("AI request received userId={} taskType=DAILY_INSIGHT source=telegram", event.userId());
-        dailyInsightService.generateOrPublishExisting(event.userId(), event.date());
+        DailyInsightResult result;
+        try {
+            result = dailyInsightService.generateOrPublishExisting(event.userId(), event.date());
+        } catch (Exception e) {
+            log.warn(
+                    "AI request failed userId={} taskType=DAILY_INSIGHT source=telegram errorCode={}",
+                    event.userId(),
+                    e.getClass().getSimpleName()
+            );
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    TODAY_FALLBACK_MESSAGE
+            ));
+            return;
+        }
+        if (result == null) {
+            return;
+        }
+
+        if (result.status() == DailyInsightResult.Status.NO_SNAPSHOT) {
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    TODAY_NO_DATA_MESSAGE
+            ));
+        } else if (result.status() == DailyInsightResult.Status.AI_FAILED) {
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    TODAY_FALLBACK_MESSAGE
+            ));
+        }
     }
 
     @EventListener
@@ -70,10 +109,8 @@ public class FitnessAiService {
     public void onWorkoutImported(WorkoutImportedEvent event) {
         log.info("AI module received WorkoutImportedEvent for user {} from {} to {}",
                 event.userId(), event.fromDate(), event.toDate());
-        LocalDate date = event.fromDate();
-        while (!date.isAfter(event.toDate())) {
+        for (LocalDate date : affectedWorkoutDates(event)) {
             dailyInsightService.generate(event.userId(), date);
-            date = date.plusDays(1);
         }
     }
 
@@ -252,6 +289,21 @@ public class FitnessAiService {
 
     private String errorCode(Exception e) {
         return e.getClass().getSimpleName();
+    }
+
+    private List<LocalDate> affectedWorkoutDates(WorkoutImportedEvent event) {
+        if (event.affectedDates() != null && !event.affectedDates().isEmpty()) {
+            return event.affectedDates();
+        }
+        if (event.fromDate() == null || event.toDate() == null || event.fromDate().isAfter(event.toDate())) {
+            return List.of();
+        }
+
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate date = event.fromDate(); !date.isAfter(event.toDate()); date = date.plusDays(1)) {
+            dates.add(date);
+        }
+        return dates;
     }
 
     private boolean hasSameSnapshotHash(Optional<AiInsightEntity> existingInsight, String snapshotHash) {

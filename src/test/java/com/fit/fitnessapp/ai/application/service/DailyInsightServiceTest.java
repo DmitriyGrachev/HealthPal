@@ -87,7 +87,9 @@ class DailyInsightServiceTest {
         when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Daily summary", "Telegram summary"));
 
-        service.generate(userId, date);
+        DailyInsightResult result = service.generate(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.GENERATED);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> promptContextCaptor = ArgumentCaptor.forClass(Map.class);
@@ -143,7 +145,9 @@ class DailyInsightServiceTest {
         when(snapshotService.build(userId, date))
                 .thenReturn(snapshot(userId, date, "hash-1", 850, 65.0, 17.0, 95.0, 1, 1250.0));
 
-        service.generate(userId, date);
+        DailyInsightResult result = service.generate(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.SKIPPED_FRESH);
 
         verifyNoInteractions(moeOrchestrator, eventPublisher);
         verify(insightRepository, never()).save(any());
@@ -166,10 +170,11 @@ class DailyInsightServiceTest {
         when(snapshotService.build(userId, date))
                 .thenReturn(snapshot(userId, date, "hash-1", 850, 65.0, 17.0, 95.0, 1, 1250.0));
 
-        service.generateOrPublishExisting(userId, date);
+        DailyInsightResult result = service.generateOrPublishExisting(userId, date);
 
         verifyNoInteractions(moeOrchestrator);
         verify(insightRepository, never()).save(any());
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.PUBLISHED_EXISTING);
         verify(eventPublisher).publishEvent(new InsightGeneratedEvent(
                 userId,
                 date,
@@ -205,10 +210,11 @@ class DailyInsightServiceTest {
         when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Updated summary", "Updated telegram"));
 
-        service.generate(userId, date);
+        DailyInsightResult result = service.generate(userId, date);
 
         ArgumentCaptor<AiInsightEntity> insightCaptor = ArgumentCaptor.forClass(AiInsightEntity.class);
         verify(insightRepository).save(insightCaptor.capture());
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.GENERATED);
         assertThat(insightCaptor.getValue()).isSameAs(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated summary");
         assertThat(existing.getMetadata()).containsEntry("snapshot_hash", "new");
@@ -223,10 +229,59 @@ class DailyInsightServiceTest {
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(null);
 
-        service.generate(userId, date);
+        DailyInsightResult result = service.generate(userId, date);
 
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.NO_SNAPSHOT);
         verifyNoInteractions(moeOrchestrator, eventPublisher);
         verify(insightRepository, never()).save(any());
+    }
+
+    @Test
+    void reportsAiFailureWhenProviderCannotGenerateDailyInsight() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        DailyInsightSnapshot snapshot = snapshot(userId, date, "hash-1", 850, 65.0, 17.0, 95.0, 1, 1250.0);
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.empty());
+        when(snapshotService.build(userId, date)).thenReturn(snapshot);
+        when(aiContextService.buildMemoryContext(
+                eq(userId),
+                eq("nutrition 850 calories 65.0 protein workout 1 sessions 1250.0 kg volume")))
+                .thenReturn("memory context");
+        when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
+                .thenReturn("recent insights");
+        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
+        when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+                .thenThrow(new IllegalStateException("provider down"));
+
+        DailyInsightResult result = service.generateOrPublishExisting(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.AI_FAILED);
+        assertThat(result.errorCode()).isEqualTo("IllegalStateException");
+        verify(insightRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void reportsAiFailureWhenPromptPreparationFails() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        DailyInsightSnapshot snapshot = snapshot(userId, date, "hash-1", 850, 65.0, 17.0, 95.0, 1, 1250.0);
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.empty());
+        when(snapshotService.build(userId, date)).thenReturn(snapshot);
+        when(aiContextService.buildMemoryContext(
+                eq(userId),
+                eq("nutrition 850 calories 65.0 protein workout 1 sessions 1250.0 kg volume")))
+                .thenThrow(new IllegalStateException("context down"));
+
+        DailyInsightResult result = service.generateOrPublishExisting(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.AI_FAILED);
+        assertThat(result.errorCode()).isEqualTo("IllegalStateException");
+        verify(insightRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     private DailyInsightSnapshot snapshot(

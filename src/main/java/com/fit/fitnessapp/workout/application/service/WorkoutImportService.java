@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
@@ -48,23 +47,22 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
             return;
         }
 
-        LocalDate fromDate = result.sessions().stream()
+        List<LocalDate> affectedDates = result.sessions().stream()
                 .map(WorkoutSession::date)
                 .map(dateTime -> dateTime.toLocalDate())
-                .min(Comparator.naturalOrder())
-                .orElseThrow();
-        LocalDate toDate = result.sessions().stream()
-                .map(WorkoutSession::date)
-                .map(dateTime -> dateTime.toLocalDate())
-                .max(Comparator.naturalOrder())
-                .orElseThrow();
+                .distinct()
+                .sorted()
+                .toList();
+        LocalDate fromDate = affectedDates.getFirst();
+        LocalDate toDate = affectedDates.getLast();
 
         eventPublisher.publishEvent(new WorkoutImportedEvent(
                 userId,
                 fromDate,
                 toDate,
                 result.importedCount(),
-                result.warnings().size()
+                result.warnings().size(),
+                affectedDates
         ));
     }
 }

@@ -34,21 +34,21 @@ public class DailyInsightService {
     private final AiContextService aiContextService;
 
     @Transactional
-    public void generate(Long userId, LocalDate date) {
-        generate(userId, date, false);
+    public DailyInsightResult generate(Long userId, LocalDate date) {
+        return generate(userId, date, false);
     }
 
     @Transactional
-    public void generateOrPublishExisting(Long userId, LocalDate date) {
-        generate(userId, date, true);
+    public DailyInsightResult generateOrPublishExisting(Long userId, LocalDate date) {
+        return generate(userId, date, true);
     }
 
-    private void generate(Long userId, LocalDate date, boolean publishExistingWhenFresh) {
+    private DailyInsightResult generate(Long userId, LocalDate date, boolean publishExistingWhenFresh) {
         var existingInsight = insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY);
         DailyInsightSnapshot snapshot = snapshotService.build(userId, date);
         if (snapshot == null) {
             log.info("No nutrition data for user {} on {}. Skipping insight generation.", userId, date);
-            return;
+            return DailyInsightResult.noSnapshot();
         }
 
         String snapshotHash = snapshot.snapshotHash();
@@ -56,34 +56,36 @@ public class DailyInsightService {
             log.info("Daily insight for user {} on {} already matches snapshot. Skipping.", userId, date);
             if (publishExistingWhenFresh) {
                 publishExistingInsight(existingInsight.get());
+                return DailyInsightResult.publishedExisting();
             }
-            return;
+            return DailyInsightResult.skippedFresh();
         }
 
-        String memoriesText = aiContextService.buildMemoryContext(userId,
-                String.format(Locale.ROOT, "nutrition %d calories %.1f protein workout %d sessions %.1f kg volume",
-                        snapshot.totalCalories(),
-                        snapshot.protein(),
-                        snapshot.workoutSessions(),
-                        snapshot.workoutVolumeKg()));
-        String recentInsights = aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY);
-
-        String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
-                "date", date,
-                "memoriesText", memoriesText,
-                "recentInsights", recentInsights,
-                "totalCalories", snapshot.totalCalories(),
-                "protein", oneDecimal(snapshot.protein()),
-                "fat", oneDecimal(snapshot.fat()),
-                "carbs", oneDecimal(snapshot.carbohydrate()),
-                "workoutSessions", snapshot.workoutSessions(),
-                "workoutVolumeKg", oneDecimal(snapshot.workoutVolumeKg())
-        ));
-
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.DAILY_INSIGHT;
-        String model = aiProperties.DAILY_INSIGHT_MODEL();
+        String model = null;
         long startedAt = System.nanoTime();
         try {
+            String memoriesText = aiContextService.buildMemoryContext(userId,
+                    String.format(Locale.ROOT, "nutrition %d calories %.1f protein workout %d sessions %.1f kg volume",
+                            snapshot.totalCalories(),
+                            snapshot.protein(),
+                            snapshot.workoutSessions(),
+                            snapshot.workoutVolumeKg()));
+            String recentInsights = aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY);
+
+            String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
+                    "date", date,
+                    "memoriesText", memoriesText,
+                    "recentInsights", recentInsights,
+                    "totalCalories", snapshot.totalCalories(),
+                    "protein", oneDecimal(snapshot.protein()),
+                    "fat", oneDecimal(snapshot.fat()),
+                    "carbs", oneDecimal(snapshot.carbohydrate()),
+                    "workoutSessions", snapshot.workoutSessions(),
+                    "workoutVolumeKg", oneDecimal(snapshot.workoutVolumeKg())
+            ));
+
+            model = aiProperties.DAILY_INSIGHT_MODEL();
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
             logAiCall(userId, taskType, model, startedAt, "success", "NONE");
 
@@ -113,8 +115,11 @@ public class DailyInsightService {
             eventPublisher.publishEvent(new InsightGeneratedEvent(
                     userId, date, InsightType.DAILY, aiResponse.summary(), aiResponse.telegramSummary()
             ));
+            return DailyInsightResult.generated();
         } catch (Exception e) {
-            logAiCall(userId, taskType, model, startedAt, "error", e.getClass().getSimpleName());
+            String errorCode = e.getClass().getSimpleName();
+            logAiCall(userId, taskType, model, startedAt, "error", errorCode);
+            return DailyInsightResult.aiFailed(errorCode);
         }
     }
 
