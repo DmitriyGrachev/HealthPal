@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.infrastructure;
 
-import com.fit.fitnessapp.nutrition.adapter.out.api.FatSecretAuthState; // Убедись, что этот класс создан
+import com.fit.fitnessapp.nutrition.adapter.out.api.FatSecretAuthState;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.context.annotation.Bean;
