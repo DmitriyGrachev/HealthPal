@@ -13,6 +13,9 @@ RECENT INSIGHTS:
 Daily macros:
 Calories: {{totalCalories}}, Protein: {{protein}}g, Fat: {{fat}}g, Carbs: {{carbs}}g.
 
+Daily workouts:
+Sessions: {{workoutSessions}}, Volume: {{workoutVolumeKg}} kg.
+
 You MUST respond with a complete, valid JSON object.
 For reportType use DAILY. For periodCovered use today's date for both start and end.
 Provide 1-2 anomalies if relevant, 2-3 actionable recommendations.

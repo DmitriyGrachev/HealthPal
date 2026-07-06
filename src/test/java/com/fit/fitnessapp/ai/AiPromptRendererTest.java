@@ -19,7 +19,9 @@ class AiPromptRendererTest {
                 "totalCalories", 2_100,
                 "protein", "155.0",
                 "fat", "70.0",
-                "carbs", "220.0"
+                "carbs", "220.0",
+                "workoutSessions", 1,
+                "workoutVolumeKg", "1250.0"
         ));
 
         assertThat(prompt)
@@ -28,6 +30,8 @@ class AiPromptRendererTest {
                 .contains("lactose intolerance")
                 .contains("Calories: 2100")
                 .contains("Protein: 155.0g")
+                .contains("Sessions: 1")
+                .contains("Volume: 1250.0 kg")
                 .doesNotContain("{{");
     }
 

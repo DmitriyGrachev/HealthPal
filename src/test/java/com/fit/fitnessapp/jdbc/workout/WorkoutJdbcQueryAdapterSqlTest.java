@@ -33,6 +33,7 @@ class WorkoutJdbcQueryAdapterSqlTest {
 
         adapter.getAllWorkoutSummaryByUser(1L);
         adapter.getAllWorkoutSummaryThisWeek(1L);
+        adapter.getDailyStats(1L, LocalDate.of(2026, 1, 1));
         adapter.getWeeklyStats(1L, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 7));
         adapter.getMonthlyStats(1L, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
 

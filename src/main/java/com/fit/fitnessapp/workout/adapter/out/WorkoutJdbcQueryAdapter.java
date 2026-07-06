@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.workout.adapter.out;
 
+import com.fit.fitnessapp.workout.WorkoutDailyApi;
+import com.fit.fitnessapp.workout.WorkoutDailyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutMonthlyApi;
 import com.fit.fitnessapp.workout.WorkoutMonthlyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
@@ -20,7 +22,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeeklyApi, WorkoutMonthlyApi {
+public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDailyApi, WorkoutWeeklyApi, WorkoutMonthlyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -93,6 +95,33 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutWeek
                         .date(rs.getTimestamp("week").toLocalDateTime())
                         .build()
         );
+    }
+
+    @Override
+    public WorkoutDailyStatsDto getDailyStats(Long userId, LocalDate date) {
+        String sql = """
+                SELECT
+                    COUNT(DISTINCT w.id)                       AS total_sessions,
+                    COALESCE(SUM(ws.weight * ws.reps), 0)      AS total_volume
+                FROM workout w
+                LEFT JOIN workout_exercises we ON w.id = we.workout_id
+                LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
+                WHERE w.user_id = :userId
+                  AND w.date >= :startDate
+                  AND w.date < :endDatePlusOne
+                """;
+
+        WorkoutDailyStatsDto.WorkoutDailyStatsDtoBuilder builder = WorkoutDailyStatsDto.builder()
+                .date(date)
+                .totalSessions(0)
+                .totalVolumeKg(0.0);
+
+        jdbc.query(sql, statsParams(userId, date, date), rs -> {
+            builder.totalSessions(rs.getInt("total_sessions"));
+            builder.totalVolumeKg(rs.getDouble("total_volume"));
+        });
+
+        return builder.build();
     }
 
     @Override
