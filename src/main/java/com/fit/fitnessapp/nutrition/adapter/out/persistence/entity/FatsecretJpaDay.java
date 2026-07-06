@@ -43,6 +43,12 @@ public class FatsecretJpaDay {
     @Column(name = "external_hash")
     private String externalHash;
 
+    @Column(name = "summary_hash")
+    private String summaryHash;
+
+    @Column(name = "entries_hash")
+    private String entriesHash;
+
     @Column(name = "last_sync_at")
     private Instant lastSyncAt;
 
