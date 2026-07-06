@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -94,5 +95,18 @@ class NutritionSyncSchedulerTest {
         new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock).syncAllUsersToday();
 
         verifyNoInteractions(syncUseCase);
+    }
+
+    @Test
+    void springCanCreateSchedulerWithProductionConstructor() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(SyncNutritionUseCase.class, () -> syncUseCase);
+            context.registerBean(NutritionCommandPort.class, () -> nutritionCommandPort);
+            context.register(NutritionSyncScheduler.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(NutritionSyncScheduler.class)).isNotNull();
+        }
     }
 }

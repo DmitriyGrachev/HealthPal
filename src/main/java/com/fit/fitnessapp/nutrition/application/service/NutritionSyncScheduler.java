@@ -3,6 +3,7 @@ package com.fit.fitnessapp.nutrition.application.service;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ public class NutritionSyncScheduler {
     private final Clock clock;
     private int syncWindowDays;
 
+    @Autowired
     public NutritionSyncScheduler(SyncNutritionUseCase syncUseCase, NutritionCommandPort nutritionCommandPort) {
         this(syncUseCase, nutritionCommandPort, Clock.systemDefaultZone(), 1);
     }
