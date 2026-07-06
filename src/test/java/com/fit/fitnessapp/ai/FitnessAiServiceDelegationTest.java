@@ -6,6 +6,7 @@ import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
+import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
@@ -90,7 +91,7 @@ class FitnessAiServiceDelegationTest {
 
         service.onTelegramTodayRequested(new TelegramTodayRequestedEvent(42L, 100L, date));
 
-        verify(dailyInsightService).generate(42L, date);
+        verify(dailyInsightService).generateOrPublishExisting(42L, date);
     }
 
     @Test
@@ -101,6 +102,18 @@ class FitnessAiServiceDelegationTest {
                 42L, date, 2100, 140.0, 70.0, 220.0, true, "summary", "entries"));
 
         verify(dailyInsightService).generate(42L, date);
+    }
+
+    @Test
+    void workoutImportedEventDelegatesAffectedDatesToDailyInsightWorkflow() {
+        LocalDate from = LocalDate.of(2026, 7, 4);
+        LocalDate to = LocalDate.of(2026, 7, 6);
+
+        service.onWorkoutImported(new WorkoutImportedEvent(42L, from, to, 3, 0));
+
+        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 4));
+        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 5));
+        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 6));
     }
 
     @Test

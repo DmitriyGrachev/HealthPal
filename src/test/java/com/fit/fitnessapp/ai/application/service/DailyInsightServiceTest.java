@@ -93,6 +93,7 @@ class DailyInsightServiceTest {
         ArgumentCaptor<Map<String, Object>> promptContextCaptor = ArgumentCaptor.forClass(Map.class);
         verify(promptRenderer).render(eq("daily-insight-v1.md"), promptContextCaptor.capture());
         assertThat(promptContextCaptor.getValue())
+                .containsEntry("date", date)
                 .containsEntry("totalCalories", 850)
                 .containsEntry("workoutSessions", 1)
                 .containsEntry("workoutVolumeKg", "1250.0");
@@ -146,6 +147,36 @@ class DailyInsightServiceTest {
 
         verifyNoInteractions(moeOrchestrator, eventPublisher);
         verify(insightRepository, never()).save(any());
+    }
+
+    @Test
+    void publishesExistingDailyInsightWhenSnapshotMatchesAndCallerNeedsResponse() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        AiInsightEntity existing = AiInsightEntity.builder()
+                .userId(userId)
+                .date(date)
+                .insightType(InsightType.DAILY)
+                .insightText("Cached summary")
+                .structuredResponse(response("Cached summary", "Cached telegram"))
+                .metadata(Map.of("snapshot_hash", "hash-1"))
+                .build();
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.of(existing));
+        when(snapshotService.build(userId, date))
+                .thenReturn(snapshot(userId, date, "hash-1", 850, 65.0, 17.0, 95.0, 1, 1250.0));
+
+        service.generateOrPublishExisting(userId, date);
+
+        verifyNoInteractions(moeOrchestrator);
+        verify(insightRepository, never()).save(any());
+        verify(eventPublisher).publishEvent(new InsightGeneratedEvent(
+                userId,
+                date,
+                InsightType.DAILY,
+                "Cached summary",
+                "Cached telegram"
+        ));
     }
 
     @Test

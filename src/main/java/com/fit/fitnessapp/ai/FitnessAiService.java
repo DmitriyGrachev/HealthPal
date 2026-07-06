@@ -7,6 +7,7 @@ import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
+import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
 import com.fit.fitnessapp.ai.application.service.DailyInsightService;
 import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
@@ -24,6 +25,9 @@ import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -48,7 +52,7 @@ public class FitnessAiService {
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
         log.info("AI request received userId={} taskType=DAILY_INSIGHT source=telegram", event.userId());
-        dailyInsightService.generate(event.userId(), event.date());
+        dailyInsightService.generateOrPublishExisting(event.userId(), event.date());
     }
 
     @EventListener
@@ -62,6 +66,17 @@ public class FitnessAiService {
         dailyInsightService.generate(event.userId(), event.date());
     }
 
+    @ApplicationModuleListener
+    public void onWorkoutImported(WorkoutImportedEvent event) {
+        log.info("AI module received WorkoutImportedEvent for user {} from {} to {}",
+                event.userId(), event.fromDate(), event.toDate());
+        LocalDate date = event.fromDate();
+        while (!date.isAfter(event.toDate())) {
+            dailyInsightService.generate(event.userId(), date);
+            date = date.plusDays(1);
+        }
+    }
+
     @Transactional
     public void generateDailyInsight(Long userId, LocalDate date) {
         dailyInsightService.generate(userId, date);
@@ -71,7 +86,10 @@ public class FitnessAiService {
     public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
         log.info("AI module received WeeklyReportRequestedEvent for user {}, week starting {}", event.userId(), event.weekStart());
 
-        if (insightRepository.findByUserIdAndDateAndInsightType(event.userId(), event.weekStart(), InsightType.WEEKLY).isPresent()) {
+        String snapshotHash = sha256(weeklySnapshotSource(event));
+        Optional<AiInsightEntity> existingInsight = insightRepository.findByUserIdAndDateAndInsightType(
+                event.userId(), event.weekStart(), InsightType.WEEKLY);
+        if (hasSameSnapshotHash(existingInsight, snapshotHash)) {
             log.info("Weekly insight for {} already exists. Skipping.", event.weekStart());
             return;
         }
@@ -109,14 +127,14 @@ public class FitnessAiService {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
             logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
 
-            AiInsightEntity insight = AiInsightEntity.builder()
-                    .userId(event.userId())
-                    .date(event.weekStart())
-                    .insightType(InsightType.WEEKLY)
-                    .insightText(aiResponse.summary())
-                    .structuredResponse(aiResponse)
-                    .schemaVersion(1)
-                    .build();
+            AiInsightEntity insight = existingInsight.orElseGet(AiInsightEntity::new);
+            insight.setUserId(event.userId());
+            insight.setDate(event.weekStart());
+            insight.setInsightType(InsightType.WEEKLY);
+            insight.setInsightText(aiResponse.summary());
+            insight.setStructuredResponse(aiResponse);
+            insight.setSchemaVersion(1);
+            insight.setMetadata(reportMetadata(snapshotHash, event.weekStart(), event.weekEnd()));
 
             insightRepository.save(insight);
 
@@ -134,8 +152,10 @@ public class FitnessAiService {
         log.info("AI module received MonthlyReportRequestedEvent for user {}, month {} - {}",
                 event.userId(), event.monthStart(), event.monthEnd());
 
-        if (insightRepository.findByUserIdAndDateAndInsightType(
-                event.userId(), event.monthStart(), InsightType.MONTHLY).isPresent()) {
+        String snapshotHash = sha256(monthlySnapshotSource(event));
+        Optional<AiInsightEntity> existingInsight = insightRepository.findByUserIdAndDateAndInsightType(
+                event.userId(), event.monthStart(), InsightType.MONTHLY);
+        if (hasSameSnapshotHash(existingInsight, snapshotHash)) {
             log.info("Monthly insight for {} already exists. Skipping.", event.monthStart());
             return;
         }
@@ -179,14 +199,14 @@ public class FitnessAiService {
             NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
             logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
 
-            AiInsightEntity insight = AiInsightEntity.builder()
-                    .userId(event.userId())
-                    .date(event.monthStart())
-                    .insightType(InsightType.MONTHLY)
-                    .insightText(aiResponse.summary())
-                    .structuredResponse(aiResponse)
-                    .schemaVersion(1)
-                    .build();
+            AiInsightEntity insight = existingInsight.orElseGet(AiInsightEntity::new);
+            insight.setUserId(event.userId());
+            insight.setDate(event.monthStart());
+            insight.setInsightType(InsightType.MONTHLY);
+            insight.setInsightText(aiResponse.summary());
+            insight.setStructuredResponse(aiResponse);
+            insight.setSchemaVersion(1);
+            insight.setMetadata(reportMetadata(snapshotHash, event.monthStart(), event.monthEnd()));
 
             insightRepository.save(insight);
 
@@ -232,6 +252,118 @@ public class FitnessAiService {
 
     private String errorCode(Exception e) {
         return e.getClass().getSimpleName();
+    }
+
+    private boolean hasSameSnapshotHash(Optional<AiInsightEntity> existingInsight, String snapshotHash) {
+        if (existingInsight.isEmpty() || snapshotHash == null) {
+            return false;
+        }
+        Map<String, Object> metadata = existingInsight.get().getMetadata();
+        return metadata != null && snapshotHash.equals(metadata.get("snapshot_hash"));
+    }
+
+    private Map<String, Object> reportMetadata(String snapshotHash, LocalDate periodStart, LocalDate periodEnd) {
+        return Map.of(
+                "snapshot_hash", snapshotHash,
+                "snapshot_period_start", periodStart.toString(),
+                "snapshot_period_end", periodEnd.toString()
+        );
+    }
+
+    private String weeklySnapshotSource(WeeklyReportRequestedEvent event) {
+        StringBuilder sb = new StringBuilder("weekly")
+                .append('|').append(event.userId())
+                .append('|').append(event.weekStart())
+                .append('|').append(event.weekEnd());
+        appendWeeklyNutrition(sb, event.nutrition());
+        appendWeeklyWorkout(sb, event.workout());
+        return sb.toString();
+    }
+
+    private String monthlySnapshotSource(MonthlyReportRequestedEvent event) {
+        StringBuilder sb = new StringBuilder("monthly")
+                .append('|').append(event.userId())
+                .append('|').append(event.monthStart())
+                .append('|').append(event.monthEnd());
+        appendMonthlyNutrition(sb, event.nutrition());
+        appendMonthlyWorkout(sb, event.workout());
+        return sb.toString();
+    }
+
+    private void appendWeeklyNutrition(StringBuilder sb, WeeklyReportRequestedEvent.NutritionSnapshot nutrition) {
+        sb.append("|nutrition")
+                .append('|').append(nutrition.totalCalories())
+                .append('|').append(nutrition.avgCalories())
+                .append('|').append(nutrition.avgProtein())
+                .append('|').append(nutrition.avgFat())
+                .append('|').append(nutrition.avgCarbs());
+        if (nutrition.dailyBreakdown() != null) {
+            nutrition.dailyBreakdown().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> {
+                        WeeklyReportRequestedEvent.DailyMacrosSnapshot day = entry.getValue();
+                        sb.append("|day=").append(entry.getKey())
+                                .append(':').append(day.calories())
+                                .append(':').append(day.protein())
+                                .append(':').append(day.fat())
+                                .append(':').append(day.carbs());
+                    });
+        }
+    }
+
+    private void appendMonthlyNutrition(StringBuilder sb, MonthlyReportRequestedEvent.NutritionSnapshot nutrition) {
+        sb.append("|nutrition")
+                .append('|').append(nutrition.totalCalories())
+                .append('|').append(nutrition.avgCalories())
+                .append('|').append(nutrition.avgProtein())
+                .append('|').append(nutrition.avgFat())
+                .append('|').append(nutrition.avgCarbs())
+                .append('|').append(nutrition.daysTracked());
+        if (nutrition.dailyBreakdown() != null) {
+            nutrition.dailyBreakdown().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> {
+                        MonthlyReportRequestedEvent.DailyMacrosSnapshot day = entry.getValue();
+                        sb.append("|day=").append(entry.getKey())
+                                .append(':').append(day.calories())
+                                .append(':').append(day.protein())
+                                .append(':').append(day.fat())
+                                .append(':').append(day.carbs());
+                    });
+        }
+    }
+
+    private void appendWeeklyWorkout(StringBuilder sb, WeeklyReportRequestedEvent.WorkoutSnapshot workout) {
+        sb.append("|workout")
+                .append('|').append(workout.totalSessions())
+                .append('|').append(workout.totalVolumeKg());
+        appendVolumeByDay(sb, workout.volumeByDay());
+    }
+
+    private void appendMonthlyWorkout(StringBuilder sb, MonthlyReportRequestedEvent.WorkoutSnapshot workout) {
+        sb.append("|workout")
+                .append('|').append(workout.totalSessions())
+                .append('|').append(workout.totalVolumeKg())
+                .append('|').append(workout.avgVolumePerSession());
+        appendVolumeByDay(sb, workout.volumeByDay());
+    }
+
+    private void appendVolumeByDay(StringBuilder sb, Map<String, Double> volumeByDay) {
+        if (volumeByDay == null) {
+            return;
+        }
+        volumeByDay.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> sb.append("|volume=").append(entry.getKey()).append(':').append(entry.getValue()));
+    }
+
+    private String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
     }
 
     private String formatNutritionBreakdown(Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> breakdown) {

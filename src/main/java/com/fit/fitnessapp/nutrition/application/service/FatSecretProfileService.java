@@ -62,10 +62,7 @@ public class FatSecretProfileService {
                 List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
                         userId, latestWeight.date(), latestWeight.date());
                 
-                boolean existsToday = existing.stream()
-                        .anyMatch(e -> e.source() == WeightHistoryDto.WeightSource.FATSECRET);
-                
-                if (!existsToday) {
+                if (shouldSaveFatSecretWeight(existing, latestWeight.weight())) {
                     WeightHistoryDto dto = new WeightHistoryDto(
                             null, userId,
                             latestWeight.weight().stripTrailingZeros(),
@@ -73,9 +70,9 @@ public class FatSecretProfileService {
                             WeightHistoryDto.WeightSource.FATSECRET
                     );
                     weightHistoryRepository.saveWeight(dto);
-                    log.info("FatSecret profile sync completed userId={} date={} status=success",
-                            userId, latestWeight.date());
                 }
+                log.info("FatSecret profile sync completed userId={} date={} status=success",
+                        userId, latestWeight.date());
             }
         } catch (Exception e) {
             log.warn("FatSecret profile sync failed userId={} status=error errorCode={}",
@@ -93,10 +90,7 @@ public class FatSecretProfileService {
                     List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
                             userId, entry.date(), entry.date());
 
-                    boolean exists = existing.stream()
-                            .anyMatch(e -> e.source() == WeightHistoryDto.WeightSource.FATSECRET);
-
-                    if (!exists) {
+                    if (shouldSaveFatSecretWeight(existing, entry.weight())) {
                         WeightHistoryDto dto = new WeightHistoryDto(
                                 null, userId,
                                 entry.weight().stripTrailingZeros(),
@@ -107,7 +101,7 @@ public class FatSecretProfileService {
                         savedCount++;
                     }
                 }
-                log.info("Synced {} new weight entries from FatSecret for user {} for date {}",
+                log.info("Synced {} weight entries from FatSecret for user {} for date {}",
                         savedCount, userId, date);
             }
         } catch (Exception e) {
@@ -140,5 +134,11 @@ public class FatSecretProfileService {
                     authResult.userId(), e.getClass().getSimpleName());
             return false;
         }
+    }
+
+    private boolean shouldSaveFatSecretWeight(List<WeightHistoryDto> existing, BigDecimal incomingWeight) {
+        return existing.stream()
+                .filter(entry -> entry.source() == WeightHistoryDto.WeightSource.FATSECRET)
+                .noneMatch(entry -> entry.weightKg().compareTo(incomingWeight) == 0);
     }
 }

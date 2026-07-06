@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.memory;
 
 import com.fit.fitnessapp.memory.application.service.MemoryService;
+import com.fit.fitnessapp.memory.domain.MemoryType;
+import org.springframework.ai.document.Document;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -14,6 +16,8 @@ import org.springframework.ai.vectorstore.filter.Filter.Key;
 import org.springframework.ai.vectorstore.filter.Filter.Value;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +45,24 @@ class MemoryServiceTest {
         service.findLongTermFacts(77L, 3);
 
         assertUserIdFilter(capturedSearchRequest(), 77L);
+    }
+
+    @Test
+    void longTermFactsExcludeSemanticPeriodInsights() {
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                document("Monthly report summary", "SEMANTIC", "LONG_TERM"),
+                document("User is allergic to peanuts", "FACT", "LONG_TERM")
+        ));
+        MemoryService service = new MemoryService(vectorStore);
+
+        var facts = service.findLongTermFacts(77L, 3);
+
+        assertThat(facts)
+                .singleElement()
+                .satisfies(memory -> {
+                    assertThat(memory.content()).isEqualTo("User is allergic to peanuts");
+                    assertThat(memory.type()).isEqualTo(MemoryType.FACT);
+                });
     }
 
     @Test
@@ -72,5 +94,15 @@ class MemoryServiceTest {
         assertThat(((Key) expression.left()).key()).isEqualTo("user_id");
         assertThat(expression.right()).isInstanceOf(Value.class);
         assertThat(((Value) expression.right()).value()).isEqualTo(expectedUserId);
+    }
+
+    private Document document(String content, String memoryType, String memoryHorizon) {
+        return new Document(
+                UUID.randomUUID().toString(),
+                content,
+                Map.of(
+                        "user_id", 77L,
+                        "memory_type", memoryType,
+                        "memory_horizon", memoryHorizon));
     }
 }

@@ -6,8 +6,10 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDaySaveResult;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonthSaveResult;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface NutritionCommandPort {
     void saveToken(Long userId, FatSecretToken token);
@@ -15,4 +17,9 @@ public interface NutritionCommandPort {
     List<Long> getAllConnectedUserIds();
     NutritionDaySaveResult saveNutritionDay(NutritionDay nutritionDay);
     NutritionMonthSaveResult saveNutritionMonth(NutritionMonth nutritionMonth);
+    List<NutritionDaySaveResult> deleteNutritionDaysMissingFromMonth(
+            Long userId,
+            LocalDate monthStart,
+            LocalDate monthEnd,
+            Set<LocalDate> presentDates);
 }

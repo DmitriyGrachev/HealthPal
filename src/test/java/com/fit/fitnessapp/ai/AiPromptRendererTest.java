@@ -14,6 +14,7 @@ class AiPromptRendererTest {
     @Test
     void rendersDailyInsightPromptWithFixtureContext() {
         String prompt = renderer.render("daily-insight-v1.md", Map.of(
+                "date", "2026-03-16",
                 "memoriesText", "PERMANENT USER FACTS:\n- lactose intolerance",
                 "recentInsights", "No previous insights.",
                 "totalCalories", 2_100,
@@ -28,6 +29,7 @@ class AiPromptRendererTest {
                 .contains("name: daily-insight")
                 .contains("version: v1")
                 .contains("lactose intolerance")
+                .contains("Report date: 2026-03-16")
                 .contains("Calories: 2100")
                 .contains("Protein: 155.0g")
                 .contains("Sessions: 1")

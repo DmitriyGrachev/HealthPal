@@ -35,6 +35,15 @@ public class DailyInsightService {
 
     @Transactional
     public void generate(Long userId, LocalDate date) {
+        generate(userId, date, false);
+    }
+
+    @Transactional
+    public void generateOrPublishExisting(Long userId, LocalDate date) {
+        generate(userId, date, true);
+    }
+
+    private void generate(Long userId, LocalDate date, boolean publishExistingWhenFresh) {
         var existingInsight = insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY);
         DailyInsightSnapshot snapshot = snapshotService.build(userId, date);
         if (snapshot == null) {
@@ -45,6 +54,9 @@ public class DailyInsightService {
         String snapshotHash = snapshot.snapshotHash();
         if (hasSameSnapshotHash(existingInsight, snapshotHash)) {
             log.info("Daily insight for user {} on {} already matches snapshot. Skipping.", userId, date);
+            if (publishExistingWhenFresh) {
+                publishExistingInsight(existingInsight.get());
+            }
             return;
         }
 
@@ -57,6 +69,7 @@ public class DailyInsightService {
         String recentInsights = aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY);
 
         String prompt = promptRenderer.render("daily-insight-v1.md", Map.of(
+                "date", date,
                 "memoriesText", memoriesText,
                 "recentInsights", recentInsights,
                 "totalCalories", snapshot.totalCalories(),
@@ -103,6 +116,18 @@ public class DailyInsightService {
         } catch (Exception e) {
             logAiCall(userId, taskType, model, startedAt, "error", e.getClass().getSimpleName());
         }
+    }
+
+    private void publishExistingInsight(AiInsightEntity insight) {
+        NutritionInsightResponse structuredResponse = insight.getStructuredResponse();
+        String telegramSummary = structuredResponse != null ? structuredResponse.telegramSummary() : null;
+        eventPublisher.publishEvent(new InsightGeneratedEvent(
+                insight.getUserId(),
+                insight.getDate(),
+                insight.getInsightType(),
+                insight.getInsightText(),
+                telegramSummary
+        ));
     }
 
     private boolean hasSameSnapshotHash(Optional<AiInsightEntity> existingInsight, String snapshotHash) {

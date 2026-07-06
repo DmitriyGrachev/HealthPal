@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -21,6 +22,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -58,6 +60,31 @@ class FatSecretProfileServicePrivacyLoggingTest {
                 .doesNotContain("82.35")
                 .doesNotContain("private comment")
                 .doesNotContain("kg");
+    }
+
+    @Test
+    void syncProfileUpdatesExistingFatSecretWeight() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 5);
+        FatSecretAuthResult authResult = authResult(userId);
+        WeightEntryDto latestWeight = new WeightEntryDto(new BigDecimal("81.50"), date, 20640, null);
+        WeightHistoryDto existing = new WeightHistoryDto(
+                10L,
+                userId,
+                new BigDecimal("82.00"),
+                date,
+                WeightHistoryDto.WeightSource.FATSECRET);
+
+        when(fatSecretApi.getLatestWeight(authResult.token())).thenReturn(latestWeight);
+        when(weightHistoryUseCase.getWeightHistoryByUserIdAndDateRange(userId, date, date)).thenReturn(List.of(existing));
+        when(weightHistoryUseCase.saveWeight(any(WeightHistoryDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.syncProfileFromFatSecret(userId, authResult);
+
+        ArgumentCaptor<WeightHistoryDto> captor = ArgumentCaptor.forClass(WeightHistoryDto.class);
+        verify(weightHistoryUseCase).saveWeight(captor.capture());
+        assertThat(captor.getValue().weightKg()).isEqualByComparingTo("81.50");
+        assertThat(captor.getValue().source()).isEqualTo(WeightHistoryDto.WeightSource.FATSECRET);
     }
 
     @Test

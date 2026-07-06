@@ -13,8 +13,8 @@ import java.util.List;
 @Table(
         name = "workout_exercises",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_exercise_jefit_log",
-                columnNames = {"jefitLogId"}
+                name = "uq_exercise_jefit_log_workout",
+                columnNames = {"jefit_log_id", "workout_id"}
         )
 )
 public class WorkoutExerciseJpaEntity {
@@ -23,6 +23,7 @@ public class WorkoutExerciseJpaEntity {
     @SequenceGenerator(name = "exercise_seq", sequenceName = "exercise_seq", allocationSize = 50)
     private Long id;
 
+    @Column(name = "jefit_log_id")
     private Long jefitLogId;
     private String exerciseName;
 

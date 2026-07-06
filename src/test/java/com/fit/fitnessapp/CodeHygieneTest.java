@@ -18,6 +18,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CodeHygieneTest {
 
+    private static final List<String> MODULE_NAMES = List.of(
+            "ai",
+            "analytics",
+            "api",
+            "auth",
+            "exception",
+            "memory",
+            "nutrition",
+            "telegram",
+            "workout"
+    );
+
+    private static final List<String> AI_ROOT_IMPLEMENTATION_IMPORTS = List.of(
+            "com.fit.fitnessapp.ai.AiController",
+            "com.fit.fitnessapp.ai.AiInsightEntity",
+            "com.fit.fitnessapp.ai.AiInsightRepository",
+            "com.fit.fitnessapp.ai.AiPromptRenderer",
+            "com.fit.fitnessapp.ai.AiProperties",
+            "com.fit.fitnessapp.ai.FitnessAiService",
+            "com.fit.fitnessapp.ai.MoeOrchestrator",
+            "com.fit.fitnessapp.ai.RateLimiterService"
+    );
+
     @Test
     void productionCodeDoesNotWriteDirectlyToStdoutOrStderr() throws IOException {
         List<String> offenders;
@@ -58,6 +81,22 @@ class CodeHygieneTest {
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
                     .filter(this::importsOtherModulePersistenceAdapter)
+                    .map(Path::toString)
+                    .toList();
+        }
+
+        assertThat(offenders).isEmpty();
+    }
+
+    @Test
+    void modulesDoNotImportAiRootImplementationClasses() throws IOException {
+        List<String> offenders;
+        try (var files = Files.walk(Path.of("src/main/java/com/fit/fitnessapp"))) {
+            offenders = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.toString().replace('\\', '/').contains("/ai/"))
+                    .filter(this::importsAiRootImplementationClass)
                     .map(Path::toString)
                     .toList();
         }
@@ -413,26 +452,37 @@ class CodeHygieneTest {
             String normalizedPath = path.toString().replace('\\', '/');
             String source = Files.readString(path);
 
-            if (normalizedPath.contains("/auth/")) {
-                return source.contains("com.fit.fitnessapp.nutrition.adapter.out.persistence");
-            }
-            if (normalizedPath.contains("/nutrition/")) {
-                return source.contains("com.fit.fitnessapp.auth.adapter.out.persistence");
-            }
-            if (normalizedPath.contains("/ai/")) {
-                return source.contains("com.fit.fitnessapp.auth.adapter.out.persistence")
-                        || source.contains("com.fit.fitnessapp.nutrition.adapter.out.persistence")
-                        || source.contains("com.fit.fitnessapp.analytics.adapter.out.persistence");
-            }
-            if (normalizedPath.contains("/analytics/")) {
-                return source.contains("com.fit.fitnessapp.auth.adapter.out.persistence")
-                        || source.contains("com.fit.fitnessapp.nutrition.adapter.out.persistence")
-                        || source.contains("com.fit.fitnessapp.ai.adapter.out.persistence");
-            }
-            return false;
+            String currentModule = moduleNameFor(normalizedPath);
+            if (currentModule == null) return false;
+
+            return MODULE_NAMES.stream()
+                    .filter(module -> !module.equals(currentModule))
+                    .anyMatch(module -> source.contains("com.fit.fitnessapp." + module + ".adapter.out.persistence")
+                            || source.contains("com.fit.fitnessapp." + module + ".infrastructure.persistence"));
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + path, e);
         }
+    }
+
+    private boolean importsAiRootImplementationClass(Path path) {
+        try {
+            String source = Files.readString(path);
+            return AI_ROOT_IMPLEMENTATION_IMPORTS.stream().anyMatch(source::contains);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
+    }
+
+    private String moduleNameFor(String normalizedPath) {
+        String marker = "src/main/java/com/fit/fitnessapp/";
+        int start = normalizedPath.indexOf(marker);
+        if (start < 0) return null;
+        String rest = normalizedPath.substring(start + marker.length());
+        int separator = rest.indexOf('/');
+        if (separator < 0) return null;
+        String candidate = rest.substring(0, separator);
+        if (!MODULE_NAMES.contains(candidate)) return null;
+        return candidate;
     }
 
     private boolean containsMojibake(Path path) {

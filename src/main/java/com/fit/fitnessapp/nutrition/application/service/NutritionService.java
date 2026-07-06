@@ -57,17 +57,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
         NutritionDaySaveResult result = nutritionCommandPort.saveNutritionDay(nutritionDay);
         if (result.changed()) {
-            eventPublisher.publishEvent(new NutritionSyncedEvent(
-                    result.userId(),
-                    result.date(),
-                    result.totalCalories(),
-                    result.protein(),
-                    result.fat(),
-                    result.carbohydrate(),
-                    true,
-                    result.summaryHash(),
-                    result.entriesHash()
-            ));
+            publishNutritionSyncedEvent(result);
         }
 
         log.info(
@@ -94,6 +84,13 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         Set<LocalDate> monthDates = nutritionMonth.days().stream()
                 .map(NutritionDaySummary::date)
                 .collect(Collectors.toSet());
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        nutritionCommandPort.deleteNutritionDaysMissingFromMonth(userId, monthStart, monthEnd, monthDates)
+                .stream()
+                .filter(NutritionDaySaveResult::changed)
+                .forEach(this::publishNutritionSyncedEvent);
+
         Set<LocalDate> detailDates = new LinkedHashSet<>();
         monthResult.changedDates().stream()
                 .filter(monthDates::contains)
@@ -108,7 +105,10 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         for (LocalDate detailDate : detailDates) {
             try {
                 NutritionDay fullDay = apiPort.fetchAndParseFoodEntries(token, userId, detailDate.toEpochDay());
-                nutritionCommandPort.saveNutritionDay(fullDay);
+                NutritionDaySaveResult result = nutritionCommandPort.saveNutritionDay(fullDay);
+                if (result.changed()) {
+                    publishNutritionSyncedEvent(result);
+                }
             } catch (Exception ex) {
                 log.warn(
                         "Nutrition daily backfill failed userId={} date={} status={} errorCode={}",
@@ -120,5 +120,19 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
             }
         }
 
+    }
+
+    private void publishNutritionSyncedEvent(NutritionDaySaveResult result) {
+        eventPublisher.publishEvent(new NutritionSyncedEvent(
+                result.userId(),
+                result.date(),
+                result.totalCalories(),
+                result.protein(),
+                result.fat(),
+                result.carbohydrate(),
+                true,
+                result.summaryHash(),
+                result.entriesHash()
+        ));
     }
 }

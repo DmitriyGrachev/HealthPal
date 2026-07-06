@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -216,6 +217,30 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         return new NutritionMonthSaveResult(userId, List.copyOf(changedDates));
     }
 
+    @Override
+    @Transactional
+    public List<NutritionDaySaveResult> deleteNutritionDaysMissingFromMonth(
+            Long userId,
+            LocalDate monthStart,
+            LocalDate monthEnd,
+            Set<LocalDate> presentDates) {
+        List<FatsecretJpaDay> daysToDelete = dayRepository.findByUserIdAndDateBetweenOrderByDate(
+                        userId, monthStart, monthEnd)
+                .stream()
+                .filter(day -> !presentDates.contains(day.getDate()))
+                .toList();
+
+        if (daysToDelete.isEmpty()) {
+            return List.of();
+        }
+
+        List<NutritionDaySaveResult> deletedResults = daysToDelete.stream()
+                .map(day -> deletedDayResult(userId, day.getDate()))
+                .toList();
+        dayRepository.deleteAll(daysToDelete);
+        return deletedResults;
+    }
+
     private void updateDayFromSummary(FatsecretJpaDay day, NutritionDaySummary s, String hash) {
         day.setCalories(s.calories());
         day.setProtein(s.protein());
@@ -272,5 +297,11 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         String payload = String.format(Locale.ROOT, "%d|%d|%.4f|%.4f|%.4f|%.4f",
                 userId, date.toEpochDay(), calories, protein, fat, carbohydrate);
         return DigestUtils.sha256Hex(payload);
+    }
+
+    private NutritionDaySaveResult deletedDayResult(Long userId, LocalDate date) {
+        String summaryHash = computeSummaryHash(userId, date, 0, 0, 0, 0);
+        String entriesHash = DigestUtils.sha256Hex(String.format(Locale.ROOT, "%d|%d|deleted", userId, date.toEpochDay()));
+        return new NutritionDaySaveResult(userId, date, true, summaryHash, entriesHash, 0, 0, 0, 0);
     }
 }

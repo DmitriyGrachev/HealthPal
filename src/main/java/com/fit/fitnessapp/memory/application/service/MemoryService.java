@@ -62,6 +62,8 @@ public class MemoryService implements MemoryQueryUseCase {
                 .stream()
                 .filter(doc -> "LONG_TERM".equals(
                         doc.getMetadata().get("memory_horizon")))
+                .filter(doc -> MemoryType.FACT.name().equals(
+                        doc.getMetadata().get("memory_type")))
                 .limit(limit)
                 .map(this::mapToUserMemory)
                 .toList();
