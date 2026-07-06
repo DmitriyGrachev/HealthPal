@@ -26,17 +26,17 @@ public class MemoryEventListener {
     @ApplicationModuleListener
     public void onInsightGenerated(InsightGeneratedEvent event) {
 
-        // Ежедневные инсайты — краткосрочные (14 дней)
-        // Недельные/месячные — среднесрочные (90 дней)
+        // Daily insights are short-term (14 days).
+        // Weekly/monthly insights are medium-term (90 days).
         Instant expiresAt = switch (event.insightType()) {
-            case DAILY   -> Instant.now().plus(14, ChronoUnit.DAYS);
-            case WEEKLY  -> Instant.now().plus(90, ChronoUnit.DAYS);
-            case MONTHLY -> null; // не истекает
+            case DAILY -> Instant.now().plus(14, ChronoUnit.DAYS);
+            case WEEKLY -> Instant.now().plus(90, ChronoUnit.DAYS);
+            case MONTHLY -> null; // Does not expire.
         };
 
         String horizon = switch (event.insightType()) {
-            case DAILY   -> "SHORT_TERM";
-            case WEEKLY  -> "MID_TERM";
+            case DAILY -> "SHORT_TERM";
+            case WEEKLY -> "MID_TERM";
             case MONTHLY -> "LONG_TERM";
         };
 
@@ -57,8 +57,8 @@ public class MemoryEventListener {
     @ApplicationModuleListener
     public void onUserNoteCreated(UserNoteCreatedEvent event) {
 
-        // Временные заметки (болезнь, событие) — 7 дней
-        // Постоянные (аллергия, цель) — никогда не истекают
+        // Temporary notes (illness, event) last 7 days.
+        // Permanent notes (allergy, goal) never expire.
         boolean isPermanent = switch (event.type()) {
             case ALLERGY, GOAL, PREFERENCE -> true;
             case ILLNESS, TRAVEL, INJURY, STRESS, TRAINING, NUTRITION, GENERAL, MOOD, OTHER -> false;

@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record WorkoutSession(
-        Long externalId, // ID из Jefit
+        Long externalId, // Jefit ID
         LocalDateTime date,
         List<Exercise> exercises
 ) {}

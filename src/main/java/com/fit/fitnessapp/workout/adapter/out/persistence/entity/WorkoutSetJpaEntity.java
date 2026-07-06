@@ -15,7 +15,7 @@ public class WorkoutSetJpaEntity {
     private Long id;
 
     private int setIndex;
-    private Double weight; // В кг
+    private Double weight; // In kg.
     private int reps;
 
     @ManyToOne(fetch = FetchType.LAZY)

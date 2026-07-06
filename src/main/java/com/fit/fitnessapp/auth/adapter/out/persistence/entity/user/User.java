@@ -25,10 +25,10 @@ public class User implements UserDetails {
     private String email;
     private String password;
 
-    // Используем Set, чтобы роли не дублировались
+    // Use a Set so roles are not duplicated.
     @ElementCollection(targetClass = Role.class, fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
-    @Enumerated(EnumType.STRING) // Храним как строки: 'USER', 'VIP'
+    @Enumerated(EnumType.STRING) // Store as strings: 'USER', 'VIP'.
     @Column(name = "role_name")
     private Set<Role> roles = new HashSet<>();
 

@@ -18,7 +18,7 @@ public class FatsecretFoodEntry {
     @Column(name = "external_food_id")
     private Long externalFoodId;
 
-    @Column(name = "external_entry_id", unique = false) // unique не глобально — уникальность в пределах day
+    @Column(name = "external_entry_id", unique = false) // Unique only within a day, not globally.
     private Long externalEntryId;
 
     private String name;

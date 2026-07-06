@@ -15,7 +15,7 @@ public class FatSecretConnectionJpaEntity {
     private Long id;
 
     @Column(name = "user_id", unique = true, nullable = false)
-    private Long userId; // Строгая изоляция: только ID, никаких ссылок на User.class!
+    private Long userId; // Strict isolation: store only the ID, never a User entity reference.
 
     @Column(name = "access_token", nullable = false)
     private String accessToken;

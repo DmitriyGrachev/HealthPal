@@ -64,7 +64,7 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
 
     @Override
     public List<NutritionDaySummary> getCurrentMonthSummary(Long userId) {
-        // Определяем первый и последний день текущего месяца
+        // Resolve the first and last day of the current month.
         YearMonth currentMonth = YearMonth.now();
         LocalDate start = currentMonth.atDay(1);
         LocalDate end = currentMonth.atEndOfMonth();
@@ -87,7 +87,7 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
                 (rs, rowNum) -> new NutritionDaySummary(
                         userId,
                         rs.getDate("date").toLocalDate(),
-                        rs.getInt("date_int"), // берем из базы, а не вычисляем на лету
+                        rs.getInt("date_int"), // Use the stored value instead of recalculating it.
                         rs.getDouble("calories"),
                         rs.getDouble("protein"),
                         rs.getDouble("fat"),
@@ -96,7 +96,7 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
     }
     @Override
     public NutritionWeeklyStatsDto getWeeklyStats(Long userId, LocalDate weekStart, LocalDate weekEnd) {
-        // Запрос 1: Считаем общие суммы и средние значения за неделю
+        // Query 1: compute weekly totals and averages.
         String aggSql = """
             SELECT 
                 COALESCE(SUM(calories), 0) as total_cal,
@@ -110,7 +110,7 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
               AND date < :endDatePlusOne
             """;
 
-        // Запрос 2: Получаем данные по конкретным дням для корреляции
+        // Query 2: fetch per-day data for correlation.
         String dailySql = """
             SELECT 
                 TRIM(TO_CHAR(date, 'DAY')) as day_name,

@@ -39,14 +39,14 @@ public class FatsecretJpaDay {
     @Version
     private Long version;
 
-    // Хэш агрегированных данных для быстрого сравнения
+    // Aggregate data hash for fast change detection.
     @Column(name = "external_hash")
     private String externalHash;
 
     @Column(name = "last_sync_at")
     private Instant lastSyncAt;
 
-    // синхронизирующий метод двунаправленной связи
+    // Keeps the bidirectional relation in sync.
     public void addEntry(FatsecretFoodEntry entry) {
         entries.add(entry);
         entry.setDay(this);

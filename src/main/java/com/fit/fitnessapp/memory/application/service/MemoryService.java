@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -25,10 +24,10 @@ public class MemoryService implements MemoryQueryUseCase {
 
     @Override
     public List<UserMemory> findRelevantMemories(Long userId, String query, int limit) {
-        // Базовый поиск по user_id
+        // Base search by user_id.
         SearchRequest request = SearchRequest.builder()
                 .query(query)
-                .topK(limit * 3) // берём с запасом чтобы отфильтровать истёкшие
+                .topK(limit * 3) // Fetch extra rows so expired entries can be filtered out.
                 .filterExpression(new FilterExpressionBuilder()
                         .eq("user_id", userId)
                         .build())
@@ -39,9 +38,9 @@ public class MemoryService implements MemoryQueryUseCase {
         return vectorStore.similaritySearch(request)
                 .stream()
                 .filter(doc -> {
-                    // Пропускаем истёкшие записи
+                    // Skip expired entries.
                     Object expiresAt = doc.getMetadata().get("expires_at");
-                    if (expiresAt == null) return true; // без TTL — вечные
+                    if (expiresAt == null) return true; // No TTL means permanent.
                     return expiresAt.toString().compareTo(now) > 0;
                 })
                 .limit(limit)
@@ -84,13 +83,13 @@ public class MemoryService implements MemoryQueryUseCase {
         return vectorStore.similaritySearch(request)
                 .stream()
                 .filter(doc -> {
-                    // Только свежие
+                    // Fresh entries only.
                     Object date = doc.getMetadata().get("date");
                     if (date == null) return false;
                     return date.toString().compareTo(cutoffDate) >= 0;
                 })
                 .filter(doc -> {
-                    // Исключаем истёкшие
+                    // Exclude expired entries.
                     Object expiresAt = doc.getMetadata().get("expires_at");
                     if (expiresAt == null) return true;
                     return expiresAt.toString().compareTo(now) > 0;
@@ -99,6 +98,7 @@ public class MemoryService implements MemoryQueryUseCase {
                 .map(this::mapToUserMemory)
                 .toList();
     }
+
     private UserMemory mapToUserMemory(org.springframework.ai.document.Document doc) {
         Long userId = ((Number) doc.getMetadata().getOrDefault("user_id", 0L)).longValue();
         MemoryType type = MemoryType.valueOf(
@@ -107,8 +107,11 @@ public class MemoryService implements MemoryQueryUseCase {
                 ? Instant.parse((String) doc.getMetadata().get("created_at"))
                 : Instant.now();
         UUID id;
-        try { id = UUID.fromString(doc.getId()); }
-        catch (Exception e) { id = UUID.randomUUID(); }
+        try {
+            id = UUID.fromString(doc.getId());
+        } catch (Exception e) {
+            id = UUID.randomUUID();
+        }
 
         return new UserMemory(id, userId, doc.getText(), type,
                 doc.getMetadata(), createdAt);

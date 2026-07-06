@@ -29,7 +29,7 @@ public class RateLimiterService implements AiRateLimitApi {
     }
 
     private Bucket newBucket(Long userId) {
-        // Лимит: 5 запросов в секунду максимум
+        // Limit: at most 5 requests per second.
         Bandwidth limit = Bandwidth.classic(5, Refill.greedy(5, Duration.ofSeconds(1)));
         return Bucket.builder()
                 .addLimit(limit)
