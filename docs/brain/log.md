@@ -23,3 +23,7 @@ Added source summaries for committed repository documentation and GitHub Project
 ## [2026-07-06] ingest | Module Pages
 
 Added first-pass module pages for auth, nutrition, workout, AI, memory, telegram, and analytics. Pages emphasize current code evidence, privacy constraints, module boundaries, and stale GitHub issue contradictions.
+
+## [2026-07-06] ingest | Cross-Cutting Topics
+
+Added topic pages for testing strategy, security/privacy, CI gates, FatSecret integration, and Spring Modulith boundaries.
