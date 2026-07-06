@@ -266,7 +266,8 @@ class CodeHygieneTest {
 
         assertThat(fitnessAiService)
                 .doesNotContain("com.fit.fitnessapp.analytics.WeeklyReportRequestedEvent")
-                .doesNotContain("com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent");
+                .doesNotContain("com.fit.fitnessapp.analytics.MonthlyReportRequestedEvent")
+                .doesNotContain("com.fit.fitnessapp.nutrition.NutritionSyncedEvent");
         assertThat(globalExceptionHandler)
                 .doesNotContain("com.fit.fitnessapp.ai.exception")
                 .doesNotContain("com.fit.fitnessapp.nutrition.domain.MissingFatSecretConnectionException");

@@ -1,4 +1,4 @@
-package com.fit.fitnessapp.nutrition;
+package com.fit.fitnessapp.api;
 
 import java.time.LocalDate;
 

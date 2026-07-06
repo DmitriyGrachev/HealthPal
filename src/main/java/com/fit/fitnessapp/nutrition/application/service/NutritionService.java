@@ -4,7 +4,7 @@ import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
-import com.fit.fitnessapp.nutrition.NutritionSyncedEvent;
+import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.nutrition.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
