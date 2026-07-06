@@ -6,6 +6,7 @@ import com.fit.fitnessapp.nutrition.application.service.NutritionService;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
+import com.fit.fitnessapp.nutrition.domain.NutritionDaySaveResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +57,8 @@ class NutritionServicePrivacyLoggingTest {
 
         when(nutritionCommandPort.getToken(userId)).thenReturn(Optional.of(token));
         when(apiPort.fetchAndParseFoodEntries(eq(token), eq(userId), eq(date.toEpochDay()))).thenReturn(day);
+        when(nutritionCommandPort.saveNutritionDay(day)).thenReturn(new NutritionDaySaveResult(
+                userId, date, true, "summary", "entries", 450, 30.0, 10.0, 55.0));
 
         service.syncDay(userId, date);
 

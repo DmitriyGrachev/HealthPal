@@ -47,6 +47,18 @@ class NutritionSyncSchedulerTest {
     }
 
     @Test
+    void syncsRecentWindowForEveryConnectedUser() {
+        Clock clock = Clock.fixed(Instant.parse("2026-07-06T20:30:00Z"), ZoneOffset.UTC);
+        when(nutritionCommandPort.getAllConnectedUserIds()).thenReturn(List.of(42L));
+
+        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, 2).syncAllUsersRecentWindow();
+
+        InOrder inOrder = inOrder(syncUseCase);
+        inOrder.verify(syncUseCase).syncDay(42L, LocalDate.of(2026, 7, 6));
+        inOrder.verify(syncUseCase).syncDay(42L, LocalDate.of(2026, 7, 5));
+    }
+
+    @Test
     void keepsSyncingRemainingUsersWhenOneUserFails(CapturedOutput output) {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T20:30:00Z"), ZoneOffset.UTC);
         LocalDate expectedDate = LocalDate.of(2026, 7, 6);

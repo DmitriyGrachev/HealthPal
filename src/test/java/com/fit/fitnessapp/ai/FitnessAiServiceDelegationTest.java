@@ -97,7 +97,8 @@ class FitnessAiServiceDelegationTest {
     void nutritionSyncedEventDelegatesToDailyInsightWorkflow() {
         LocalDate date = LocalDate.of(2026, 7, 6);
 
-        service.onNutritionSynced(new NutritionSyncedEvent(42L, date, 2100, 140.0, 70.0, 220.0));
+        service.onNutritionSynced(new NutritionSyncedEvent(
+                42L, date, 2100, 140.0, 70.0, 220.0, true, "summary", "entries"));
 
         verify(dailyInsightService).generate(42L, date);
     }

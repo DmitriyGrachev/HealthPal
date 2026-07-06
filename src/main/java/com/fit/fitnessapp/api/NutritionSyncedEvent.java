@@ -8,5 +8,8 @@ public record NutritionSyncedEvent(
         int totalCalories,
         double totalProtein,
         double totalFat,
-        double totalCarbohydrate
+        double totalCarbohydrate,
+        boolean changed,
+        String summaryHash,
+        String entriesHash
 ) {}

@@ -9,11 +9,16 @@ import com.fit.fitnessapp.nutrition.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +29,10 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     private final FatSecretApiPort apiPort;
     private final NutritionCommandPort nutritionCommandPort;
     private final ApplicationEventPublisher eventPublisher;
+    private Clock clock = Clock.systemDefaultZone();
+
+    @Value("${nutrition.sync.detail-window-days:3}")
+    private int detailWindowDays = 3;
 
     @Override
     public String getAuthorizationUrl(Long userId) {
@@ -46,15 +55,20 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         long daysSinceEpoch = date.toEpochDay();
         NutritionDay nutritionDay = apiPort.fetchAndParseFoodEntries(token, userId, daysSinceEpoch);
 
-        nutritionCommandPort.saveNutritionDay(nutritionDay);
-
-        double fat = nutritionDay.entries().stream().mapToDouble(FoodEntry::fat).sum();
-        double carbs = nutritionDay.entries().stream().mapToDouble(FoodEntry::carbohydrate).sum();
-        double protein = nutritionDay.entries().stream().mapToDouble(FoodEntry::protein).sum();
-
-        eventPublisher.publishEvent(new NutritionSyncedEvent(
-                userId, date, nutritionDay.getTotalCalories(), protein, fat, carbs
-        ));
+        NutritionDaySaveResult result = nutritionCommandPort.saveNutritionDay(nutritionDay);
+        if (result.changed()) {
+            eventPublisher.publishEvent(new NutritionSyncedEvent(
+                    result.userId(),
+                    result.date(),
+                    result.totalCalories(),
+                    result.protein(),
+                    result.fat(),
+                    result.carbohydrate(),
+                    true,
+                    result.summaryHash(),
+                    result.entriesHash()
+            ));
+        }
 
         log.info(
                 "Nutrition sync completed userId={} date={} status={} errorCode={}",
@@ -71,22 +85,35 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new MissingFatSecretConnectionException(userId));
 
-        long currentDaysInMonth = LocalDate.now().toEpochDay();
+        LocalDate today = LocalDate.now(clock);
 
         NutritionMonth nutritionMonth = apiPort.fetchAndParseFoodEntriesForCurrentMonth(
-                    token, userId, LocalDate.now().toEpochDay());
+                    token, userId, today.toEpochDay());
 
-        nutritionCommandPort.saveNutritionMonth(nutritionMonth);
+        NutritionMonthSaveResult monthResult = nutritionCommandPort.saveNutritionMonth(nutritionMonth);
+        Set<LocalDate> monthDates = nutritionMonth.days().stream()
+                .map(NutritionDaySummary::date)
+                .collect(Collectors.toSet());
+        Set<LocalDate> detailDates = new LinkedHashSet<>();
+        monthResult.changedDates().stream()
+                .filter(monthDates::contains)
+                .forEach(detailDates::add);
+        for (int i = 0; i < Math.max(0, detailWindowDays); i++) {
+            LocalDate recentDate = today.minusDays(i);
+            if (monthDates.contains(recentDate)) {
+                detailDates.add(recentDate);
+            }
+        }
 
-        for (NutritionDaySummary summary : nutritionMonth.days()) {
+        for (LocalDate detailDate : detailDates) {
             try {
-                NutritionDay fullDay = apiPort.fetchAndParseFoodEntries(token, userId, summary.date().toEpochDay());
+                NutritionDay fullDay = apiPort.fetchAndParseFoodEntries(token, userId, detailDate.toEpochDay());
                 nutritionCommandPort.saveNutritionDay(fullDay);
             } catch (Exception ex) {
                 log.warn(
                         "Nutrition daily backfill failed userId={} date={} status={} errorCode={}",
                         userId,
-                        summary.date(),
+                        detailDate,
                         "error",
                         ex.getClass().getSimpleName()
                 );
