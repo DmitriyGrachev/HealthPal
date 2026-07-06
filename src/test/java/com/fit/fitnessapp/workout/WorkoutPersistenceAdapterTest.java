@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -97,6 +98,36 @@ class WorkoutPersistenceAdapterTest {
                 .extracting(WorkoutExerciseJpaEntity::getJefitLogId)
                 .containsExactly(1L);
         verify(workoutRepository).saveAll(List.of(existingWorkout));
+    }
+
+    @Test
+    void reimportScopesExistingExercisesByWorkoutWhenJefitLogIdsRepeatAcrossSessions() {
+        WorkoutJpaEntity firstWorkout = workoutEntity(10L, 1770220318L, 42L);
+        WorkoutJpaEntity secondWorkout = workoutEntity(11L, 1770220319L, 42L);
+        WorkoutExerciseJpaEntity firstExercise = exerciseEntity(100L, 1L, firstWorkout);
+        WorkoutExerciseJpaEntity secondExercise = exerciseEntity(101L, 1L, secondWorkout);
+        firstWorkout.getExercises().add(firstExercise);
+        secondWorkout.getExercises().add(secondExercise);
+
+        when(workoutRepository.findWithExercisesByJefitIdInAndUserId(List.of(1770220318L, 1770220319L), 42L))
+                .thenReturn(List.of(firstWorkout, secondWorkout));
+        when(exerciseRepository.findExercisesWithSetsByWorkoutIdIn(List.of(10L, 11L)))
+                .thenReturn(List.of(firstExercise, secondExercise));
+
+        assertThatCode(() -> adapter.saveAll(List.of(
+                new WorkoutSession(
+                        1770220318L,
+                        LocalDateTime.of(2026, 2, 4, 18, 0),
+                        List.of(new Exercise(1L, "First Bench Press", List.of(new Set(0, 5, 65.0))))),
+                new WorkoutSession(
+                        1770220319L,
+                        LocalDateTime.of(2026, 2, 5, 18, 0),
+                        List.of(new Exercise(1L, "Second Bench Press", List.of(new Set(0, 6, 70.0)))))
+        ), 42L)).doesNotThrowAnyException();
+
+        assertThat(firstExercise.getExerciseName()).isEqualTo("First Bench Press");
+        assertThat(secondExercise.getExerciseName()).isEqualTo("Second Bench Press");
+        verify(workoutRepository).saveAll(List.of(firstWorkout, secondWorkout));
     }
 
     private WorkoutJpaEntity workoutEntity(Long id, Long jefitId, Long userId) {

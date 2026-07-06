@@ -53,10 +53,13 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
         Map<Long, WorkoutJpaEntity> existingWorkouts = foundWorkouts.stream()
                 .collect(Collectors.toMap(WorkoutJpaEntity::getJefitId, Function.identity()));
 
-        Map<Long, WorkoutExerciseJpaEntity> existingExercises = foundWorkouts.stream()
-                .flatMap(w -> w.getExercises().stream())
-                .filter(e -> e.getJefitLogId() != null)
-                .collect(Collectors.toMap(WorkoutExerciseJpaEntity::getJefitLogId, Function.identity()));
+        Map<ExerciseKey, WorkoutExerciseJpaEntity> existingExercises = foundWorkouts.stream()
+                .flatMap(workout -> workout.getExercises().stream()
+                        .filter(exercise -> exercise.getJefitLogId() != null)
+                        .map(exercise -> Map.entry(
+                                new ExerciseKey(workout.getJefitId(), exercise.getJefitLogId()),
+                                exercise)))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         List<Long> existingExerciseDbIds = existingExercises.values().stream()
                 .map(WorkoutExerciseJpaEntity::getId)
@@ -88,8 +91,9 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
 
             for (Exercise domainExercise : session.exercises()) {
                 Long logId = domainExercise.jefitLogId();
-                WorkoutExerciseJpaEntity exerciseEntity = (logId != null && existingExercises.containsKey(logId))
-                        ? existingExercises.get(logId)
+                ExerciseKey exerciseKey = new ExerciseKey(session.externalId(), logId);
+                WorkoutExerciseJpaEntity exerciseEntity = (logId != null && existingExercises.containsKey(exerciseKey))
+                        ? existingExercises.get(exerciseKey)
                         : new WorkoutExerciseJpaEntity();
 
                 if (exerciseEntity.getId() == null) {
@@ -112,5 +116,8 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
         }
 
         workoutJpaRepository.saveAll(toSave);
+    }
+
+    private record ExerciseKey(Long workoutJefitId, Long exerciseJefitLogId) {
     }
 }
