@@ -19,3 +19,7 @@ Initialized the public-safe LLM wiki vault structure from the approved design. T
 ## [2026-07-06] ingest | Repository Docs And GitHub Project
 
 Added source summaries for committed repository documentation and GitHub Project board state. The board is treated as stale input that must be checked against code and tests before implementation decisions.
+
+## [2026-07-06] ingest | Module Pages
+
+Added first-pass module pages for auth, nutrition, workout, AI, memory, telegram, and analytics. Pages emphasize current code evidence, privacy constraints, module boundaries, and stale GitHub issue contradictions.
