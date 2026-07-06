@@ -31,3 +31,7 @@ Added topic pages for testing strategy, security/privacy, CI gates, FatSecret in
 ## [2026-07-06] ingest | Workflow Pages
 
 Added workflow pages for nutrition sync, daily insight, and Telegram ask. These pages connect user-facing behavior to modules, topics, and stale GitHub issues.
+
+## [2026-07-06] ingest | GitHub Project Triage
+
+Added GitHub Project triage that separates active work from stale verify/close cards and low-priority later items.
