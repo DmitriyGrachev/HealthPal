@@ -43,6 +43,9 @@ public class AskCommandHandler implements CommandHandler {
             botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
             return;
         }
+        if (!chatId.equals(userOpt.get().getChatId())) {
+            return;
+        }
 
         String question = text.replace("/ask", "").trim();
         if (question.isEmpty()) {

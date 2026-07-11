@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class NoteCommandHandlerTest {
@@ -98,6 +99,30 @@ class NoteCommandHandlerTest {
         verify(stateUseCase, never()).updateState(eq(chatId), eq(ConversationState.WAITING_NOTE_CONTENT), any());
         verify(eventPublisher, never()).publishEvent(any());
         verify(botService).sendMessage(chatId, com.fit.fitnessapp.telegram.application.service.TelegramMessages.NOTE_TYPE_INVALID);
+    }
+
+    @Test
+    void ignoresNoteFromChatOtherThanLinkedPrivateChatWithoutReadingState() {
+        Long telegramId = 20L;
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(
+                TelegramUserEntity.builder().telegramId(telegramId).userId(30L).chatId(456L).build()));
+
+        handler.handle(update(789L, telegramId, "/note"));
+
+        verify(telegramUserRepository).findById(telegramId);
+        verifyNoInteractions(botService, stateUseCase, eventPublisher);
+    }
+
+    @Test
+    void canHandleMismatchedSenderWithoutReadingState() {
+        Long telegramId = 20L;
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(
+                TelegramUserEntity.builder().telegramId(telegramId).userId(30L).chatId(456L).build()));
+
+        assertThat(handler.canHandle(update(789L, telegramId, "private note"))).isFalse();
+
+        verify(telegramUserRepository).findById(telegramId);
+        verifyNoInteractions(stateUseCase);
     }
 
     private Update update(Long chatId, Long telegramId, String text) {

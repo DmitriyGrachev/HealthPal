@@ -49,6 +49,7 @@ class WeightCommandHandlerTest {
     @Test
     void canHandle_ShouldReturnTrueForWeightCommand() {
         Update update = createTextUpdate("/weight");
+        when(telegramUserRepository.findById(123L)).thenReturn(Optional.of(linkedUser(123L, 456L)));
         when(stateUseCase.getState(anyLong())).thenReturn(ConversationState.IDLE);
         
         assertThat(handler.canHandle(update)).isTrue();
@@ -57,6 +58,7 @@ class WeightCommandHandlerTest {
     @Test
     void canHandle_ShouldReturnTrueWhenWaitingWeight() {
         Update update = createTextUpdate("75.5");
+        when(telegramUserRepository.findById(123L)).thenReturn(Optional.of(linkedUser(123L, 456L)));
         when(stateUseCase.getState(anyLong())).thenReturn(ConversationState.WAITING_WEIGHT);
         
         assertThat(handler.canHandle(update)).isTrue();
@@ -71,6 +73,7 @@ class WeightCommandHandlerTest {
         TelegramUserEntity user = new TelegramUserEntity();
         user.setTelegramId(telegramId);
         user.setUserId(1L);
+        user.setChatId(chatId);
         
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(user));
         when(stateUseCase.getState(chatId)).thenReturn(ConversationState.IDLE);
@@ -91,6 +94,7 @@ class WeightCommandHandlerTest {
         TelegramUserEntity user = new TelegramUserEntity();
         user.setTelegramId(telegramId);
         user.setUserId(userId);
+        user.setChatId(chatId);
         
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(user));
         when(stateUseCase.getState(chatId)).thenReturn(ConversationState.WAITING_WEIGHT);
@@ -117,6 +121,7 @@ class WeightCommandHandlerTest {
         TelegramUserEntity user = new TelegramUserEntity();
         user.setTelegramId(telegramId);
         user.setUserId(1L);
+        user.setChatId(chatId);
         
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(user));
         when(stateUseCase.getState(chatId)).thenReturn(ConversationState.WAITING_WEIGHT);
@@ -127,7 +132,35 @@ class WeightCommandHandlerTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    @Test
+    void ignoresWeightFromChatOtherThanLinkedPrivateChatWithoutReadingState() {
+        Long telegramId = 123L;
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(
+                TelegramUserEntity.builder().telegramId(telegramId).userId(1L).chatId(456L).build()));
+
+        handler.handle(createFullMessageUpdate("/weight", 789L, telegramId));
+
+        verify(telegramUserRepository).findById(telegramId);
+        verifyNoInteractions(botService, stateUseCase, eventPublisher);
+    }
+
+    @Test
+    void canHandleMismatchedSenderWithoutReadingState() {
+        Long telegramId = 123L;
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(
+                TelegramUserEntity.builder().telegramId(telegramId).userId(1L).chatId(456L).build()));
+
+        assertThat(handler.canHandle(createTextUpdate("not a command", 789L, telegramId))).isFalse();
+
+        verify(telegramUserRepository).findById(telegramId);
+        verifyNoInteractions(stateUseCase);
+    }
+
     private Update createTextUpdate(String text) {
+        return createTextUpdate(text, 456L, 123L);
+    }
+
+    private Update createTextUpdate(String text, Long chatId, Long telegramId) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
         
@@ -135,22 +168,37 @@ class WeightCommandHandlerTest {
         when(update.getMessage()).thenReturn(message);
         when(message.hasText()).thenReturn(true);
         when(message.getText()).thenReturn(text);
-        when(message.getChatId()).thenReturn(456L);
+        when(message.getChatId()).thenReturn(chatId);
+        User user = mock(User.class);
+        when(message.getFrom()).thenReturn(user);
+        when(user.getId()).thenReturn(telegramId);
         
         return update;
     }
 
     private Update createFullMessageUpdate(String text) {
+        return createFullMessageUpdate(text, 456L, 123L);
+    }
+
+    private Update createFullMessageUpdate(String text, Long chatId, Long telegramId) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
         User user = mock(User.class);
         
         when(update.getMessage()).thenReturn(message);
         when(message.getText()).thenReturn(text);
-        when(message.getChatId()).thenReturn(456L);
+        when(message.getChatId()).thenReturn(chatId);
         when(message.getFrom()).thenReturn(user);
-        when(user.getId()).thenReturn(123L);
+        when(user.getId()).thenReturn(telegramId);
         
         return update;
+    }
+
+    private TelegramUserEntity linkedUser(Long telegramId, Long chatId) {
+        return TelegramUserEntity.builder()
+                .telegramId(telegramId)
+                .userId(1L)
+                .chatId(chatId)
+                .build();
     }
 }

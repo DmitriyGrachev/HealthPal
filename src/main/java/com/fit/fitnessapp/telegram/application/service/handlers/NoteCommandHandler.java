@@ -49,7 +49,12 @@ public class NoteCommandHandler implements CommandHandler {
         }
 
         Long chatId = update.getMessage().getChatId();
+        Long telegramId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();
+        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
+        if (userOpt.isEmpty() || !chatId.equals(userOpt.get().getChatId())) {
+            return false;
+        }
         ConversationState currentState = stateUseCase.getState(chatId);
 
         return text.startsWith("/note")
@@ -63,13 +68,16 @@ public class NoteCommandHandler implements CommandHandler {
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();
-        ConversationState state = stateUseCase.getState(chatId);
 
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
         if (userOpt.isEmpty()) {
             botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
             return;
         }
+        if (!chatId.equals(userOpt.get().getChatId())) {
+            return;
+        }
+        ConversationState state = stateUseCase.getState(chatId);
 
         if (text.startsWith("/note")) {
             startNoteFlow(chatId);

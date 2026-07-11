@@ -39,6 +39,9 @@ public class TodayCommandHandler implements CommandHandler {
         Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
 
         if (userOpt.isPresent()) {
+            if (!chatId.equals(userOpt.get().getChatId())) {
+                return;
+            }
             Long userId = userOpt.get().getUserId();
             log.info("TodayCommandHandler: User found. userId: {}. Publishing event.", userId);
             botService.sendMessage(chatId, TelegramMessages.TODAY_GENERATING);

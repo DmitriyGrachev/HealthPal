@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +70,18 @@ class AskCommandHandlerTest {
         verify(eventPublisher, never()).publishEvent(any());
         verify(botService, never()).sendMessage(chatId, TelegramMessages.ASK_THINKING);
         verify(botService).sendMessage(chatId, TelegramMessages.ASK_RATE_LIMITED);
+    }
+
+    @Test
+    void ignoresAskFromChatOtherThanLinkedPrivateChat() {
+        Long telegramId = 123L;
+        when(telegramUserRepository.findById(telegramId))
+                .thenReturn(Optional.of(linkedUser(telegramId, 42L)));
+
+        handler.handle(update(789L, telegramId, "/ask private question"));
+
+        verify(telegramUserRepository).findById(telegramId);
+        verifyNoInteractions(botService, eventPublisher, aiRateLimitApi);
     }
 
     private TelegramUserEntity linkedUser(Long telegramId, Long appUserId) {
