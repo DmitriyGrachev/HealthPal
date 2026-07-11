@@ -20,9 +20,11 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
+    @Column(nullable = false, unique = true, length = 64)
     private String username;
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
+    @Column(nullable = false, length = 255)
     private String password;
 
     // Use a Set so roles are not duplicated.

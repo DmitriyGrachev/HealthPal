@@ -87,7 +87,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerReturnsBadRequestWhenUserAlreadyExists() throws Exception {
+    void registerReturnsConflictWhenUserAlreadyExists() throws Exception {
         doThrow(new UserAlreadyExistsException("User already exists"))
                 .when(registerUserPort)
                 .registerUser(any(RegisterRequest.class));
@@ -97,9 +97,9 @@ class AuthControllerTest {
                         .content("""
                                 {"username":"john","email":"john@example.com","password":"Secret123!"}
                 """))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("USER_ALREADY_EXISTS"))
-                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.message").value("User already exists"));
     }
 
@@ -129,6 +129,36 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors.password").exists());
+
+        verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
+    }
+
+    @Test
+    void registerRejectsUsernameLongerThan64CharactersBeforeCallingUseCase() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"%s","email":"john@example.com","password":"Secret123!"}
+                                """.formatted("a".repeat(65))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.username").exists());
+
+        verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
+    }
+
+    @Test
+    void registerRejectsEmailLongerThan255CharactersBeforeCallingUseCase() throws Exception {
+        String email = "%s@example.com".formatted("a".repeat(244));
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"john","email":"%s","password":"Secret123!"}
+                                """.formatted(email)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors.email").exists());
 
         verify(registerUserPort, never()).registerUser(any(RegisterRequest.class));
     }

@@ -10,6 +10,7 @@ import com.fit.fitnessapp.exception.UserAlreadyExistsException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Set;
@@ -34,7 +35,11 @@ public class UserPersistenceAdapter implements UserPersistencePort, UserApi {
         user.setPassword(passwordEncoder.encode(registerRequest.password()));
         user.setEmail(registerRequest.email());
         user.setRoles(Set.of(Role.USER));
-        userRepository.save(user);
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            throw new UserAlreadyExistsException("User with such username or email already exists");
+        }
     }
     @Override
     public List<Long> getAllUserIds() {

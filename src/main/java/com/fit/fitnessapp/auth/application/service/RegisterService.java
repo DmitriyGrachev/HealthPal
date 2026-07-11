@@ -6,6 +6,8 @@ import com.fit.fitnessapp.auth.domain.RegisterRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 @RequiredArgsConstructor
 public class RegisterService implements RegisterUserPort {
@@ -13,6 +15,9 @@ public class RegisterService implements RegisterUserPort {
     private final UserPersistencePort userPersistencePort;
 
     public void registerUser(RegisterRequest registerRequest){
-        userPersistencePort.registerUser(registerRequest);
+        userPersistencePort.registerUser(new RegisterRequest(
+                registerRequest.username().trim(),
+                registerRequest.password(),
+                registerRequest.email().trim().toLowerCase(Locale.ROOT)));
     }
 }

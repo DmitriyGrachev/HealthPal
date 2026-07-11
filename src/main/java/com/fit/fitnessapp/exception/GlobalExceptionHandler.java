@@ -51,7 +51,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiError> userAlreadyExists(UserAlreadyExistsException exception, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ErrorCode.USER_ALREADY_EXISTS, exception.getMessage(), request);
+        return error(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, exception.getMessage(), request);
     }
 
     @ExceptionHandler(RequiredExternalConnectionMissingException.class)
