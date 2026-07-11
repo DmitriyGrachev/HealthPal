@@ -409,6 +409,21 @@ class CodeHygieneTest {
     }
 
     @Test
+    void devPgvectorConfigurationMatchesRuntimeUserMemoryTable() throws IOException {
+        Properties properties = loadProperties("src/main/resources/application-dev.properties");
+        String devProfile = Files.readString(Path.of("src/main/resources/application-dev.properties"));
+
+        assertThat(properties)
+                .containsEntry("spring.ai.vectorstore.pgvector.initialize-schema", "false")
+                .containsEntry("spring.ai.vectorstore.pgvector.table-name", "user_memory")
+                .containsEntry("spring.ai.vectorstore.pgvector.index-type", "NONE")
+                .containsEntry("spring.ai.vectorstore.pgvector.dimension", "2048");
+        assertThat(devProfile)
+                .doesNotContain("vector_store")
+                .doesNotContain("HNSW");
+    }
+
+    @Test
     void userNotesForeignKeyIsAddedByDedicatedMigration() throws IOException {
         List<Path> fkMigrations;
         try (var files = Files.list(Path.of("src/main/resources/db/migration"))) {
