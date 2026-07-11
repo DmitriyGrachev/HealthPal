@@ -22,6 +22,11 @@ public class StartCommandHandler implements CommandHandler {
 
     @Override
     public void handle(Update update) {
+        if (update.getMessage().getChat() == null
+                || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+            return;
+        }
+
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
 
