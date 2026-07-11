@@ -9,8 +9,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -18,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -78,15 +82,46 @@ class TelegramUpdateHandlerPrivacyLoggingTest {
         verifyNoMoreInteractions(commandHandler);
     }
 
+    @ParameterizedTest(name = "{0} chat is ignored before handler dispatch")
+    @ValueSource(strings = {"group", "supergroup", "channel"})
+    void nonPrivateChatDoesNotDispatchOrLogRawTelegramText(String chatType, CapturedOutput output) {
+        String sensitiveText = "private note for " + chatType + " chat";
+        Update update = nonPrivateTextUpdate(300L, sensitiveText);
+
+        updateHandler.onUpdateReceived(update);
+
+        verifyNoInteractions(commandHandler);
+        assertThat(output).doesNotContain(sensitiveText);
+    }
+
     private Update textUpdate(Long chatId, String text) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
+        Chat chat = mock(Chat.class);
 
         when(update.hasMessage()).thenReturn(true);
         when(update.getMessage()).thenReturn(message);
-        when(message.hasText()).thenReturn(true);
+        lenient().when(message.hasText()).thenReturn(true);
         lenient().when(message.getText()).thenReturn(text);
-        when(message.getChatId()).thenReturn(chatId);
+        lenient().when(message.getChatId()).thenReturn(chatId);
+        lenient().when(message.getChat()).thenReturn(chat);
+        lenient().when(chat.isUserChat()).thenReturn(true);
+
+        return update;
+    }
+
+    private Update nonPrivateTextUpdate(Long chatId, String text) {
+        Update update = mock(Update.class);
+        Message message = mock(Message.class);
+        Chat chat = mock(Chat.class);
+
+        when(update.hasMessage()).thenReturn(true);
+        when(update.getMessage()).thenReturn(message);
+        lenient().when(message.hasText()).thenReturn(true);
+        lenient().when(message.getText()).thenReturn(text);
+        lenient().when(message.getChatId()).thenReturn(chatId);
+        when(message.getChat()).thenReturn(chat);
+        when(chat.isUserChat()).thenReturn(false);
 
         return update;
     }

@@ -38,6 +38,10 @@ public class TelegramUpdateHandler extends TelegramLongPollingBot {
         }
 
         Message message = update.getMessage();
+        if (message.getChat() == null || !Boolean.TRUE.equals(message.getChat().isUserChat())) {
+            log.debug("Telegram update ignored status=non_private_chat");
+            return;
+        }
         Long chatId = message.getChatId();
         if (!message.hasText()) {
             log.debug("Telegram update ignored chatId={} status=no_text", chatId);
