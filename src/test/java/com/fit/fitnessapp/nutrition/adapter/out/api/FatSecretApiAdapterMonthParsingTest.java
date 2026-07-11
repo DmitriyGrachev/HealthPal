@@ -49,6 +49,16 @@ class FatSecretApiAdapterMonthParsingTest {
     }
 
     @Test
+    void classifiesNonObjectErrorPayloadsAsMalformed() {
+        assertThat(adapter.parseMonthResponse("{\"error\":null}", 42L).status())
+                .isEqualTo(NutritionMonthFetchResult.Status.MALFORMED);
+        assertThat(adapter.parseMonthResponse("{\"error\":\"unexpected\"}", 42L).status())
+                .isEqualTo(NutritionMonthFetchResult.Status.MALFORMED);
+        assertThat(adapter.parseMonthResponse("{\"error\":[]}", 42L).status())
+                .isEqualTo(NutritionMonthFetchResult.Status.MALFORMED);
+    }
+
+    @Test
     void classifiesMalformedJson() {
         assertThat(adapter.parseMonthResponse("{", 42L).status())
                 .isEqualTo(NutritionMonthFetchResult.Status.MALFORMED);

@@ -287,7 +287,9 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
                 return NutritionMonthFetchResult.malformed();
             }
             if (root.has("error")) {
-                return NutritionMonthFetchResult.providerError();
+                return root.get("error").isObject()
+                        ? NutritionMonthFetchResult.providerError()
+                        : NutritionMonthFetchResult.malformed();
             }
             JsonNode monthNode = root.get("month");
             if (monthNode == null || !monthNode.isObject()) {
