@@ -40,3 +40,15 @@ Result: `BUILD SUCCESS`; 218 tests run, 0 failures, 0 errors, 0 skipped. No Dock
 ## Remaining risk
 
 None identified within Task 2 scope. Task 1 and Task 3 files were not modified.
+
+## Follow-up: positive Today contract
+
+Added a matching-chat `TodayCommandHandlerTest` fixture that asserts `/today` sends `TelegramMessages.TODAY_GENERATING` and publishes `TelegramTodayRequestedEvent` with the expected user ID, chat ID, and current date.
+
+The test passed immediately because the prior Task 2 implementation already preserved this behavior; no production change was required. Focused verification:
+
+```powershell
+mvn "-Dtest=AskCommandHandlerTest,TodayCommandHandlerTest,WeightCommandHandlerTest,NoteCommandHandlerTest" test
+```
+
+Result: `BUILD SUCCESS`; 16 tests run, 0 failures, 0 errors, 0 skipped.
