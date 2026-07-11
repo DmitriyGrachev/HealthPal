@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.nutrition;
 
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
+import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.service.NutritionService;
@@ -10,9 +11,12 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySaveResult;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthFetchResult;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonthSaveResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,7 +30,9 @@ import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -104,7 +110,8 @@ class NutritionServiceSyncWorkflowTest {
         ));
 
         when(commandPort.getToken(42L)).thenReturn(Optional.of(token));
-        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, july6.toEpochDay())).thenReturn(month);
+        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, july6.toEpochDay()))
+                .thenReturn(NutritionMonthFetchResult.valid(month));
         when(commandPort.saveNutritionMonth(month)).thenReturn(new NutritionMonthSaveResult(42L, List.of(july2)));
         when(commandPort.deleteNutritionDaysMissingFromMonth(
                 42L,
@@ -155,7 +162,8 @@ class NutritionServiceSyncWorkflowTest {
                 42L, july1, true, "deleted-summary", "deleted-entries", 0, 0.0, 0.0, 0.0);
 
         when(commandPort.getToken(42L)).thenReturn(Optional.of(token));
-        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, july6.toEpochDay())).thenReturn(month);
+        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, july6.toEpochDay()))
+                .thenReturn(NutritionMonthFetchResult.valid(month));
         when(commandPort.saveNutritionMonth(month)).thenReturn(new NutritionMonthSaveResult(42L, List.of()));
         when(commandPort.deleteNutritionDaysMissingFromMonth(
                 42L,
@@ -172,6 +180,57 @@ class NutritionServiceSyncWorkflowTest {
 
         verify(eventPublisher).publishEvent(new NutritionSyncedEvent(
                 42L, july1, 0, 0.0, 0.0, 0.0, true, "deleted-summary", "deleted-entries"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("unusableMonthResults")
+    void syncMonthDoesNotPersistOrPublishForUnusableMonthResult(NutritionMonthFetchResult result) {
+        Clock clock = Clock.fixed(Instant.parse("2026-07-06T10:00:00Z"), ZoneOffset.UTC);
+        ReflectionTestUtils.setField(service, "clock", clock);
+        FatSecretToken token = new FatSecretToken("access", "secret");
+
+        when(commandPort.getToken(42L)).thenReturn(Optional.of(token));
+        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, LocalDate.of(2026, 7, 6).toEpochDay()))
+                .thenReturn(result);
+
+        assertThatThrownBy(() -> service.syncMonth(42L)).isInstanceOf(ExternalApiException.class);
+
+        verify(commandPort, never()).saveNutritionMonth(any());
+        verify(commandPort, never()).deleteNutritionDaysMissingFromMonth(any(), any(), any(), any());
+        verify(commandPort, never()).saveNutritionDay(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void syncMonthReconcilesAuthoritativeEmptyMonthWithoutDailyFetch() {
+        Clock clock = Clock.fixed(Instant.parse("2026-07-06T10:00:00Z"), ZoneOffset.UTC);
+        ReflectionTestUtils.setField(service, "clock", clock);
+        FatSecretToken token = new FatSecretToken("access", "secret");
+        NutritionMonth emptyMonth = new NutritionMonth(42L, List.of());
+        NutritionDaySaveResult deleted = new NutritionDaySaveResult(
+                42L, LocalDate.of(2026, 7, 1), true, "deleted-summary", "deleted-entries", 0, 0.0, 0.0, 0.0);
+
+        when(commandPort.getToken(42L)).thenReturn(Optional.of(token));
+        when(apiPort.fetchAndParseFoodEntriesForCurrentMonth(token, 42L, LocalDate.of(2026, 7, 6).toEpochDay()))
+                .thenReturn(NutritionMonthFetchResult.authoritativeEmpty(emptyMonth));
+        when(commandPort.saveNutritionMonth(emptyMonth)).thenReturn(new NutritionMonthSaveResult(42L, List.of()));
+        when(commandPort.deleteNutritionDaysMissingFromMonth(
+                42L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), Set.of()))
+                .thenReturn(List.of(deleted));
+
+        service.syncMonth(42L);
+
+        verify(commandPort).deleteNutritionDaysMissingFromMonth(
+                42L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), Set.of());
+        verify(apiPort, never()).fetchAndParseFoodEntries(eq(token), eq(42L), any(Long.class));
+        verify(commandPort, never()).saveNutritionDay(any());
+        verify(eventPublisher).publishEvent(new NutritionSyncedEvent(
+                42L, LocalDate.of(2026, 7, 1), 0, 0.0, 0.0, 0.0,
+                true, "deleted-summary", "deleted-entries"));
+    }
+
+    private static Stream<NutritionMonthFetchResult> unusableMonthResults() {
+        return Stream.of(NutritionMonthFetchResult.providerError(), NutritionMonthFetchResult.malformed());
     }
 
     private NutritionDay day(

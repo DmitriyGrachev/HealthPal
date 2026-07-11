@@ -13,6 +13,7 @@ import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthFetchResult;
 import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.scribejava.core.builder.ServiceBuilder;
@@ -108,7 +109,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
     }
 
     @Override
-    public NutritionMonth fetchAndParseFoodEntriesForCurrentMonth(
+    public NutritionMonthFetchResult fetchAndParseFoodEntriesForCurrentMonth(
             FatSecretToken token, Long userId, long currentDaysInMonth) {
         try {
             OAuthRequest request = request(Verb.POST, "https://platform.fatsecret.com/rest/server.api");
@@ -120,7 +121,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             log.debug("FatSecret monthly food entries response status={}", response.getCode());
             ensureSuccessful(response, "monthly food entries");
 
-            return parseMonthJson(response.getBody(), userId);
+            return parseMonthResponse(response.getBody(), userId);
         } catch (ExternalApiException e) {
             throw e;
         } catch (Exception e) {
@@ -279,35 +280,84 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
         }
     }
 
-    private NutritionMonth parseMonthJson(String jsonBody, Long userId) {
-        List<NutritionDaySummary> days = new ArrayList<>();
+    NutritionMonthFetchResult parseMonthResponse(String jsonBody, Long userId) {
         try {
             JsonNode root = objectMapper.readTree(jsonBody);
-            JsonNode dayNode = root.path("month").path("day");
+            if (root == null || !root.isObject()) {
+                return NutritionMonthFetchResult.malformed();
+            }
+            if (root.has("error")) {
+                return NutritionMonthFetchResult.providerError();
+            }
+            JsonNode monthNode = root.get("month");
+            if (monthNode == null || !monthNode.isObject()) {
+                return NutritionMonthFetchResult.malformed();
+            }
+            JsonNode dayNode = monthNode.get("day");
+            if (dayNode == null) {
+                return NutritionMonthFetchResult.malformed();
+            }
+            List<NutritionDaySummary> days = new ArrayList<>();
 
             if (dayNode.isArray()) {
+                if (dayNode.isEmpty()) {
+                    return NutritionMonthFetchResult.authoritativeEmpty(new NutritionMonth(userId, List.of()));
+                }
                 for (JsonNode node : dayNode) {
                     days.add(mapDayNode(node, userId));
                 }
             } else if (dayNode.isObject()) {
                 days.add(mapDayNode(dayNode, userId));
+            } else {
+                return NutritionMonthFetchResult.malformed();
             }
+            return NutritionMonthFetchResult.valid(new NutritionMonth(userId, days));
         } catch (Exception e) {
-            throw new ExternalApiException("Failed to parse FatSecret month JSON", e);
+            return NutritionMonthFetchResult.malformed();
         }
-        return new NutritionMonth(userId, days);
     }
 
     private NutritionDaySummary mapDayNode(JsonNode node, Long userId) {
-        int dateInt = node.path("date_int").asInt();
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("Month day must be an object");
+        }
+        int dateInt = requiredInt(node, "date_int");
         return new NutritionDaySummary(
                 userId,
                 LocalDate.ofEpochDay(dateInt),
                 dateInt,
-                node.path("calories").asDouble(),
-                node.path("protein").asDouble(),
-                node.path("fat").asDouble(),
-                node.path("carbohydrate").asDouble());
+                requiredDouble(node, "calories"),
+                requiredDouble(node, "protein"),
+                requiredDouble(node, "fat"),
+                requiredDouble(node, "carbohydrate"));
+    }
+
+    private int requiredInt(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        try {
+            return Integer.parseInt(value.asText());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(field + " must be an integer", e);
+        }
+    }
+
+    private double requiredDouble(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        try {
+            double result = Double.parseDouble(value.asText());
+            if (!Double.isFinite(result)) {
+                throw new IllegalArgumentException(field + " must be finite");
+            }
+            return result;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(field + " must be numeric", e);
+        }
     }
 
     private List<WeightEntryDto> parseWeightHistoryResponse(String jsonResponse) {

@@ -5,6 +5,7 @@ import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
+import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.domain.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -77,8 +78,13 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
         LocalDate today = LocalDate.now(clock);
 
-        NutritionMonth nutritionMonth = apiPort.fetchAndParseFoodEntriesForCurrentMonth(
+        NutritionMonthFetchResult fetchResult = apiPort.fetchAndParseFoodEntriesForCurrentMonth(
                     token, userId, today.toEpochDay());
+        NutritionMonth nutritionMonth = switch (fetchResult.status()) {
+            case VALID, AUTHORITATIVE_EMPTY -> fetchResult.snapshot();
+            case PROVIDER_ERROR, MALFORMED ->
+                    throw new ExternalApiException("FatSecret monthly response was " + fetchResult.status(), null);
+        };
 
         NutritionMonthSaveResult monthResult = nutritionCommandPort.saveNutritionMonth(nutritionMonth);
         Set<LocalDate> monthDates = nutritionMonth.days().stream()
