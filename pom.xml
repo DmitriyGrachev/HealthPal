@@ -20,6 +20,7 @@
         <java.version>21</java.version>
         <spring-ai.version>1.1.3</spring-ai.version>
         <spring-modulith.version>1.1.3</spring-modulith.version>
+        <lombok.version>1.18.36</lombok.version>
         <test.jvm.argline>-Xshare:off -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</test.jvm.argline>
     </properties>
 
@@ -65,10 +66,6 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-google-genai</artifactId>
         </dependency>
-        <!--<dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-google-genai-embedding</artifactId>
-        </dependency>-->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
@@ -232,30 +229,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>default-testCompile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </execution>
-                </executions>
                 <configuration>
                     <compilerArgs>
                         <arg>-parameters</arg>
@@ -284,11 +257,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <configuration>
-                    <!--
-                        dependency:analyze does not model Spring Boot starters, Spring AI/Modulith
-                        starters, or framework-reflection usage well. Keep this baseline narrow and
-                        explicit so newly introduced non-starter drift still shows up as a warning.
-                    -->
                     <ignoredUsedUndeclaredDependencies>
                         <ignoredUsedUndeclaredDependency>org.springframework:*:jar:*</ignoredUsedUndeclaredDependency>
                         <ignoredUsedUndeclaredDependency>org.springframework.boot:*:jar:*</ignoredUsedUndeclaredDependency>

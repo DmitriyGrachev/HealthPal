@@ -1,0 +1,1276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FitnessApp - карта компонентов и workflow</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f0f4f7;
+      --ink: #17212b;
+      --muted: #637083;
+      --line: #d8e0e7;
+      --teal: #0f766e;
+      --green: #2f7d32;
+      --amber: #b45309;
+      --rose: #be123c;
+      --violet: #6d28d9;
+      --blue: #2563eb;
+      --shadow: 0 14px 32px rgba(23, 33, 43, 0.10);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, #fbfcfd 0%, var(--bg) 52%, #eef3f6 100%);
+      min-height: 100vh;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 24px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      min-width: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .search {
+      position: relative;
+      width: min(360px, 32vw);
+    }
+
+    .search input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px 12px 10px 36px;
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .search input:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    .search svg {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      width: 16px;
+      height: 16px;
+    }
+
+    .segmented {
+      display: inline-grid;
+      grid-auto-flow: column;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      gap: 3px;
+    }
+
+    .segmented button {
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      background: transparent;
+      color: var(--muted);
+      min-width: 96px;
+    }
+
+    .segmented button.active {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(23, 33, 43, 0.08);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(420px, 1fr) 380px;
+      gap: 18px;
+      padding: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .panel-header {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .panel-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .component-list,
+    .workflow-list {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .component-button,
+    .workflow-button {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      text-align: left;
+      padding: 11px;
+      display: grid;
+      gap: 6px;
+      transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+    }
+
+    .component-button:hover,
+    .workflow-button:hover {
+      transform: translateY(-1px);
+      border-color: #b9c7d3;
+    }
+
+    .component-button.active,
+    .workflow-button.active {
+      border-color: var(--teal);
+      background: #eefaf8;
+    }
+
+    .component-button.in-flow {
+      border-color: rgba(15, 118, 110, 0.55);
+    }
+
+    .component-title,
+    .workflow-title {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-weight: 700;
+      font-size: 14px;
+      min-width: 0;
+    }
+
+    .badge {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .badge.auth { background: var(--teal); }
+    .badge.nutrition { background: var(--green); }
+    .badge.workout { background: var(--amber); }
+    .badge.ai { background: var(--violet); }
+    .badge.memory { background: #047857; }
+    .badge.telegram { background: var(--blue); }
+    .badge.analytics { background: #c2410c; }
+    .badge.database { background: #475569; }
+    .badge.security { background: var(--rose); }
+    .badge.ops { background: #0f766e; }
+
+    .component-meta,
+    .workflow-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .main-stage {
+      display: grid;
+      gap: 18px;
+    }
+
+    .map-panel {
+      min-height: 460px;
+      overflow: hidden;
+    }
+
+    .map-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .map-head h2 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .map-head p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+      max-width: 760px;
+    }
+
+    .status-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      background: var(--surface);
+    }
+
+    .map {
+      position: relative;
+      padding: 28px;
+      min-height: 380px;
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .module-node {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      min-height: 104px;
+      padding: 12px;
+      display: grid;
+      align-content: start;
+      gap: 9px;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+    }
+
+    .module-node:hover {
+      transform: translateY(-2px);
+      border-color: #b9c7d3;
+    }
+
+    .module-node.active {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
+    .module-node.in-flow {
+      border-color: rgba(15, 118, 110, 0.68);
+      background: #f3fffc;
+    }
+
+    .module-node.dimmed {
+      opacity: 0.44;
+    }
+
+    .module-node strong {
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .module-node span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .connections {
+      display: grid;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .connection-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfd;
+    }
+
+    .connection-row strong {
+      font-size: 13px;
+    }
+
+    .connection-row span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .details {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .details h3 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .details p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .section h4 {
+      margin: 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #4b5563;
+      letter-spacing: 0.04em;
+    }
+
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: 999px;
+      padding: 5px 8px;
+      color: #314152;
+      font-size: 12px;
+      line-height: 1.25;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .step-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+      counter-reset: step;
+    }
+
+    .step-list li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfd;
+    }
+
+    .step-list li::before {
+      content: counter(step);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: white;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .step-list strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .step-list span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .code-list {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .code-list li {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 6px;
+      padding: 8px 9px;
+      overflow-wrap: anywhere;
+    }
+
+    .matrix-panel {
+      overflow: hidden;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .matrix th,
+    .matrix td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      color: #4b5563;
+      background: #f8fafc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .matrix td {
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfd;
+    }
+
+    .footer-note {
+      margin: 0;
+      padding: 12px 18px 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 1200px) {
+      .layout {
+        grid-template-columns: 260px 1fr;
+      }
+
+      .right-panel {
+        grid-column: 1 / -1;
+      }
+
+      .map-grid {
+        grid-template-columns: repeat(3, minmax(120px, 1fr));
+      }
+    }
+
+    @media (max-width: 820px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      .search {
+        width: 100%;
+      }
+
+      .segmented {
+        width: 100%;
+      }
+
+      .segmented button {
+        min-width: 0;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+
+      .map-head {
+        grid-template-columns: 1fr;
+      }
+
+      .map {
+        padding: 14px;
+      }
+
+      .map-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .connection-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .map-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .brand h1 {
+        font-size: 19px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>FitnessApp: workflow-карта системы</h1>
+        <p>Интерактивный обзор текущих возможностей, входов, событий, хранилищ и связей между модулями.</p>
+      </div>
+
+      <label class="search" aria-label="Поиск">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M10.8 18.1a7.3 7.3 0 1 1 0-14.6 7.3 7.3 0 0 1 0 14.6Zm5.2-1.2 4.2 4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input id="searchInput" type="search" placeholder="Поиск: Telegram, FatSecret, memory, report...">
+      </label>
+
+      <div class="segmented" role="group" aria-label="Режим просмотра">
+        <button id="businessMode" class="active" type="button">Business</button>
+        <button id="technicalMode" type="button">Technical</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel">
+        <div class="panel-header">
+          <h2>Компоненты</h2>
+          <p>Клик подсвечивает связи и показывает роль компонента.</p>
+        </div>
+        <div id="componentList" class="component-list"></div>
+      </aside>
+
+      <section class="main-stage">
+        <section class="panel map-panel">
+          <div class="map-head">
+            <div>
+              <h2 id="selectedTitle">Daily AI Insight</h2>
+              <p id="selectedSummary">Nutrition sync или ручной запрос собирают дневные данные, memory и прошлые insights, затем AI сохраняет новый insight.</p>
+            </div>
+            <span class="status-pill" id="statusPill">Verified from code: 2026-07-05</span>
+          </div>
+
+          <div class="map" aria-label="Карта компонентов">
+            <div id="mapGrid" class="map-grid"></div>
+          </div>
+
+          <div id="connections" class="connections"></div>
+        </section>
+
+        <section class="panel matrix-panel">
+          <div class="panel-header">
+            <h2>Как это работает сейчас</h2>
+            <p>Короткая матрица текущего состояния, ограничений и точек роста.</p>
+          </div>
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Область</th>
+                <th>Сейчас</th>
+                <th>Важно помнить</th>
+              </tr>
+            </thead>
+            <tbody id="currentStateTable"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <aside class="panel right-panel">
+        <div class="panel-header">
+          <h2>Workflow</h2>
+          <p>Выбери сценарий, чтобы увидеть шаги и участвующие модули.</p>
+        </div>
+        <div id="workflowList" class="workflow-list"></div>
+        <div id="details" class="details"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const components = {
+      auth: {
+        title: "Auth",
+        code: "AU",
+        short: "Пользователь, JWT, роли, current user",
+        business: "Отвечает за регистрацию, вход, роли и безопасное определение текущего пользователя для всех личных workflow.",
+        technical: "Spring Security JWT, TokenFilter, UserDetailsService, CurrentUserApi, UserApi, UserPersistenceAdapter.",
+        endpoints: ["/auth/register", "/auth/login", "/api/v1/notes"],
+        eventsIn: ["TelegramNoteRequestedEvent"],
+        eventsOut: ["UserNoteCreatedEvent"],
+        storage: ["users", "user_notes"],
+        files: [
+          "auth/adapter/in/web/AuthController.java",
+          "auth/adapter/in/web/UserNoteController.java",
+          "auth/application/service/CurrentUserService.java"
+        ]
+      },
+      nutrition: {
+        title: "Nutrition",
+        code: "NU",
+        short: "FatSecret, macros, profile, weight",
+        business: "Импортирует питание и вес из FatSecret, хранит дневные и месячные nutrition snapshots, даёт AI фактическую базу.",
+        technical: "FatSecretApiPort, NutritionCommandPort, NutritionQueryUseCase, ProfileUseCase, WeightHistoryUseCase.",
+        endpoints: ["/api/v1/nutrition/connect", "/callback", "/day", "/range", "/sync/today", "/sync/current-month"],
+        eventsIn: ["TelegramWeightRequestedEvent"],
+        eventsOut: ["NutritionSyncedEvent"],
+        storage: ["fatsecret_connection", "fatsecret_day", "fatsecret_food", "profile", "weight_history"],
+        files: [
+          "nutrition/adapter/in/web/NutritionController.java",
+          "nutrition/application/service/NutritionService.java",
+          "nutrition/adapter/out/api/FatSecretApiAdapter.java"
+        ]
+      },
+      workout: {
+        title: "Workout",
+        code: "WO",
+        short: "Jefit import, sessions, summaries",
+        business: "Принимает историю тренировок, превращает внешний CSV в тренировочные сессии и отдаёт агрегаты по периодам.",
+        technical: "ImportWorkoutUseCase, WorkoutParserPort, JefitCsvParserAdapter, WorkoutPersistencePort, WorkoutQueryUseCase.",
+        endpoints: ["/api/v1/workout-import/import/{format}", "/api/v1/workout-analytic/summary"],
+        eventsIn: [],
+        eventsOut: [],
+        storage: ["workout", "workout_exercises", "workout_sets"],
+        files: [
+          "workout/adapter/in/web/WorkoutImportController.java",
+          "workout/adapter/out/parser/JefitCsvParserAdapter.java",
+          "workout/adapter/out/WorkoutJdbcQueryAdapter.java"
+        ]
+      },
+      ai: {
+        title: "AI",
+        code: "AI",
+        short: "Insights, prompts, routing, fallback",
+        business: "Генерирует daily, weekly, monthly insights и ответы Telegram на основе данных пользователя и памяти.",
+        technical: "FitnessAiService, MoeOrchestrator, SmartAiRouter, AiModelPort adapters, prompt templates.",
+        endpoints: ["/api/v1/ai/insights/today", "/api/v1/ai/insights/generate"],
+        eventsIn: ["NutritionSyncedEvent", "TelegramAskRequestedEvent", "TelegramTodayRequestedEvent", "WeeklyReportRequestedEvent", "MonthlyReportRequestedEvent"],
+        eventsOut: ["InsightGeneratedEvent", "TelegramAiResponseEvent"],
+        storage: ["ai_insights"],
+        files: [
+          "ai/FitnessAiService.java",
+          "ai/MoeOrchestrator.java",
+          "ai/SmartAiRouter.java",
+          "resources/ai/prompts/*.md"
+        ]
+      },
+      memory: {
+        title: "Memory",
+        code: "ME",
+        short: "pgvector, facts, recent context",
+        business: "Сохраняет важный персональный контекст, чтобы следующие AI-ответы учитывали долгосрочные факты и текущие обстоятельства.",
+        technical: "Spring AI VectorStore, pgvector user_memory, MemoryQueryUseCase, MemoryEventListener, cleanup scheduler.",
+        endpoints: [],
+        eventsIn: ["InsightGeneratedEvent", "UserNoteCreatedEvent"],
+        eventsOut: [],
+        storage: ["user_memory vector(2048)"],
+        files: [
+          "memory/application/service/MemoryService.java",
+          "memory/application/service/MemoryEventListener.java",
+          "memory/adapter/out/persistence/JdbcMemoryCleanupAdapter.java"
+        ]
+      },
+      telegram: {
+        title: "Telegram",
+        code: "TG",
+        short: "Bot commands and notifications",
+        business: "Даёт пользователю быстрый conversational вход: спросить AI, записать note, вес, запросить daily insight.",
+        technical: "TelegramLongPollingBot, CommandHandler implementations, conversation state, link code manager.",
+        endpoints: ["Telegram bot updates"],
+        eventsIn: ["InsightGeneratedEvent", "TelegramAiResponseEvent"],
+        eventsOut: ["TelegramAskRequestedEvent", "TelegramTodayRequestedEvent", "TelegramNoteRequestedEvent", "TelegramWeightRequestedEvent"],
+        storage: ["telegram_users", "conversation_state"],
+        files: [
+          "telegram/adapter/in/TelegramUpdateHandler.java",
+          "telegram/application/service/handlers/*.java",
+          "telegram/application/service/TelegramLinkCodeManager.java"
+        ]
+      },
+      analytics: {
+        title: "Analytics",
+        code: "AN",
+        short: "Weekly/monthly report orchestration",
+        business: "Периодически собирает сводки по питанию и тренировкам для каждого пользователя и запускает AI reports.",
+        technical: "Scheduled orchestrators, NutritionWeeklyApi/NutritionMonthlyApi, WorkoutWeeklyApi/WorkoutMonthlyApi, Modulith events.",
+        endpoints: ["/api/v1/week", "/api/v1/month"],
+        eventsIn: [],
+        eventsOut: ["WeeklyReportRequestedEvent", "MonthlyReportRequestedEvent"],
+        storage: [],
+        files: [
+          "analytics/application/WeeklyReportOrchestrator.java",
+          "analytics/application/MonthlyReportOrchestrator.java",
+          "analytics/application/*TransactionService.java"
+        ]
+      },
+      database: {
+        title: "Database",
+        code: "DB",
+        short: "PostgreSQL, Flyway, pgvector",
+        business: "Хранит приватную fitness history пользователя и обеспечивает воспроизводимый schema lifecycle.",
+        technical: "PostgreSQL 16, pgvector, Flyway migrations V1-V10, JPA/JDBC adapters, Testcontainers integration gate.",
+        endpoints: [],
+        eventsIn: [],
+        eventsOut: [],
+        storage: ["users", "fatsecret_*", "workout_*", "ai_insights", "user_memory", "telegram_users"],
+        files: [
+          "src/main/resources/db/migration/*.sql",
+          "docker-compose.yml",
+          "src/test/java/.../AbstractPostgresIntegrationTest.java"
+        ]
+      },
+      security: {
+        title: "Security",
+        code: "SE",
+        short: "Access rules, privacy logs, errors",
+        business: "Защищает личные данные и ограничивает опасные операции вроде imports, reports, actuator и OpenAPI.",
+        technical: "SecurityFilterChain, AuthRateLimitFilter, GlobalExceptionHandler, privacy-safe logging tests.",
+        endpoints: ["health public", "actuator admin", "OpenAPI admin", "workout import VIP"],
+        eventsIn: [],
+        eventsOut: [],
+        storage: [],
+        files: [
+          "auth/infrastructure/config/SecurityConfig.java",
+          "exception/GlobalExceptionHandler.java",
+          "src/test/java/.../*Security*Test.java"
+        ]
+      },
+      ops: {
+        title: "Ops",
+        code: "OP",
+        short: "CI, smoke, gates, docs",
+        business: "Помогает безопасно выпускать проект: локальная БД, smoke checks, CI jobs, dependency hygiene.",
+        technical: "Maven gates, GitHub Actions, Docker Compose, Testcontainers, Graphify architecture map.",
+        endpoints: ["/actuator/health"],
+        eventsIn: [],
+        eventsOut: [],
+        storage: [".graphify snapshots"],
+        files: [
+          ".github/workflows/ci.yml",
+          "README.md",
+          "TESTING.md",
+          ".graphify/GRAPH_REPORT.md"
+        ]
+      }
+    };
+
+    const workflows = {
+      dailyInsight: {
+        title: "Daily AI Insight",
+        group: "AI",
+        summary: "Nutrition sync или ручной запрос собирают дневные данные, memory и прошлые insights, затем AI сохраняет новый insight.",
+        components: ["auth", "nutrition", "ai", "memory", "telegram", "database", "security"],
+        steps: [
+          ["Вход", "Пользователь вызывает /api/v1/ai/insights/generate или nutrition sync публикует NutritionSyncedEvent."],
+          ["Сбор данных", "AI читает NutritionDay, long-term facts, relevant memories, recent context и recent insights."],
+          ["Prompt rendering", "AiPromptRenderer подставляет данные в daily-insight-v1.md."],
+          ["Routing", "MoeOrchestrator отправляет DAILY_INSIGHT в OpenRouter model из app.ai.DAILY_INSIGHT_MODEL."],
+          ["Сохранение", "AiInsightEntity сохраняется в ai_insights, затем публикуется InsightGeneratedEvent."],
+          ["Memory и Telegram", "MemoryEventListener добавляет insight в user_memory, TelegramNotificationListener отправляет summary связанному чату."]
+        ],
+        data: ["NutritionDay", "UserMemory", "AiInsightEntity", "InsightGeneratedEvent"],
+        caveat: "Если за день нет food entries, daily insight пропускается."
+      },
+      nutritionSync: {
+        title: "Nutrition Sync",
+        group: "Nutrition",
+        summary: "FatSecret connection даёт токены, sync импортирует food entries и запускает AI downstream.",
+        components: ["auth", "nutrition", "ai", "memory", "database", "security"],
+        steps: [
+          ["Connect", "JWT user вызывает /api/v1/nutrition/connect и получает FatSecret authorization URL."],
+          ["Callback", "FatSecret возвращает oauth_token/oauth_verifier на /api/v1/nutrition/callback."],
+          ["Token exchange", "NutritionService меняет verifier на FatSecretToken и сохраняет encrypted connection."],
+          ["Sync day", "syncDay читает token, запрашивает entries, сохраняет NutritionDay и FoodEntry."],
+          ["Event", "После успешного sync публикуется NutritionSyncedEvent с calories/protein/fat/carbs."],
+          ["AI trigger", "FitnessAiService слушает событие и пытается сгенерировать daily insight."]
+        ],
+        data: ["FatSecretToken", "NutritionDay", "FoodEntry", "NutritionSyncedEvent"],
+        caveat: "Без FatSecret connection sync возвращает conflict FATSECRET_NOT_CONNECTED."
+      },
+      workoutImport: {
+        title: "Workout Import",
+        group: "Workout",
+        summary: "VIP endpoint принимает Jefit CSV, парсер строит workout sessions, затем доступны summaries.",
+        components: ["auth", "workout", "database", "security"],
+        steps: [
+          ["Access gate", "SecurityConfig разрешает /api/v1/workout-import/** только роли VIP."],
+          ["Upload", "POST /api/v1/workout-import/import/{format} принимает multipart file."],
+          ["Parser select", "WorkoutImportService выбирает WorkoutParserPort по format."],
+          ["Jefit parse", "JefitCsvParserAdapter читает sessions, exercise logs и set logs, конвертирует lbs в kg."],
+          ["Persist", "WorkoutPersistencePort сохраняет workout, exercises, sets для current user."],
+          ["Summary", "GET /api/v1/workout-analytic/summary возвращает агрегаты за THIS_WEEK, LAST_TWO_WEEKS или THIS_MONTH."]
+        ],
+        data: ["WorkoutImportResult", "WorkoutSession", "Exercise", "Set", "WorkoutSummaryWeeklyDto"],
+        caveat: "Парсер пропускает плохие строки и возвращает warnings, а не валит весь импорт."
+      },
+      telegramAsk: {
+        title: "Telegram Ask",
+        group: "Telegram",
+        summary: "Пользователь задаёт вопрос через /ask, AI отвечает в тот же Telegram chat.",
+        components: ["telegram", "auth", "ai", "memory", "database", "security"],
+        steps: [
+          ["Command", "TelegramUpdateHandler находит AskCommandHandler по тексту /ask."],
+          ["Link check", "Handler проверяет telegram_users, чтобы найти связанный FitnessApp userId."],
+          ["Rate limit", "RateLimiterService ограничивает частоту AI-запросов."],
+          ["Event", "Публикуется TelegramAskRequestedEvent с userId, chatId и question."],
+          ["AI response", "FitnessAiService строит memory context, рендерит telegram-ask-v1.md и вызывает QUICK_ANALYSIS."],
+          ["Delivery", "TelegramAiResponseEvent возвращается в TelegramAiResponseListener, который отправляет сообщение в chat."]
+        ],
+        data: ["TelegramAskRequestedEvent", "UserMemory", "NutritionInsightResponse", "TelegramAiResponseEvent"],
+        caveat: "Если Telegram не linked, пользователь получает просьбу выполнить /link."
+      },
+      telegramCapture: {
+        title: "Telegram Note and Weight",
+        group: "Telegram",
+        summary: "Bot собирает быстрый пользовательский контекст и вес через conversational flows.",
+        components: ["telegram", "auth", "nutrition", "memory", "database"],
+        steps: [
+          ["Note start", "/note переводит conversation_state в WAITING_NOTE_TYPE и показывает типы."],
+          ["Note content", "Следующее сообщение сохраняется как TelegramNoteRequestedEvent."],
+          ["Auth listener", "TelegramNoteListener создаёт UserNoteDto для userId."],
+          ["Memory listener", "UserNoteCreatedEvent превращается в long-term или short-term User Memory."],
+          ["Weight start", "/weight переводит state в WAITING_WEIGHT."],
+          ["Weight save", "TelegramWeightRequestedEvent сохраняет WeightHistoryDto с source MANUAL."]
+        ],
+        data: ["ConversationState", "TelegramNoteRequestedEvent", "UserNoteCreatedEvent", "TelegramWeightRequestedEvent", "WeightHistoryDto"],
+        caveat: "В production link-code генератор для сайта пока не виден в REST API; dev handler есть только под profile dev."
+      },
+      reports: {
+        title: "Weekly and Monthly Reports",
+        group: "Analytics",
+        summary: "Scheduled jobs собирают агрегаты по всем users и запускают AI report generation через events.",
+        components: ["analytics", "auth", "nutrition", "workout", "ai", "memory", "telegram", "database", "security"],
+        steps: [
+          ["Schedule", "Weekly job стартует по понедельникам 09:00, monthly - первого числа в 10:00."],
+          ["User loop", "Orchestrator получает все userIds через UserApi."],
+          ["Snapshots", "TransactionService собирает NutritionWeekly/MonthlyStats и WorkoutWeekly/MonthlyStats."],
+          ["Event", "Публикуется WeeklyReportRequestedEvent или MonthlyReportRequestedEvent."],
+          ["AI report", "FitnessAiService добавляет notes, profile, weight history, memory и recent insights."],
+          ["Save and notify", "Report сохраняется в ai_insights, попадает в memory и может уйти в Telegram."]
+        ],
+        data: ["WeeklyReportRequestedEvent", "MonthlyReportRequestedEvent", "NutritionSnapshot", "WorkoutSnapshot", "AiInsightEntity"],
+        caveat: "Manual endpoints /api/v1/week и /api/v1/month закрыты под ADMIN."
+      },
+      memoryLifecycle: {
+        title: "Memory Lifecycle",
+        group: "Memory",
+        summary: "Notes и insights превращаются в searchable context с разным горизонтом жизни.",
+        components: ["auth", "ai", "memory", "database"],
+        steps: [
+          ["Input events", "MemoryEventListener слушает InsightGeneratedEvent и UserNoteCreatedEvent."],
+          ["Classification", "Notes GOAL/ALLERGY/PREFERENCE становятся FACT LONG_TERM; временные notes - EPISODIC SHORT_TERM."],
+          ["Insight horizon", "DAILY хранится 14 дней, WEEKLY 90 дней, MONTHLY без expires_at."],
+          ["Search", "FitnessAiService ищет long-term facts, semantic relevant memories и recent context."],
+          ["Isolation", "Все запросы к VectorStore фильтруются по user_id."],
+          ["Cleanup", "MemoryCleanupScheduler удаляет expired memories по cron."]
+        ],
+        data: ["UserMemory", "Document metadata", "memory_horizon", "expires_at", "user_id"],
+        caveat: "Сейчас vector(2048) работает без HNSW index, поэтому поиск корректный, но без ANN-ускорения."
+      },
+      opsSecurity: {
+        title: "Ops and Security",
+        group: "Ops",
+        summary: "Проект проверяется Maven gates, integration tests, smoke run и privacy-focused security rules.",
+        components: ["ops", "security", "database", "auth", "nutrition", "ai", "telegram"],
+        steps: [
+          ["Unit gate", "mvn test покрывает fast tests и исключает integration/architecture."],
+          ["Architecture gate", "mvn -Parchitecture test проверяет Spring Modulith boundaries."],
+          ["Integration gate", "mvn verify -Pintegration поднимает pgvector PostgreSQL через Testcontainers."],
+          ["Smoke", "docker compose db + env + spring-boot:run проверяет health, auth, protected API и OpenAPI policy."],
+          ["CI", "GitHub Actions содержит unit/architecture job, integration job и non-blocking dependency hygiene."],
+          ["Privacy", "SecurityConfig и tests защищают actuator/OpenAPI/imports и избегают raw sensitive logs."]
+        ],
+        data: ["ci.yml", "Flyway V1-V10", "Testcontainers", "SecurityConfig", "GlobalExceptionHandler"],
+        caveat: "OpenAPI disabled by default and protected by ADMIN when enabled."
+      },
+      onboarding: {
+        title: "Onboarding and Access",
+        group: "Auth",
+        summary: "Пользователь создаёт account, получает JWT, роли определяют доступ к sensitive workflows.",
+        components: ["auth", "security", "database", "telegram"],
+        steps: [
+          ["Register", "POST /auth/register валидирует username/password/email и создаёт User."],
+          ["Login", "POST /auth/login возвращает JWT string."],
+          ["Current user", "TokenFilter валидирует Bearer token и CurrentUserService отдаёт userId."],
+          ["Role gates", "ADMIN нужен для reports/OpenAPI/actuator, VIP - для workout import."],
+          ["Telegram link", "TelegramLinkCodeManager создаёт 6-digit code, /link связывает telegramId с userId."],
+          ["Personal scope", "Личные endpoints получают userId из CurrentUserApi, а не из запроса."]
+        ],
+        data: ["RegisterRequest", "LoginRequest", "JWT", "User", "TelegramUserEntity"],
+        caveat: "REST endpoint для генерации Telegram link code стоит добавить отдельно."
+      }
+    };
+
+    const stateRows = [
+      ["FatSecret", "OAuth + encrypted token persistence + day/month sync.", "Без connection sync возвращает FATSECRET_NOT_CONNECTED."],
+      ["AI providers", "Daily/quick routes идут в OpenRouter model; reports идут через fallback chain OpenRouter -> Gemini.", "Тесты мокают providers, реальные ключи нужны только runtime."],
+      ["Memory", "pgvector user_memory хранит notes и insights с TTL/horizon metadata.", "HNSW отключён для vector(2048), используется exact vector search."],
+      ["Telegram", "Команды /ask, /today, /note, /weight, /link работают через handlers и events.", "Production Web endpoint для генерации link code пока не обнаружен."],
+      ["Security", "JWT required почти везде; health public; actuator/OpenAPI/admin reports protected.", "Workout import доступен только VIP."],
+      ["Database", "Flyway V1-V10 покрывает users, nutrition, workout, ai_insights, memory, telegram, FK.", "Existing local compose volume может иметь старую историю, clean DB проходит."],
+      ["CI", "Unit/architecture, integration и dependency hygiene описаны в workflow.", "Dependency hygiene non-blocking, integration job отдельный."]
+    ];
+
+    const state = {
+      selectedWorkflow: "dailyInsight",
+      selectedComponent: null,
+      mode: "business",
+      search: ""
+    };
+
+    const componentOrder = ["auth", "nutrition", "workout", "ai", "memory", "telegram", "analytics", "database", "security", "ops"];
+
+    const componentList = document.getElementById("componentList");
+    const workflowList = document.getElementById("workflowList");
+    const mapGrid = document.getElementById("mapGrid");
+    const details = document.getElementById("details");
+    const connections = document.getElementById("connections");
+    const selectedTitle = document.getElementById("selectedTitle");
+    const selectedSummary = document.getElementById("selectedSummary");
+    const searchInput = document.getElementById("searchInput");
+    const currentStateTable = document.getElementById("currentStateTable");
+
+    document.getElementById("businessMode").addEventListener("click", () => setMode("business"));
+    document.getElementById("technicalMode").addEventListener("click", () => setMode("technical"));
+    searchInput.addEventListener("input", (event) => {
+      state.search = event.target.value.trim().toLowerCase();
+      render();
+    });
+
+    function setMode(mode) {
+      state.mode = mode;
+      document.getElementById("businessMode").classList.toggle("active", mode === "business");
+      document.getElementById("technicalMode").classList.toggle("active", mode === "technical");
+      renderDetails();
+    }
+
+    function matchesSearch(text) {
+      return !state.search || text.toLowerCase().includes(state.search);
+    }
+
+    function workflowSearchText(workflow) {
+      return [
+        workflow.title,
+        workflow.group,
+        workflow.summary,
+        workflow.caveat,
+        workflow.components.map(id => components[id].title).join(" "),
+        workflow.steps.map(step => step.join(" ")).join(" "),
+        workflow.data.join(" ")
+      ].join(" ");
+    }
+
+    function componentSearchText(component) {
+      return [
+        component.title,
+        component.short,
+        component.business,
+        component.technical,
+        component.endpoints.join(" "),
+        component.eventsIn.join(" "),
+        component.eventsOut.join(" "),
+        component.storage.join(" "),
+        component.files.join(" ")
+      ].join(" ");
+    }
+
+    function selectWorkflow(id) {
+      state.selectedWorkflow = id;
+      state.selectedComponent = null;
+      render();
+    }
+
+    function selectComponent(id) {
+      state.selectedComponent = state.selectedComponent === id ? null : id;
+      render();
+    }
+
+    function renderComponentList() {
+      const workflow = workflows[state.selectedWorkflow];
+      componentList.innerHTML = "";
+      componentOrder
+        .filter(id => matchesSearch(componentSearchText(components[id])) || workflow.components.includes(id))
+        .forEach(id => {
+          const component = components[id];
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = [
+            "component-button",
+            state.selectedComponent === id ? "active" : "",
+            workflow.components.includes(id) ? "in-flow" : ""
+          ].filter(Boolean).join(" ");
+          button.innerHTML = `
+            <div class="component-title">
+              <span class="badge ${id}">${component.code}</span>
+              <span>${component.title}</span>
+            </div>
+            <div class="component-meta">${component.short}</div>
+          `;
+          button.addEventListener("click", () => selectComponent(id));
+          componentList.appendChild(button);
+        });
+    }
+
+    function renderWorkflowList() {
+      workflowList.innerHTML = "";
+      Object.entries(workflows)
+        .filter(([, workflow]) => matchesSearch(workflowSearchText(workflow)))
+        .forEach(([id, workflow]) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `workflow-button ${state.selectedWorkflow === id ? "active" : ""}`;
+          button.innerHTML = `
+            <div class="workflow-title">${workflow.title}</div>
+            <div class="workflow-meta">${workflow.group} - ${workflow.summary}</div>
+          `;
+          button.addEventListener("click", () => selectWorkflow(id));
+          workflowList.appendChild(button);
+        });
+
+      if (!workflowList.children.length) {
+        workflowList.innerHTML = `<div class="empty">Ничего не найдено по текущему поиску.</div>`;
+      }
+    }
+
+    function renderMap() {
+      const workflow = workflows[state.selectedWorkflow];
+      mapGrid.innerHTML = "";
+      componentOrder.forEach(id => {
+        const component = components[id];
+        const inFlow = workflow.components.includes(id);
+        const active = state.selectedComponent === id;
+        const dimmed = state.selectedComponent && !active && !inFlow;
+        const node = document.createElement("button");
+        node.type = "button";
+        node.className = [
+          "module-node",
+          active ? "active" : "",
+          inFlow ? "in-flow" : "",
+          dimmed ? "dimmed" : ""
+        ].filter(Boolean).join(" ");
+        node.innerHTML = `
+          <div class="component-title">
+            <span class="badge ${id}">${component.code}</span>
+            <strong>${component.title}</strong>
+          </div>
+          <span>${component.short}</span>
+        `;
+        node.addEventListener("click", () => selectComponent(id));
+        mapGrid.appendChild(node);
+      });
+    }
+
+    function renderConnections() {
+      const workflow = workflows[state.selectedWorkflow];
+      const selected = state.selectedComponent ? components[state.selectedComponent] : null;
+      const rows = selected
+        ? [
+            ["Роль", selected[state.mode]],
+            ["Endpoints", selected.endpoints.length ? selected.endpoints.join(", ") : "Нет прямого HTTP endpoint в текущем workflow."],
+            ["Events in", selected.eventsIn.length ? selected.eventsIn.join(", ") : "Нет входящих событий."],
+            ["Events out", selected.eventsOut.length ? selected.eventsOut.join(", ") : "Нет исходящих событий."],
+            ["Storage", selected.storage.length ? selected.storage.join(", ") : "Не владеет таблицами напрямую."]
+          ]
+        : [
+            ["Участвуют", workflow.components.map(id => components[id].title).join(" -> ")],
+            ["Основные данные", workflow.data.join(", ")],
+            ["Текущее ограничение", workflow.caveat]
+          ];
+
+      connections.innerHTML = rows.map(([label, value]) => `
+        <div class="connection-row">
+          <strong>${label}</strong>
+          <span>${value}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderDetails() {
+      const workflow = workflows[state.selectedWorkflow];
+      const selected = state.selectedComponent ? components[state.selectedComponent] : null;
+
+      selectedTitle.textContent = selected ? selected.title : workflow.title;
+      selectedSummary.textContent = selected ? selected[state.mode] : workflow.summary;
+
+      if (selected) {
+        details.innerHTML = `
+          <h3>${selected.title}</h3>
+          <p>${selected[state.mode]}</p>
+          ${renderChipSection("Endpoints", selected.endpoints)}
+          ${renderChipSection("Events in", selected.eventsIn)}
+          ${renderChipSection("Events out", selected.eventsOut)}
+          ${renderChipSection("Storage", selected.storage)}
+          ${renderCodeSection("Файлы-источники", selected.files)}
+        `;
+        return;
+      }
+
+      details.innerHTML = `
+        <h3>${workflow.title}</h3>
+        <p>${workflow.summary}</p>
+        ${renderChipSection("Компоненты", workflow.components.map(id => components[id].title))}
+        <div class="section">
+          <h4>Шаги</h4>
+          <ol class="step-list">
+            ${workflow.steps.map(([title, text]) => `
+              <li>
+                <div>
+                  <strong>${title}</strong>
+                  <span>${text}</span>
+                </div>
+              </li>
+            `).join("")}
+          </ol>
+        </div>
+        ${renderChipSection("Данные и события", workflow.data)}
+        <div class="section">
+          <h4>Caveat</h4>
+          <p>${workflow.caveat}</p>
+        </div>
+      `;
+    }
+
+    function renderChipSection(title, items) {
+      if (!items || !items.length) {
+        return `
+          <div class="section">
+            <h4>${title}</h4>
+            <p>Нет элементов.</p>
+          </div>
+        `;
+      }
+      return `
+        <div class="section">
+          <h4>${title}</h4>
+          <div class="chip-list">
+            ${items.map(item => `<span class="chip">${item}</span>`).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCodeSection(title, items) {
+      return `
+        <div class="section">
+          <h4>${title}</h4>
+          <ul class="code-list">
+            ${items.map(item => `<li>${item}</li>`).join("")}
+          </ul>
+        </div>
+      `;
+    }
+
+    function renderStateTable() {
+      currentStateTable.innerHTML = stateRows.map(([area, now, note]) => `
+        <tr>
+          <td><strong>${area}</strong></td>
+          <td>${now}</td>
+          <td>${note}</td>
+        </tr>
+      `).join("");
+    }
+
+    function render() {
+      renderComponentList();
+      renderWorkflowList();
+      renderMap();
+      renderConnections();
+      renderDetails();
+      renderStateTable();
+    }
+
+    render();
+  </script>
+</body>
+</html>
