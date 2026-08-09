@@ -131,23 +131,28 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
                 CROSS JOIN cardio_stats
                 """;
 
-        WorkoutDailyStatsDto.WorkoutDailyStatsDtoBuilder builder = WorkoutDailyStatsDto.builder()
-                .date(date)
-                .totalSessions(0)
-                .totalVolumeKg(0.0)
-                .cardioSessions(0)
-                .cardioDurationSeconds(0)
-                .cardioCalories(0.0);
+        final int[] totalSessions = {0};
+        final double[] totalVolumeKg = {0.0};
+        final int[] cardioSessions = {0};
+        final int[] cardioDurationSeconds = {0};
+        final double[] cardioCalories = {0.0};
 
         jdbc.query(sql, statsParams(userId, date, date), rs -> {
-            builder.totalSessions(rs.getInt("total_sessions"));
-            builder.totalVolumeKg(rs.getDouble("total_volume"));
-            builder.cardioSessions(rs.getInt("cardio_sessions"));
-            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
-            builder.cardioCalories(rs.getDouble("cardio_calories"));
+            totalSessions[0] = rs.getInt("total_sessions");
+            totalVolumeKg[0] = rs.getDouble("total_volume");
+            cardioSessions[0] = rs.getInt("cardio_sessions");
+            cardioDurationSeconds[0] = rs.getInt("cardio_duration_seconds");
+            cardioCalories[0] = rs.getDouble("cardio_calories");
         });
 
-        return builder.build();
+        return new WorkoutDailyStatsDto(
+                date,
+                totalSessions[0],
+                totalVolumeKg[0],
+                cardioSessions[0],
+                cardioDurationSeconds[0],
+                cardioCalories[0]
+        );
     }
 
     @Override
@@ -206,16 +211,18 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
 
         Map<String, Object> params = statsParams(userId, weekStart, weekEnd);
 
-        WorkoutWeeklyStatsDto.WorkoutWeeklyStatsDtoBuilder builder = WorkoutWeeklyStatsDto.builder()
-                .weekStart(weekStart)
-                .weekEnd(weekEnd);
+        final int[] totalSessions = {0};
+        final double[] totalVolumeKg = {0.0};
+        final int[] cardioSessions = {0};
+        final int[] cardioDurationSeconds = {0};
+        final double[] cardioCalories = {0.0};
 
         jdbc.query(aggregateSql, params, rs -> {
-            builder.totalSessions(rs.getInt("total_sessions"));
-            builder.totalVolumeKg(rs.getDouble("total_volume"));
-            builder.cardioSessions(rs.getInt("cardio_sessions"));
-            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
-            builder.cardioCalories(rs.getDouble("cardio_calories"));
+            totalSessions[0] = rs.getInt("total_sessions");
+            totalVolumeKg[0] = rs.getDouble("total_volume");
+            cardioSessions[0] = rs.getInt("cardio_sessions");
+            cardioDurationSeconds[0] = rs.getInt("cardio_duration_seconds");
+            cardioCalories[0] = rs.getDouble("cardio_calories");
         });
 
         Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {
@@ -226,8 +233,16 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
             return map;
         });
 
-        builder.volumeByDay(volumeByDay != null ? volumeByDay : Map.of());
-        return builder.build();
+        return new WorkoutWeeklyStatsDto(
+                weekStart,
+                weekEnd,
+                totalSessions[0],
+                totalVolumeKg[0],
+                cardioSessions[0],
+                cardioDurationSeconds[0],
+                cardioCalories[0],
+                volumeByDay != null ? volumeByDay : Map.of()
+        );
     }
 
     @Override
@@ -289,17 +304,20 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
 
         Map<String, Object> params = statsParams(userId, monthStart, monthEnd);
 
-        WorkoutMonthlyStatsDto.WorkoutMonthlyStatsDtoBuilder builder = WorkoutMonthlyStatsDto.builder()
-                .monthStart(monthStart)
-                .monthEnd(monthEnd);
+        final int[] totalSessions = {0};
+        final double[] totalVolumeKg = {0.0};
+        final double[] avgVolumePerSession = {0.0};
+        final int[] cardioSessions = {0};
+        final int[] cardioDurationSeconds = {0};
+        final double[] cardioCalories = {0.0};
 
         jdbc.query(aggregateSql, params, rs -> {
-            builder.totalSessions(rs.getInt("total_sessions"));
-            builder.totalVolumeKg(rs.getDouble("total_volume"));
-            builder.avgVolumePerSession(rs.getDouble("avg_volume"));
-            builder.cardioSessions(rs.getInt("cardio_sessions"));
-            builder.cardioDurationSeconds(rs.getInt("cardio_duration_seconds"));
-            builder.cardioCalories(rs.getDouble("cardio_calories"));
+            totalSessions[0] = rs.getInt("total_sessions");
+            totalVolumeKg[0] = rs.getDouble("total_volume");
+            avgVolumePerSession[0] = rs.getDouble("avg_volume");
+            cardioSessions[0] = rs.getInt("cardio_sessions");
+            cardioDurationSeconds[0] = rs.getInt("cardio_duration_seconds");
+            cardioCalories[0] = rs.getDouble("cardio_calories");
         });
 
         Map<String, Double> volumeByDay = jdbc.query(volumeByDaySql, params, rs -> {
@@ -310,8 +328,17 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
             return map;
         });
 
-        builder.volumeByDay(volumeByDay != null ? volumeByDay : Map.of());
-        return builder.build();
+        return new WorkoutMonthlyStatsDto(
+                monthStart,
+                monthEnd,
+                totalSessions[0],
+                totalVolumeKg[0],
+                avgVolumePerSession[0],
+                cardioSessions[0],
+                cardioDurationSeconds[0],
+                cardioCalories[0],
+                volumeByDay != null ? volumeByDay : Map.of()
+        );
     }
 
     private Map<String, Object> statsParams(Long userId, LocalDate start, LocalDate end) {

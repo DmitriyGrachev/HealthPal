@@ -5,7 +5,8 @@ import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.ai.exception.AiAuthException;
 import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
 import com.fit.fitnessapp.ai.exception.AiUnavailableException;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -14,9 +15,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Slf4j
 @Component("openRouterPort")
 public class OpenRouterAdapter implements AiModelPort {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenRouterAdapter.class);
 
     private final ChatClient chatClient;
     private final BeanOutputConverter<NutritionInsightResponse> outputConverter;
@@ -34,6 +36,7 @@ public class OpenRouterAdapter implements AiModelPort {
     @Override
     public NutritionInsightResponse generate(String prompt, String modelName) {
         String formattedPrompt = prompt + "\n\n" + outputConverter.getFormat();
+        String rawContent = null;
         try {
             var requestSpec = chatClient.prompt().user(formattedPrompt);
 
@@ -41,33 +44,33 @@ public class OpenRouterAdapter implements AiModelPort {
                 requestSpec = requestSpec.options(OpenAiChatOptions.builder().model(modelName).build());
             }
 
-            return requestSpec.call().entity(NutritionInsightResponse.class);
+            rawContent = requestSpec.call().content();
+            if (rawContent != null && !rawContent.isBlank()) {
+                try {
+                    return outputConverter.convert(rawContent);
+                } catch (Exception parseException) {
+                    log.warn("Failed to parse JSON into NutritionInsightResponse: {}", parseException.getMessage());
+                    return createDegradedResponse(rawContent);
+                }
+            }
+            throw new AiUnavailableException("Empty response received from OpenRouter");
 
         } catch (Exception e) {
-            // Check if the exception is a known provider error before attempting fallback
             handleExceptionIfKnown(e);
-
-            log.warn(
-                    "OpenRouter structured output failed for model {}, attempting raw extraction fallback: {}",
-                    modelName,
-                    e.getMessage()
-            );
-            try {
-                var rawSpec = chatClient.prompt().user(prompt);
-                if (modelName != null) {
-                    rawSpec = rawSpec.options(OpenAiChatOptions.builder().model(modelName).build());
-                }
-                String rawContent = rawSpec.call().content();
+            if (rawContent != null) {
                 return createDegradedResponse(rawContent);
-            } catch (Exception ex) {
-                log.warn("OpenRouter fallback extraction failed for model {}: {}", modelName, ex.getMessage());
-                handleException(ex);
-                throw new AiUnavailableException("OpenRouter is unavailable and fallback failed", ex);
             }
+            if (e instanceof AiUnavailableException) {
+                throw (AiUnavailableException) e;
+            }
+            throw new AiUnavailableException("OpenRouter is unavailable", e);
         }
     }
 
     private void handleExceptionIfKnown(Exception e) {
+        if (e instanceof AiAuthException || e instanceof AiInvalidRequestException) {
+            return;
+        }
         String msg = e.getMessage() != null ? e.getMessage() : "";
         if (msg.contains("401") || msg.contains("403")) {
             throw new AiAuthException("OpenRouter auth error", e);
@@ -76,12 +79,6 @@ public class OpenRouterAdapter implements AiModelPort {
             throw new AiInvalidRequestException("Invalid prompt for OpenRouter", e);
         }
     }
-
-    private void handleException(Exception e) {
-        handleExceptionIfKnown(e);
-        throw new AiUnavailableException("OpenRouter is unavailable", e);
-    }
-
 
     private NutritionInsightResponse createDegradedResponse(String rawContent) {
         return new NutritionInsightResponse(

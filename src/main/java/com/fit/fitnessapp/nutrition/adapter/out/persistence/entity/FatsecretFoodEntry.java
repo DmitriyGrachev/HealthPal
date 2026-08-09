@@ -1,13 +1,11 @@
 package com.fit.fitnessapp.nutrition.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+
 @Entity
 @Table(name = "fatsecret_food", indexes = {
         @Index(name = "idx_external_entry_id", columnList = "external_entry_id")
 })
-@Getter @Setter
 public class FatsecretFoodEntry {
 
     @Id
@@ -18,7 +16,7 @@ public class FatsecretFoodEntry {
     @Column(name = "external_food_id")
     private Long externalFoodId;
 
-    @Column(name = "external_entry_id", unique = false) // Unique only within a day, not globally.
+    @Column(name = "external_entry_id", unique = false)
     private Long externalEntryId;
 
     private String name;
@@ -29,6 +27,38 @@ public class FatsecretFoodEntry {
     private double carbohydrate;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "day_id")
+    @JoinColumn(name = "day_id", nullable = false)
     private FatsecretJpaDay day;
+
+    public FatsecretFoodEntry() {}
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public Long getExternalFoodId() { return externalFoodId; }
+    public void setExternalFoodId(Long externalFoodId) { this.externalFoodId = externalFoodId; }
+
+    public Long getExternalEntryId() { return externalEntryId; }
+    public void setExternalEntryId(Long externalEntryId) { this.externalEntryId = externalEntryId; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getMealType() { return mealType; }
+    public void setMealType(String mealType) { this.mealType = mealType; }
+
+    public int getCalories() { return calories; }
+    public void setCalories(int calories) { this.calories = calories; }
+
+    public double getProtein() { return protein; }
+    public void setProtein(double protein) { this.protein = protein; }
+
+    public double getFat() { return fat; }
+    public void setFat(double fat) { this.fat = fat; }
+
+    public double getCarbohydrate() { return carbohydrate; }
+    public void setCarbohydrate(double carbohydrate) { this.carbohydrate = carbohydrate; }
+
+    public FatsecretJpaDay getDay() { return day; }
+    public void setDay(FatsecretJpaDay day) { this.day = day; }
 }

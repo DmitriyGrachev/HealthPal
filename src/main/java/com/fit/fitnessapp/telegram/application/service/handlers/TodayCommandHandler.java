@@ -6,18 +6,21 @@ import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.time.LocalDate;
 import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TodayCommandHandler implements CommandHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(TodayCommandHandler.class);
 
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
@@ -26,12 +29,16 @@ public class TodayCommandHandler implements CommandHandler {
     @Override
     public boolean canHandle(Update update) {
         return update.hasMessage() && update.getMessage().hasText()
+                && Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())
                 && update.getMessage().getText().startsWith("/today");
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
     public void handle(Update update) {
+        if (update.getMessage().getChat() == null || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+            return;
+        }
+
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         log.info("TodayCommandHandler: Handling request for telegramId: {}", telegramId);

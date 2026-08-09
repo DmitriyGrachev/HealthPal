@@ -17,12 +17,11 @@ public class UserNotePersistenceAdapter implements UserNotePersistencePort {
 
     @Override
     public UserNoteDto save(UserNoteDto dto) {
-        UserNote entity = UserNote.builder()
-                .userId(dto.userId())
-                .relatedDate(dto.relatedDate())
-                .content(dto.content())
-                .type(UserNote.NoteType.valueOf(dto.type().name()))
-                .build();
+        UserNote entity = new UserNote();
+        entity.setUserId(dto.userId());
+        entity.setRelatedDate(dto.relatedDate());
+        entity.setContent(dto.content());
+        entity.setType(UserNote.NoteType.valueOf(dto.type().name()));
 
         return toDto(jpaRepository.save(entity));
     }
@@ -45,7 +44,9 @@ public class UserNotePersistenceAdapter implements UserNotePersistencePort {
 
     @Override
     public void deleteByUserIdAndId(Long userId, Long noteId) {
-        jpaRepository.deleteByUserIdAndId(userId, noteId);
+        jpaRepository.findById(noteId)
+                .filter(n -> n.getUserId().equals(userId))
+                .ifPresent(jpaRepository::delete);
     }
 
     private UserNoteDto toDto(UserNote entity) {

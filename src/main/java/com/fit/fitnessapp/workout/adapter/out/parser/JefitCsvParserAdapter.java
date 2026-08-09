@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -191,7 +192,7 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
 
             LocalDateTime date = LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(timestamp),
-                    ZoneId.of("Europe/Kiev"));
+                    ZoneOffset.UTC);
             tempWorkouts.put(logId, new TempWorkout(logId, date));
         } catch (NumberFormatException e) {
             recordWarning(warnings, section, lineNumber, "invalid workout session number");

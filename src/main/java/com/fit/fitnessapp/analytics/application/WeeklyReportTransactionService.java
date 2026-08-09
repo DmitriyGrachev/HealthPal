@@ -6,7 +6,8 @@ import com.fit.fitnessapp.nutrition.NutritionWeeklyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutWeeklyApi;
 import com.fit.fitnessapp.workout.WorkoutWeeklyStatsDto;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,10 +17,11 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WeeklyReportTransactionService {
+
+    private static final Logger log = LoggerFactory.getLogger(WeeklyReportTransactionService.class);
 
     private final NutritionWeeklyApi nutritionApi;
     private final WorkoutWeeklyApi workoutApi;
@@ -46,12 +48,12 @@ public class WeeklyReportTransactionService {
         Map<String, WeeklyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown =
                 nDto.getDailyBreakdown().entrySet().stream()
                         .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> new WeeklyReportRequestedEvent.DailyMacrosSnapshot(
-                                        e.getValue().getCalories(),
-                                        e.getValue().getProtein(),
-                                        e.getValue().getFat(),
-                                        e.getValue().getCarbs())));
+                                entry -> entry.getKey(),
+                                entry -> new WeeklyReportRequestedEvent.DailyMacrosSnapshot(
+                                        entry.getValue().getCalories(),
+                                        entry.getValue().getProtein(),
+                                        entry.getValue().getFat(),
+                                        entry.getValue().getCarbs())));
 
         WeeklyReportRequestedEvent.NutritionSnapshot nutrition = new WeeklyReportRequestedEvent.NutritionSnapshot(
                 nDto.getTotalCalories(),

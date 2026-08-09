@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface TelegramUserRepository extends JpaRepository<TelegramUserEntity, Long> {
     Optional<TelegramUserEntity> findByUserId(Long userId);
+    void deleteByUserId(Long userId);
 }

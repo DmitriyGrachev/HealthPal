@@ -2,7 +2,8 @@ package com.fit.fitnessapp.analytics.application;
 
 import com.fit.fitnessapp.auth.UserApi;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -10,10 +11,11 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MonthlyReportOrchestrator {
+
+    private static final Logger log = LoggerFactory.getLogger(MonthlyReportOrchestrator.class);
 
     private final UserApi userApi;
     private final MonthlyReportTransactionService monthlyReportTransactionService;

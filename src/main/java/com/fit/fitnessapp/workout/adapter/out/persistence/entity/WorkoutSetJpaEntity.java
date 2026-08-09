@@ -19,6 +19,6 @@ public class WorkoutSetJpaEntity {
     private int reps;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "exercise_id")
+    @JoinColumn(name = "exercise_id", nullable = false)
     private WorkoutExerciseJpaEntity exercise;
 }

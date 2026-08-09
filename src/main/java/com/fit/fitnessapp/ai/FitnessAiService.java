@@ -55,6 +55,7 @@ public class FitnessAiService {
     private final ApplicationEventPublisher eventPublisher;
     private final AiProperties aiProperties;
     private final AiPromptRenderer promptRenderer;
+    private final com.fit.fitnessapp.job.DurableJobUseCase durableJobUseCase;
 
     @EventListener
     public void onTelegramTodayRequested(TelegramTodayRequestedEvent event) {
@@ -128,11 +129,17 @@ public class FitnessAiService {
     public void onWeeklyReportRequested(WeeklyReportRequestedEvent event) {
         log.info("AI module received WeeklyReportRequestedEvent for user {}, week starting {}", event.userId(), event.weekStart());
 
+        Long jobId = durableJobUseCase != null ? durableJobUseCase.createJob("WEEKLY_REPORT", event.userId(), event.weekStart().toString()) : null;
+        if (jobId != null && !durableJobUseCase.startJob(jobId)) {
+            return;
+        }
+
         String snapshotHash = sha256(weeklySnapshotSource(event));
         Optional<AiInsightEntity> existingInsight = insightRepository.findByUserIdAndDateAndInsightType(
                 event.userId(), event.weekStart(), InsightType.WEEKLY);
         if (hasSameSnapshotHash(existingInsight, snapshotHash)) {
             log.info("Weekly insight for {} already exists. Skipping.", event.weekStart());
+            if (jobId != null) durableJobUseCase.skipJob(jobId, "Snapshot hash unchanged");
             return;
         }
 
@@ -192,8 +199,12 @@ public class FitnessAiService {
                     snapshotHash
             ));
 
+            if (jobId != null) durableJobUseCase.completeJob(jobId);
+
         } catch (Exception e) {
             logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
+            if (jobId != null) durableJobUseCase.failJob(jobId, e);
+            throw e;
         }
     }
 
@@ -202,11 +213,17 @@ public class FitnessAiService {
         log.info("AI module received MonthlyReportRequestedEvent for user {}, month {} - {}",
                 event.userId(), event.monthStart(), event.monthEnd());
 
+        Long jobId = durableJobUseCase != null ? durableJobUseCase.createJob("MONTHLY_REPORT", event.userId(), event.monthStart().toString()) : null;
+        if (jobId != null && !durableJobUseCase.startJob(jobId)) {
+            return;
+        }
+
         String snapshotHash = sha256(monthlySnapshotSource(event));
         Optional<AiInsightEntity> existingInsight = insightRepository.findByUserIdAndDateAndInsightType(
                 event.userId(), event.monthStart(), InsightType.MONTHLY);
         if (hasSameSnapshotHash(existingInsight, snapshotHash)) {
             log.info("Monthly insight for {} already exists. Skipping.", event.monthStart());
+            if (jobId != null) durableJobUseCase.skipJob(jobId, "Snapshot hash unchanged");
             return;
         }
 
@@ -272,8 +289,12 @@ public class FitnessAiService {
                     snapshotHash
             ));
 
+            if (jobId != null) durableJobUseCase.completeJob(jobId);
+
         } catch (Exception e) {
             logAiCall(event.userId(), taskType, model, startedAt, "error", errorCode(e));
+            if (jobId != null) durableJobUseCase.failJob(jobId, e);
+            throw e;
         }
     }
 

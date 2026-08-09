@@ -8,7 +8,8 @@ import com.fit.fitnessapp.telegram.domain.ConversationState;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +19,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class WeightCommandHandler implements CommandHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(WeightCommandHandler.class);
 
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
@@ -31,6 +33,7 @@ public class WeightCommandHandler implements CommandHandler {
     @Override
     public boolean canHandle(Update update) {
         if (!update.hasMessage() || !update.getMessage().hasText()) return false;
+        if (!Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) return false;
 
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
@@ -45,8 +48,11 @@ public class WeightCommandHandler implements CommandHandler {
     }
 
     @Override
-    @Transactional
     public void handle(Update update) {
+        if (update.getMessage().getChat() == null || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+            return;
+        }
+
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();
@@ -75,7 +81,6 @@ public class WeightCommandHandler implements CommandHandler {
 
     private void handleWeightInput(Long chatId, Long userId, String input) {
         try {
-            // Replace comma with dot for parsing
             String normalizedInput = input.replace(',', '.');
             BigDecimal weight = new BigDecimal(normalizedInput);
 
@@ -94,7 +99,7 @@ public class WeightCommandHandler implements CommandHandler {
             String formattedWeight = weight.stripTrailingZeros().toPlainString();
             botService.sendMessage(chatId, TelegramMessages.weightRecorded(formattedWeight));
             stateUseCase.clearState(chatId);
-            
+
         } catch (NumberFormatException e) {
             botService.sendMessage(chatId, TelegramMessages.WEIGHT_INVALID_FORMAT);
         }

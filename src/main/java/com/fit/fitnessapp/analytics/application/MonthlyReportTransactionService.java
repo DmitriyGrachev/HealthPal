@@ -6,7 +6,8 @@ import com.fit.fitnessapp.nutrition.NutritionMonthlyStatsDto;
 import com.fit.fitnessapp.workout.WorkoutMonthlyApi;
 import com.fit.fitnessapp.workout.WorkoutMonthlyStatsDto;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,10 +17,11 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MonthlyReportTransactionService {
+
+    private static final Logger log = LoggerFactory.getLogger(MonthlyReportTransactionService.class);
 
     private final NutritionMonthlyApi nutritionApi;
     private final WorkoutMonthlyApi workoutApi;
@@ -46,12 +48,12 @@ public class MonthlyReportTransactionService {
         Map<String, MonthlyReportRequestedEvent.DailyMacrosSnapshot> dailyBreakdown =
                 nDto.getDailyBreakdown().entrySet().stream()
                         .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> new MonthlyReportRequestedEvent.DailyMacrosSnapshot(
-                                        e.getValue().getCalories(),
-                                        e.getValue().getProtein(),
-                                        e.getValue().getFat(),
-                                        e.getValue().getCarbs())));
+                                entry -> entry.getKey(),
+                                entry -> new MonthlyReportRequestedEvent.DailyMacrosSnapshot(
+                                        entry.getValue().getCalories(),
+                                        entry.getValue().getProtein(),
+                                        entry.getValue().getFat(),
+                                        entry.getValue().getCarbs())));
 
         MonthlyReportRequestedEvent.NutritionSnapshot nutrition = new MonthlyReportRequestedEvent.NutritionSnapshot(
                 nDto.getTotalCalories(),

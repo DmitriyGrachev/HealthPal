@@ -47,6 +47,9 @@ public class NoteCommandHandler implements CommandHandler {
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return false;
         }
+        if (!Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+            return false;
+        }
 
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
@@ -63,8 +66,11 @@ public class NoteCommandHandler implements CommandHandler {
     }
 
     @Override
-    @Transactional
     public void handle(Update update) {
+        if (update.getMessage().getChat() == null || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+            return;
+        }
+
         Long chatId = update.getMessage().getChatId();
         Long telegramId = update.getMessage().getFrom().getId();
         String text = update.getMessage().getText();

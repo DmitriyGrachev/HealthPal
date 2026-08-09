@@ -20,22 +20,46 @@ public class TelegramAskAiService {
 
     static final String FALLBACK_MESSAGE =
             "Sorry, an error occurred while processing your question. Please try again later.";
+    static final String INJECTION_BLOCKED_MESSAGE =
+            "Your question contains invalid command instructions. Please rephrase your question.";
 
     private final MoeOrchestrator moeOrchestrator;
     private final ApplicationEventPublisher eventPublisher;
     private final AiProperties aiProperties;
     private final AiPromptRenderer promptRenderer;
     private final AiContextService aiContextService;
+    private final AiSafetyService aiSafetyService;
 
     public void answer(TelegramAskRequestedEvent event) {
+        if (aiSafetyService.hasMedicalRedFlags(event.question())) {
+            log.info("Medical red flag detected in user question for userId={}", event.userId());
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    aiSafetyService.getMedicalSafetyMessage()
+            ));
+            return;
+        }
+
+        if (aiSafetyService.hasPromptInjection(event.question())) {
+            log.warn("Prompt injection attack blocked for userId={}", event.userId());
+            eventPublisher.publishEvent(new TelegramAiResponseEvent(
+                    event.userId(),
+                    event.chatId(),
+                    INJECTION_BLOCKED_MESSAGE
+            ));
+            return;
+        }
+
         long startedAt = System.nanoTime();
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.QUICK_ANALYSIS;
         String model = aiProperties.QUICK_ANALYSIS_MODEL();
 
+        String safeQuestion = aiSafetyService.wrapUserBoundary("user_question", event.question());
         String memoryContext = aiContextService.buildMemoryContext(event.userId(), event.question());
         String prompt = promptRenderer.render("telegram-ask-v1.md", Map.of(
                 "memoryContext", memoryContext,
-                "question", event.question()
+                "question", safeQuestion
         ));
 
         try {

@@ -4,14 +4,16 @@ import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TelegramWeightListener {
+
+    private static final Logger log = LoggerFactory.getLogger(TelegramWeightListener.class);
 
     private final WeightHistoryUseCase weightHistoryUseCase;
 

@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
+import com.fit.fitnessapp.job.DurableJobUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import lombok.extern.slf4j.Slf4j;
@@ -19,30 +20,30 @@ public class NutritionSyncScheduler {
     private final SyncNutritionUseCase syncUseCase;
     private final NutritionCommandPort nutritionCommandPort;
     private final Clock clock;
+    private final DurableJobUseCase durableJobUseCase;
     private int syncWindowDays;
 
     @Autowired
-    public NutritionSyncScheduler(SyncNutritionUseCase syncUseCase, NutritionCommandPort nutritionCommandPort) {
-        this(syncUseCase, nutritionCommandPort, Clock.systemDefaultZone(), 1);
-    }
-
-    NutritionSyncScheduler(
+    public NutritionSyncScheduler(
             SyncNutritionUseCase syncUseCase,
             NutritionCommandPort nutritionCommandPort,
-            Clock clock
+            Clock clock,
+            DurableJobUseCase durableJobUseCase
     ) {
-        this(syncUseCase, nutritionCommandPort, clock, 1);
+        this(syncUseCase, nutritionCommandPort, clock, durableJobUseCase, 1);
     }
 
     NutritionSyncScheduler(
             SyncNutritionUseCase syncUseCase,
             NutritionCommandPort nutritionCommandPort,
             Clock clock,
+            DurableJobUseCase durableJobUseCase,
             int syncWindowDays
     ) {
         this.syncUseCase = syncUseCase;
         this.nutritionCommandPort = nutritionCommandPort;
         this.clock = clock;
+        this.durableJobUseCase = durableJobUseCase;
         this.syncWindowDays = Math.max(1, syncWindowDays);
     }
 
@@ -51,7 +52,7 @@ public class NutritionSyncScheduler {
         this.syncWindowDays = Math.max(1, syncWindowDays);
     }
 
-    @Scheduled(cron = "${nutrition.sync.today.cron:0 15 23 * * *}")
+    @Scheduled(cron = "${nutrition.sync.today.cron:0 15 23 * * *}", zone = "${nutrition.sync.cron.zone:UTC}")
     public void syncAllUsersToday() {
         syncAllUsersRecentWindow();
     }
@@ -66,15 +67,25 @@ public class NutritionSyncScheduler {
         int failed = 0;
 
         for (Long userId : userIds) {
-            for (int i = 0; i < syncWindowDays; i++) {
-                LocalDate date = today.minusDays(i);
-                try {
+            Long jobId = durableJobUseCase != null ? durableJobUseCase.createJob("NUTRITION_SYNC", userId, "{\"date\":\"" + today + "\"}") : null;
+            if (jobId != null) {
+                durableJobUseCase.startJob(jobId);
+            }
+            try {
+                for (int i = 0; i < syncWindowDays; i++) {
+                    LocalDate date = today.minusDays(i);
                     syncUseCase.syncDay(userId, date);
-                    success++;
-                } catch (Exception e) {
-                    failed++;
-                    log.warn("Daily nutrition sync failed userId={} date={} errorCode={}",
-                            userId, date, e.getClass().getSimpleName());
+                }
+                success++;
+                if (jobId != null) {
+                    durableJobUseCase.completeJob(jobId);
+                }
+            } catch (Exception e) {
+                failed++;
+                log.warn("Daily nutrition sync failed userId={} date={} errorCode={}",
+                        userId, today, e.getClass().getSimpleName());
+                if (jobId != null) {
+                    durableJobUseCase.failJob(jobId, e);
                 }
             }
         }

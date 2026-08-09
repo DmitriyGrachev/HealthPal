@@ -22,18 +22,21 @@ public class UserPersistenceAdapter implements UserPersistencePort, UserApi {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Override
     public void registerUser(RegisterRequest registerRequest){
+        String normalizedEmail = registerRequest.email() != null ? registerRequest.email().toLowerCase().trim() : null;
+
         if(userRepository.existsUserByUsername(registerRequest.username())){
             throw new UserAlreadyExistsException("User with such username already exists");
         }
-        if(userRepository.existsUserByEmail(registerRequest.email())){
+        if(normalizedEmail != null && userRepository.existsUserByEmail(normalizedEmail)){
             throw new UserAlreadyExistsException("User with such email already exists");
         }
 
         User user = new User();
         user.setUsername(registerRequest.username());
         user.setPassword(passwordEncoder.encode(registerRequest.password()));
-        user.setEmail(registerRequest.email());
+        user.setEmail(normalizedEmail != null ? normalizedEmail : registerRequest.email());
         user.setRoles(Set.of(Role.USER));
         try {
             userRepository.saveAndFlush(user);
@@ -41,6 +44,7 @@ public class UserPersistenceAdapter implements UserPersistencePort, UserApi {
             throw new UserAlreadyExistsException("User with such username or email already exists");
         }
     }
+
     @Override
     public List<Long> getAllUserIds() {
         return userRepository.findAll().stream().map(User::getId).toList();

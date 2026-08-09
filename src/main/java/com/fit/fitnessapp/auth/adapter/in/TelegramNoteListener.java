@@ -4,16 +4,18 @@ import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.api.TelegramNoteRequestedEvent;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TelegramNoteListener {
+
+    private static final Logger log = LoggerFactory.getLogger(TelegramNoteListener.class);
 
     private final UserNoteUseCase userNoteUseCase;
 

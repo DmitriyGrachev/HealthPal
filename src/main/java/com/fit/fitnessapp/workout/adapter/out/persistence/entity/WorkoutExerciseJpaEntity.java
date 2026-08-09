@@ -28,7 +28,7 @@ public class WorkoutExerciseJpaEntity {
     private String exerciseName;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workout_id")
+    @JoinColumn(name = "workout_id", nullable = false)
     private WorkoutJpaEntity workoutJpaEntity;
 
     @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
