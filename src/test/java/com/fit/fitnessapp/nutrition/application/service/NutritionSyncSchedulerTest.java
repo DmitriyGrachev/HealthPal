@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
+import com.fit.fitnessapp.job.DurableJobUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import org.junit.jupiter.api.Test;
@@ -34,13 +35,16 @@ class NutritionSyncSchedulerTest {
     @Mock
     private NutritionCommandPort nutritionCommandPort;
 
+    @Mock
+    private DurableJobUseCase durableJobUseCase;
+
     @Test
     void syncsTodayForEveryConnectedUserUsingConfiguredClock() {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T20:30:00Z"), ZoneOffset.UTC);
         LocalDate expectedDate = LocalDate.of(2026, 7, 6);
         when(nutritionCommandPort.getAllConnectedUserIds()).thenReturn(List.of(41L, 42L));
 
-        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock).syncAllUsersToday();
+        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, durableJobUseCase).syncAllUsersToday();
 
         InOrder inOrder = inOrder(syncUseCase);
         inOrder.verify(syncUseCase).syncDay(41L, expectedDate);
@@ -52,7 +56,7 @@ class NutritionSyncSchedulerTest {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T20:30:00Z"), ZoneOffset.UTC);
         when(nutritionCommandPort.getAllConnectedUserIds()).thenReturn(List.of(42L));
 
-        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, 2).syncAllUsersRecentWindow();
+        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, durableJobUseCase, 2).syncAllUsersRecentWindow();
 
         InOrder inOrder = inOrder(syncUseCase);
         inOrder.verify(syncUseCase).syncDay(42L, LocalDate.of(2026, 7, 6));
@@ -74,7 +78,7 @@ class NutritionSyncSchedulerTest {
                 .when(syncUseCase)
                 .syncDay(any(), any());
 
-        assertThatCode(() -> new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock).syncAllUsersToday())
+        assertThatCode(() -> new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, durableJobUseCase).syncAllUsersToday())
                 .doesNotThrowAnyException();
 
         InOrder inOrder = inOrder(syncUseCase);
@@ -92,7 +96,7 @@ class NutritionSyncSchedulerTest {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T20:30:00Z"), ZoneOffset.UTC);
         when(nutritionCommandPort.getAllConnectedUserIds()).thenReturn(List.of());
 
-        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock).syncAllUsersToday();
+        new NutritionSyncScheduler(syncUseCase, nutritionCommandPort, clock, durableJobUseCase).syncAllUsersToday();
 
         verifyNoInteractions(syncUseCase);
     }
@@ -102,6 +106,8 @@ class NutritionSyncSchedulerTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(SyncNutritionUseCase.class, () -> syncUseCase);
             context.registerBean(NutritionCommandPort.class, () -> nutritionCommandPort);
+            context.registerBean(Clock.class, () -> Clock.systemUTC());
+            context.registerBean(DurableJobUseCase.class, () -> durableJobUseCase);
             context.register(NutritionSyncScheduler.class);
 
             context.refresh();

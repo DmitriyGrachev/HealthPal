@@ -193,21 +193,10 @@ class DailyInsightSnapshotServiceTest {
     }
 
     private WorkoutDailyStatsDto stats(LocalDate date, int sessions, double volumeKg) {
-        return WorkoutDailyStatsDto.builder()
-                .date(date)
-                .totalSessions(sessions)
-                .totalVolumeKg(volumeKg)
-                .build();
+        return new WorkoutDailyStatsDto(date, sessions, volumeKg, 0, 0, 0.0);
     }
 
     private WorkoutDailyStatsDto cardioStats(LocalDate date, int sessions, int durationSeconds, double calories) {
-        return WorkoutDailyStatsDto.builder()
-                .date(date)
-                .totalSessions(sessions)
-                .totalVolumeKg(0.0)
-                .cardioSessions(sessions)
-                .cardioDurationSeconds(durationSeconds)
-                .cardioCalories(calories)
-                .build();
+        return new WorkoutDailyStatsDto(date, sessions, 0.0, sessions, durationSeconds, calories);
     }
 }

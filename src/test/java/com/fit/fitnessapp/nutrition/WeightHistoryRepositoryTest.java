@@ -27,13 +27,14 @@ class WeightHistoryRepositoryTest {
     void saveWeightUpdatesExistingUserDateSourceRow() {
         WeightHistoryRepository repository = new WeightHistoryRepository(jpaRepository);
         LocalDate date = LocalDate.of(2026, 7, 5);
-        WeightHistory existing = WeightHistory.builder()
-                .id(10L)
-                .userId(42L)
-                .weightKg(new BigDecimal("82.00"))
-                .date(date)
-                .source(WeightHistory.WeightSource.FATSECRET)
-                .build();
+        WeightHistory existing = new WeightHistory(
+                10L,
+                42L,
+                new BigDecimal("82.00"),
+                date,
+                WeightHistory.WeightSource.FATSECRET,
+                null
+        );
         when(jpaRepository.findByUserIdAndDateAndSource(42L, date, WeightHistory.WeightSource.FATSECRET))
                 .thenReturn(Optional.of(existing));
         when(jpaRepository.save(existing)).thenReturn(existing);

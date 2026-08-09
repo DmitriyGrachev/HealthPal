@@ -91,7 +91,18 @@ class WorkoutJdbcQueryAdapterIntegrationTest extends AbstractPostgresIntegration
                 .doesNotContainValue(9_990.0);
     }
 
+    private void ensureUser(long userId) {
+        jdbc.update(
+                "INSERT INTO users (id, username, email, password) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING",
+                userId,
+                "user" + userId,
+                "user" + userId + "@example.com",
+                "pass"
+        );
+    }
+
     private long insertWorkout(long userId, LocalDateTime date) {
+        ensureUser(userId);
         Long id = jdbc.queryForObject("SELECT nextval('workout_seq')", Long.class);
         jdbc.update(
                 "INSERT INTO workout (id, jefit_id, date, user_id) VALUES (?, ?, ?, ?)",

@@ -10,6 +10,7 @@ import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.Telegra
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -128,10 +129,13 @@ class NoteCommandHandlerTest {
     private Update update(Long chatId, Long telegramId, String text) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
+        Chat chat = mock(Chat.class);
         User from = mock(User.class);
 
         when(update.hasMessage()).thenReturn(true);
         when(update.getMessage()).thenReturn(message);
+        when(message.getChat()).thenReturn(chat);
+        when(chat.isUserChat()).thenReturn(true);
         when(message.hasText()).thenReturn(true);
         when(message.getText()).thenReturn(text);
         when(message.getChatId()).thenReturn(chatId);

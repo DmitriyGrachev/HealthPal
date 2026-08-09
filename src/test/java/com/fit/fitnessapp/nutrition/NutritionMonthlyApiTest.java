@@ -46,8 +46,8 @@ class NutritionMonthlyApiTest {
 
         NutritionMonthlyStatsDto result = adapter.getMonthlyStats(userId, start, end);
 
-        assertThat(result.getMonthStart()).isEqualTo(start);
-        assertThat(result.getMonthEnd()).isEqualTo(end);
+        assertThat(result.monthStart()).isEqualTo(start);
+        assertThat(result.monthEnd()).isEqualTo(end);
         assertThat(result.getTotalCalories()).isEqualTo(3000);
         assertThat(result.getAvgCalories()).isEqualTo(100.0);
         assertThat(result.getAvgProtein()).isEqualTo(50.0);

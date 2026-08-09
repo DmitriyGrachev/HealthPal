@@ -11,24 +11,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 
+import java.sql.Timestamp;
+import java.util.Collections;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class LinkCommandHandlerTest {
@@ -37,13 +35,15 @@ class LinkCommandHandlerTest {
     private TelegramBotService botService;
     @Mock
     private TelegramUserRepository telegramUserRepository;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     private TelegramLinkCodeManager codeManager;
     private LinkCommandHandler handler;
 
     @BeforeEach
     void setUp() {
-        codeManager = spy(new TelegramLinkCodeManager());
+        codeManager = spy(new TelegramLinkCodeManager(jdbcTemplate));
         handler = new LinkCommandHandler(botService, codeManager, telegramUserRepository);
     }
 
@@ -71,7 +71,11 @@ class LinkCommandHandlerTest {
         Long secondChatId = 789L;
         Long secondTelegramId = 321L;
         Long appUserId = 42L;
-        String code = codeManager.generateCode(appUserId);
+
+        String code = "123456";
+        when(jdbcTemplate.query(contains("telegram_link_codes"), org.mockito.ArgumentMatchers.<RowMapper<Long>>any(), eq(TelegramLinkCodeManager.hashCode(code)), any(Timestamp.class)))
+                .thenReturn(List.of(appUserId))
+                .thenReturn(Collections.emptyList());
 
         handler.handle(update(firstChatId, firstTelegramId, "/link " + code));
         handler.handle(update(secondChatId, secondTelegramId, "/link " + code));
@@ -82,8 +86,6 @@ class LinkCommandHandlerTest {
         assertThat(entityCaptor.getValue().getUserId()).isEqualTo(appUserId);
         assertThat(entityCaptor.getValue().getChatId()).isEqualTo(firstChatId);
 
-        verify(codeManager).invalidateCode(code);
-        assertThat(codeManager.getUserIdByCode(code)).isEmpty();
         verify(botService).sendMessage(firstChatId, TelegramMessages.LINK_SUCCESS);
         verify(botService).sendMessage(secondChatId, TelegramMessages.LINK_INVALID);
     }

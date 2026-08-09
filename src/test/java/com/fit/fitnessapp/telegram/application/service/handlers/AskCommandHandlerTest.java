@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -95,9 +96,12 @@ class AskCommandHandlerTest {
     private Update update(Long chatId, Long telegramId, String text) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
+        Chat chat = mock(Chat.class);
         User from = mock(User.class);
 
         when(update.getMessage()).thenReturn(message);
+        when(message.getChat()).thenReturn(chat);
+        when(chat.isUserChat()).thenReturn(true);
         when(message.getText()).thenReturn(text);
         when(message.getChatId()).thenReturn(chatId);
         when(message.getFrom()).thenReturn(from);

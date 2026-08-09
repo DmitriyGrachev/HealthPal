@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -68,8 +69,11 @@ class TodayCommandHandlerTest {
     private Update update(Long chatId, Long telegramId, String text) {
         Update update = mock(Update.class);
         Message message = mock(Message.class);
+        Chat chat = mock(Chat.class);
         User from = mock(User.class);
         when(update.getMessage()).thenReturn(message);
+        when(message.getChat()).thenReturn(chat);
+        when(chat.isUserChat()).thenReturn(true);
         when(message.getChatId()).thenReturn(chatId);
         when(message.getText()).thenReturn(text);
         when(message.getFrom()).thenReturn(from);

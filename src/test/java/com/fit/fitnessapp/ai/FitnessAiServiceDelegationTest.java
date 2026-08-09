@@ -62,10 +62,14 @@ class FitnessAiServiceDelegationTest {
     @Mock
     private AiPromptRenderer promptRenderer;
 
+    @Mock
+    private com.fit.fitnessapp.job.DurableJobUseCase durableJobUseCase;
+
     private FitnessAiService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(durableJobUseCase.startJob(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         service = new FitnessAiService(
                 dailyInsightService,
                 telegramAskAiService,
@@ -77,7 +81,8 @@ class FitnessAiServiceDelegationTest {
                 weightHistoryUseCase,
                 eventPublisher,
                 aiProperties,
-                promptRenderer
+                promptRenderer,
+                durableJobUseCase
         );
     }
 
