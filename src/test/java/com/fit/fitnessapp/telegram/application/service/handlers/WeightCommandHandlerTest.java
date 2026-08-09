@@ -108,7 +108,7 @@ class WeightCommandHandlerTest {
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.weightKg()).isEqualByComparingTo("82.5");
 
-        verify(botService).sendMessage(eq(chatId), contains("82.5 kg recorded"));
+        verify(botService).sendMessage(eq(chatId), contains("82.5 kg received for processing"));
         verify(stateUseCase).clearState(chatId);
     }
 

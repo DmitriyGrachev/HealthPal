@@ -17,7 +17,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DurableJobServiceTest {
@@ -29,20 +30,21 @@ class DurableJobServiceTest {
     private DurableJobService service;
 
     @Test
-    @DisplayName("Should create job in PENDING state")
+    @DisplayName("Should create durable job with PENDING status")
     void createJob_Success() {
-        when(jdbcTemplate.queryForObject(contains("INSERT INTO durable_jobs"), eq(Long.class), eq("WEEKLY_REPORT"), eq(1L), eq("{}")))
-                .thenReturn(10L);
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), eq("NUTRITION_SYNC"), eq(1L), eq("{}"), any()))
+                .thenReturn(100L);
 
-        Long jobId = service.createJob("WEEKLY_REPORT", 1L, "{}");
+        Long jobId = service.createJob("NUTRITION_SYNC", 1L, "{}");
 
-        assertThat(jobId).isEqualTo(10L);
+        assertThat(jobId).isEqualTo(100L);
     }
 
     @Test
-    @DisplayName("Should mark job as RUNNING when started")
+    @DisplayName("Should start pending job successfully")
     void startJob_Success() {
-        when(jdbcTemplate.update(contains("UPDATE durable_jobs SET status = 'RUNNING'"), eq(10L))).thenReturn(1);
+        when(jdbcTemplate.update(contains("UPDATE durable_jobs SET status = 'RUNNING'"), eq(10L)))
+                .thenReturn(1);
 
         boolean started = service.startJob(10L);
 
@@ -61,7 +63,7 @@ class DurableJobServiceTest {
     @DisplayName("Should schedule backoff retry when job fails before max attempts")
     void failJob_SchedulesBackoff() {
         DurableJobDto job = new DurableJobDto(
-                10L, "WEEKLY_REPORT", 1L, JobStatus.RUNNING, 1, 3, null, null, "{}", Instant.now(), Instant.now()
+                10L, "WEEKLY_REPORT", 1L, JobStatus.RUNNING, 1, 3, null, null, "{}", null, Instant.now(), Instant.now()
         );
         when(jdbcTemplate.query(contains("SELECT * FROM durable_jobs WHERE id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DurableJobDto>>any(), eq(10L)))
                 .thenReturn(List.of(job));
@@ -75,7 +77,7 @@ class DurableJobServiceTest {
     @DisplayName("Should mark job as FAILED when max attempts reached")
     void failJob_TerminalFailure() {
         DurableJobDto job = new DurableJobDto(
-                10L, "WEEKLY_REPORT", 1L, JobStatus.RUNNING, 3, 3, null, null, "{}", Instant.now(), Instant.now()
+                10L, "WEEKLY_REPORT", 1L, JobStatus.RUNNING, 3, 3, null, null, "{}", null, Instant.now(), Instant.now()
         );
         when(jdbcTemplate.query(contains("SELECT * FROM durable_jobs WHERE id = ?"), org.mockito.ArgumentMatchers.<RowMapper<DurableJobDto>>any(), eq(10L)))
                 .thenReturn(List.of(job));
