@@ -53,7 +53,6 @@ jobs:
   dependency-hygiene:
     name: Dependency hygiene
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Check out repository
@@ -68,3 +67,11 @@ jobs:
 
       - name: Analyze dependencies
         run: mvn -B dependency:analyze
+
+      - name: Check for privacy-sensitive logging patterns
+        shell: bash
+        run: |
+          if grep -RInE 'System\.out|System\.err|log\.(info|warn|error).*\b(text|prompt|content|token|secret)=' src/main/java; then
+            echo "Potential privacy-sensitive logging pattern detected"
+            exit 1
+          fi
