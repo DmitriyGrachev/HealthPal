@@ -68,7 +68,7 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
             }
 
             if (!dayFound) {
-                return new NutritionDay(userId, date, Collections.emptyList());
+                return NutritionDay.missingSync(userId, date);
             }
             return new NutritionDay(
                     userId,

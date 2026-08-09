@@ -2,7 +2,7 @@ package com.fit.fitnessapp.nutrition.adapter.in.web;
 
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileService;
-import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileSyncService;
+import com.fit.fitnessapp.nutrition.application.service.FatSecretSingleProfileSyncer;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FatSecretUserSummaryDto;
@@ -18,13 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("dev")
 public class TestController {
 
-    private final FatSecretProfileSyncService fatSecretProfileSyncService;
+    private final FatSecretSingleProfileSyncer singleProfileSyncer;
     private final FatSecretProfileService fatSecretProfileService;
     private final NutritionCommandPort nutritionCommandPort;
 
     @PostMapping("/test/sync-weight")
     public void testSync(@RequestParam Long userId) {
-        fatSecretProfileSyncService.syncUserProfile(userId);
+        singleProfileSyncer.syncUserProfile(userId);
     }
 
     @GetMapping("/test/user-summary")
@@ -33,9 +33,13 @@ public class TestController {
                 .map(savedToken -> new FatSecretToken(
                         savedToken.accessToken(),
                         savedToken.accessTokenSecret() != null ? savedToken.accessTokenSecret() : ""))
-                .orElseThrow(() -> new IllegalArgumentException("User not connected to FatSecret"));
+                .orElse(null);
+
+        if (token == null) {
+            return null;
+        }
+
         FatSecretAuthResult authResult = new FatSecretAuthResult(userId, token);
-        
         return fatSecretProfileService.getUserSummary(userId, authResult);
     }
 }

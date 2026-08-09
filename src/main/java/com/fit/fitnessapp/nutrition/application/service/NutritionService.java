@@ -48,7 +48,6 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     }
 
     @Override
-    @Transactional
     public void syncDay(Long userId, LocalDate date) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new MissingFatSecretConnectionException(userId));
@@ -71,7 +70,6 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     }
 
     @Override
-    @Transactional
     public void syncMonth(Long userId) {
         FatSecretToken token = nutritionCommandPort.getToken(userId)
                 .orElseThrow(() -> new MissingFatSecretConnectionException(userId));

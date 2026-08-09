@@ -26,7 +26,6 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
-    @Transactional
     public WorkoutImportResult importWorkouts(InputStream fileStream, String format, Long userId) {
 
         WorkoutParserPort parser = parsers.stream()

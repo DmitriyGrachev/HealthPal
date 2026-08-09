@@ -35,6 +35,7 @@ public class DurableJobService implements DurableJobUseCase {
             rs.getTimestamp("next_retry_at") != null ? rs.getTimestamp("next_retry_at").toInstant() : null,
             rs.getString("error_message"),
             rs.getString("payload_json"),
+            rs.getString("idempotency_key"),
             rs.getTimestamp("created_at").toInstant(),
             rs.getTimestamp("updated_at").toInstant()
     );
@@ -42,15 +43,34 @@ public class DurableJobService implements DurableJobUseCase {
     @Override
     @Transactional
     public Long createJob(String jobType, Long userId, String payloadJson) {
+        return createJob(jobType, userId, payloadJson, null);
+    }
+
+    @Override
+    @Transactional
+    public Long createJob(String jobType, Long userId, String payloadJson, String idempotencyKey) {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            List<Long> existing = jdbcTemplate.query(
+                    "SELECT id FROM durable_jobs WHERE idempotency_key = ?",
+                    (rs, rowNum) -> rs.getLong("id"),
+                    idempotencyKey.trim()
+            );
+            if (!existing.isEmpty()) {
+                log.info("Durable job creation deduplicated via idempotencyKey={} existingId={}", idempotencyKey, existing.get(0));
+                return existing.get(0);
+            }
+        }
+
         Long id = jdbcTemplate.queryForObject(
-                "INSERT INTO durable_jobs (job_type, user_id, status, attempts, max_attempts, payload_json, created_at, updated_at) " +
-                        "VALUES (?, ?, 'PENDING', 0, 3, ?, NOW(), NOW()) RETURNING id",
+                "INSERT INTO durable_jobs (job_type, user_id, status, attempts, max_attempts, payload_json, idempotency_key, created_at, updated_at) " +
+                        "VALUES (?, ?, 'PENDING', 0, 3, ?, ?, NOW(), NOW()) RETURNING id",
                 Long.class,
                 jobType,
                 userId,
-                payloadJson
+                payloadJson,
+                idempotencyKey != null ? idempotencyKey.trim() : null
         );
-        log.info("Created durable job id={} type={} userId={}", id, jobType, userId);
+        log.info("Created durable job id={} type={} userId={} idempotencyKey={}", id, jobType, userId, idempotencyKey);
         return id;
     }
 
@@ -144,6 +164,20 @@ public class DurableJobService implements DurableJobUseCase {
                 "SELECT * FROM durable_jobs WHERE status = 'PENDING' AND (next_retry_at IS NULL OR next_retry_at <= NOW()) ORDER BY id ASC",
                 rowMapper
         );
+    }
+
+    @Override
+    @Transactional
+    public void recoverStuckJobs(int timeoutMinutes) {
+        Instant cutoff = Instant.now().minus(timeoutMinutes, ChronoUnit.MINUTES);
+        int resetCount = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = NOW(), error_message = 'Reset stuck RUNNING job', updated_at = NOW() " +
+                        "WHERE status = 'RUNNING' AND updated_at <= ?",
+                Timestamp.from(cutoff)
+        );
+        if (resetCount > 0) {
+            log.warn("Recovered {} stuck RUNNING durable jobs older than {} minutes", resetCount, timeoutMinutes);
+        }
     }
 
     @Override

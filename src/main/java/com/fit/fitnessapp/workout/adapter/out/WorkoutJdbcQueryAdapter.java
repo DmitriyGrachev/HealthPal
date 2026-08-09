@@ -58,17 +58,20 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getAllWorkoutSummaryThisWeek(Long userId) {
-        return getWorkoutSummary(userId, LocalDateTime.now().minusWeeks(1));
+        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.isoWeek(LocalDate.now());
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
     }
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getWorkoutSummaryLastTwoWeeks(Long userId) {
-        return getWorkoutSummary(userId, LocalDateTime.now().minusWeeks(2));
+        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.isoWeek(LocalDate.now().minusWeeks(1));
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
     }
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getWorkoutSummaryThisMonth(Long userId) {
-        return getWorkoutSummary(userId, LocalDateTime.now().minusMonths(1));
+        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.calendarMonth(java.time.YearMonth.now());
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
     }
 
     private List<WorkoutSummaryWeeklyDto> getWorkoutSummary(Long userId, LocalDateTime startDate) {

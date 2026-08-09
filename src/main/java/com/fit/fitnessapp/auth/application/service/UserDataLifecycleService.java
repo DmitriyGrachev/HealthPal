@@ -1,21 +1,18 @@
 package com.fit.fitnessapp.auth.application.service;
 
+import com.fit.fitnessapp.auth.api.UserNoteDeletedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserDataLifecycleUseCase;
-import com.fit.fitnessapp.auth.application.port.out.UserNotePersistencePort;
 import com.fit.fitnessapp.auth.domain.UserAccountDeletionResult;
 import com.fit.fitnessapp.auth.domain.UserDataExportDto;
-import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -25,102 +22,74 @@ public class UserDataLifecycleService implements UserDataLifecycleUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(UserDataLifecycleService.class);
 
-    private final UserNotePersistencePort userNotePersistencePort;
     private final JdbcTemplate jdbcTemplate;
-    private final VectorStore vectorStore;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
     public UserDataExportDto exportUserData(Long userId) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT username, email, registered_at FROM users WHERE id = ?",
-                userId);
+        log.info("Exporting personal data for userId={}", userId);
 
-        if (rows.isEmpty()) {
+        List<Map<String, Object>> userRow = jdbcTemplate.queryForList("SELECT id, email, username FROM users WHERE id = ?", userId);
+        if (userRow.isEmpty()) {
             throw new IllegalArgumentException("User not found: " + userId);
         }
+        String email = (String) userRow.get(0).get("email");
+        String username = (String) userRow.get(0).get("username");
 
-        Map<String, Object> userRow = rows.get(0);
-        String username = (String) userRow.get("username");
-        String email = (String) userRow.get("email");
-        Timestamp regTimestamp = (Timestamp) userRow.get("registered_at");
-        LocalDateTime registeredAt = regTimestamp != null ? regTimestamp.toLocalDateTime() : LocalDateTime.now();
+        List<Map<String, Object>> profiles = jdbcTemplate.queryForList("SELECT * FROM profile WHERE user_id = ?", userId);
+        Map<String, Object> profileMap = profiles.isEmpty() ? Map.of() : profiles.get(0);
 
-        boolean fatSecretConnected = Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM fatsecret_connection WHERE user_id = ?)",
-                Boolean.class,
-                userId));
+        List<Map<String, Object>> weightHistory = jdbcTemplate.queryForList("SELECT id, weight_kg, recorded_at FROM weight_history WHERE user_id = ? ORDER BY recorded_at DESC", userId);
 
-        Long telegramId = jdbcTemplate.query(
-                "SELECT telegram_id FROM telegram_users WHERE user_id = ?",
-                (rs, rowNum) -> rs.getLong("telegram_id"),
-                userId).stream().findFirst().orElse(null);
+        List<Map<String, Object>> foodEntries = jdbcTemplate.queryForList("SELECT * FROM fatsecret_food_entry WHERE day_id IN (SELECT id FROM fatsecret_day WHERE user_id = ?)", userId);
 
-        List<UserNoteDto> notes = userNotePersistencePort.findByUserId(userId);
+        List<Map<String, Object>> workoutSessions = jdbcTemplate.queryForList("SELECT * FROM workout_session WHERE user_id = ?", userId);
 
-        int totalNutritionDays = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM fatsecret_day WHERE user_id = ?",
-                Integer.class,
-                userId);
-
-        int totalWorkouts = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM workout WHERE user_id = ?",
-                Integer.class,
-                userId);
-
-        int totalCardioSessions = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM workout_cardio WHERE user_id = ?",
-                Integer.class,
-                userId);
+        List<Map<String, Object>> userNotes = jdbcTemplate.queryForList("SELECT id, note_type, content, created_at FROM user_note WHERE user_id = ?", userId);
 
         return new UserDataExportDto(
                 userId,
-                username,
                 email,
-                registeredAt,
-                fatSecretConnected,
-                telegramId != null,
-                telegramId,
-                notes,
-                totalNutritionDays,
-                totalWorkouts,
-                totalCardioSessions
+                username,
+                Instant.now(),
+                profileMap,
+                weightHistory,
+                foodEntries,
+                workoutSessions,
+                userNotes
         );
     }
 
     @Override
     @Transactional
     public void disconnectFatSecret(Long userId) {
+        log.info("Disconnecting FatSecret OAuth connection for userId={}", userId);
         jdbcTemplate.update("DELETE FROM fatsecret_connection WHERE user_id = ?", userId);
-        log.info("FatSecret disconnected userId={}", userId);
     }
 
     @Override
     @Transactional
     public UserAccountDeletionResult deleteAccount(Long userId) {
-        Boolean userExists = jdbcTemplate.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)",
-                Boolean.class,
-                userId);
+        log.info("Initiating cascading account deletion for userId={}", userId);
 
-        if (!Boolean.TRUE.equals(userExists)) {
-            return new UserAccountDeletionResult(userId, false, Instant.now(), "User not found");
+        int notesDeleted = jdbcTemplate.update("DELETE FROM user_note WHERE user_id = ?", userId);
+
+        int memoriesDeleted = jdbcTemplate.update("DELETE FROM user_memory WHERE user_id = ?", userId);
+
+        jdbcTemplate.update("DELETE FROM fatsecret_connection WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM telegram_user WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM profile WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM weight_history WHERE user_id = ?", userId);
+
+        int usersDeleted = jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
+        if (usersDeleted == 0) {
+            throw new IllegalArgumentException("User deletion failed. User not found: " + userId);
         }
 
-        try {
-            jdbcTemplate.update("DELETE FROM user_memory WHERE (metadata->>'user_id')::bigint = ?", userId);
-        } catch (Exception e) {
-            log.debug("user_memory table cleanup skipped userId={}", userId);
-        }
+        eventPublisher.publishEvent(new UserNoteDeletedEvent(null, userId));
+        log.info("Account deletion completed userId={} notesDeleted={} memoriesDeleted={}", userId, notesDeleted, memoriesDeleted);
 
-        jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
-        log.info("User account deleted userId={}", userId);
-
-        return new UserAccountDeletionResult(
-                userId,
-                true,
-                Instant.now(),
-                "Account and all associated personal data successfully deleted"
-        );
+        return new UserAccountDeletionResult(userId, true, Instant.now(), "Account and personal data deleted successfully.");
     }
 }

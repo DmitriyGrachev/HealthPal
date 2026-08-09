@@ -34,12 +34,10 @@ public class DailyInsightService {
     private final AiPromptRenderer promptRenderer;
     private final AiContextService aiContextService;
 
-    @Transactional
     public DailyInsightResult generate(Long userId, LocalDate date) {
         return generate(userId, date, false);
     }
 
-    @Transactional
     public DailyInsightResult generateOrPublishExisting(Long userId, LocalDate date) {
         return generate(userId, date, true);
     }

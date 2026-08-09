@@ -12,6 +12,7 @@ public record DurableJobDto(
         Instant nextRetryAt,
         String errorMessage,
         String payloadJson,
+        String idempotencyKey,
         Instant createdAt,
         Instant updatedAt
 ) {}

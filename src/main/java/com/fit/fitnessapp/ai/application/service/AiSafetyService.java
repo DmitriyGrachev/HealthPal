@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai.application.service;
 
+import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,12 +36,27 @@ public class AiSafetyService {
 
     public String sanitizeUserInput(String text) {
         if (text == null) return "";
-        return text.replace("```", "").replace("<script>", "").trim();
+        return text.replace("```", "")
+                .replace("<script>", "")
+                .replace("</script>", "")
+                .replace("</user_question>", "&lt;/user_question&gt;")
+                .replace("</user_note>", "&lt;/user_note&gt;")
+                .trim();
     }
 
     public String wrapUserBoundary(String tagName, String content) {
         String safeContent = sanitizeUserInput(content);
         return "<" + tagName + ">\n" + safeContent + "\n</" + tagName + ">";
+    }
+
+    public boolean isValidNutritionInsightResponse(NutritionInsightResponse response) {
+        if (response == null) return false;
+        if (response.summary() == null || response.summary().isBlank()) return false;
+        if (response.macroAnalysis() != null) {
+            double cals = response.macroAnalysis().avgCalories();
+            if (cals < 0 || cals > 20000) return false;
+        }
+        return true;
     }
 
     public String getMedicalSafetyMessage() {

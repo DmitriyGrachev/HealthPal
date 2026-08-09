@@ -27,26 +27,34 @@ public class GeminiAdapter implements AiModelPort {
 
     @Override
     public NutritionInsightResponse generate(String prompt) {
-        String formattedPrompt = prompt + "\n\n" + outputConverter.getFormat();
-        try {
-            return chatClient.prompt()
-                    .user(formattedPrompt)
-                    .call()
-                    .entity(NutritionInsightResponse.class);
-        } catch (Exception e) {
-            log.warn("Gemini output parsing failed, attempting raw extraction fallback: {}", e.getMessage());
-            try {
-                String rawContent = chatClient.prompt().user(prompt).call().content();
-                return createDegradedResponse(rawContent);
-            } catch (Exception ex) {
-                throw new AiUnavailableException("Google Gemini is unavailable", ex);
-            }
-        }
+        return generate(prompt, null);
     }
 
     @Override
     public NutritionInsightResponse generate(String prompt, String modelName) {
-        return generate(prompt);
+        String formattedPrompt = prompt + "\n\n" + outputConverter.getFormat();
+        String rawContent = null;
+        try {
+            rawContent = chatClient.prompt()
+                    .user(formattedPrompt)
+                    .call()
+                    .content();
+
+            if (rawContent != null && !rawContent.isBlank()) {
+                try {
+                    return outputConverter.convert(rawContent);
+                } catch (Exception parseException) {
+                    log.warn("Gemini output JSON parsing failed, creating degraded response: {}", parseException.getMessage());
+                    return createDegradedResponse(rawContent);
+                }
+            }
+            throw new AiUnavailableException("Empty response from Google Gemini");
+        } catch (Exception e) {
+            if (rawContent != null) {
+                return createDegradedResponse(rawContent);
+            }
+            throw new AiUnavailableException("Google Gemini is unavailable", e);
+        }
     }
 
     private NutritionInsightResponse createDegradedResponse(String rawContent) {

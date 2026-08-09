@@ -51,11 +51,11 @@ public final class TelegramMessages {
     }
 
     public static String noteSaved(String type, String content) {
-        return "Note saved!\nType: " + type + "\nContent: " + content;
+        return "Note received for processing.\nType: " + type + "\nContent: " + content;
     }
 
     public static String weightRecorded(String formattedWeight) {
-        return "Got it! " + formattedWeight + " kg recorded.";
+        return "Got it! " + formattedWeight + " kg received for processing.";
     }
 
     public static String testCodeGenerated(String code) {
