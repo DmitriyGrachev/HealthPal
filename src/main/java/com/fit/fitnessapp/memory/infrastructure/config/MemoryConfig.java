@@ -16,7 +16,7 @@ public class MemoryConfig {
             JdbcTemplate jdbcTemplate,
             @Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel) {
         return PgVectorStore.builder(jdbcTemplate, embeddingModel)
-                .dimensions(2048)//pgvector max 2000, decided to go with it jor now
+                .dimensions(2048)
                 .vectorTableName("user_memory")
                 .initializeSchema(false)
                 .build();

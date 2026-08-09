@@ -1,6 +1,5 @@
 package com.fit.fitnessapp.ai;
 
-
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,21 +18,29 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("RateLimitInterceptor — preHandle логика")
+@DisplayName("RateLimitInterceptor - preHandle Logic")
 class RateLimitInterceptorTest {
 
     @Mock
     private RateLimiterService rateLimiterService;
-    @Mock private CurrentUserApi currentUserApi;
-    @Mock private HttpServletRequest request;
-    @Mock private HttpServletResponse response;
-    @Mock private Bucket bucket;
+
+    @Mock
+    private CurrentUserApi currentUserApi;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @Mock
+    private HttpServletResponse response;
+
+    @Mock
+    private Bucket bucket;
 
     @InjectMocks
     private RateLimitInterceptor interceptor;
 
     @Test
-    @DisplayName("Токен есть → запрос пропускается (true)")
+    @DisplayName("When token is available, request should be allowed")
     void whenTokenAvailable_returnsTrue() throws Exception {
         when(currentUserApi.getCurrentUserId()).thenReturn(1L);
         when(rateLimiterService.resolveBucket(1L)).thenReturn(bucket);
@@ -46,7 +53,7 @@ class RateLimitInterceptorTest {
     }
 
     @Test
-    @DisplayName("Токенов нет → 429 и запрос блокируется (false)")
+    @DisplayName("When no tokens available, should return 429 and block request")
     void whenNoTokens_sendsTooManyRequestsAndReturnsFalse() throws Exception {
         when(currentUserApi.getCurrentUserId()).thenReturn(1L);
         when(rateLimiterService.resolveBucket(1L)).thenReturn(bucket);
@@ -59,14 +66,16 @@ class RateLimitInterceptorTest {
     }
 
     @Test
-    @DisplayName("Юзер не авторизован (исключение) → пропускаем запрос (true)")
-    void whenUserNotAuthenticated_returnsTrue() throws Exception {
+    @DisplayName("When current user cannot be resolved, request should be rejected fail-closed")
+    void whenCurrentUserCannotBeResolved_sendsUnauthorizedAndReturnsFalse() throws Exception {
         when(currentUserApi.getCurrentUserId())
                 .thenThrow(new RuntimeException("Not authenticated"));
 
         boolean result = interceptor.preHandle(request, response, new Object());
 
-        assertThat(result).isTrue();
+        assertThat(result).isFalse();
+        verify(response).sendError(eq(HttpStatus.UNAUTHORIZED.value()), anyString());
         verifyNoInteractions(rateLimiterService);
     }
 }
+

@@ -1,6 +1,8 @@
 package com.fit.fitnessapp.memory.application.service;
 
-import com.fit.fitnessapp.ai.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightDeletedEvent;
+import com.fit.fitnessapp.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
 import com.fit.fitnessapp.memory.domain.MemoryType;
 import lombok.RequiredArgsConstructor;
@@ -26,17 +28,17 @@ public class MemoryEventListener {
     @ApplicationModuleListener
     public void onInsightGenerated(InsightGeneratedEvent event) {
 
-        // Ежедневные инсайты — краткосрочные (14 дней)
-        // Недельные/месячные — среднесрочные (90 дней)
+        // Daily insights are short-term (14 days).
+        // Weekly/monthly insights are medium-term (90 days).
         Instant expiresAt = switch (event.insightType()) {
-            case DAILY   -> Instant.now().plus(14, ChronoUnit.DAYS);
-            case WEEKLY  -> Instant.now().plus(90, ChronoUnit.DAYS);
-            case MONTHLY -> null; // не истекает
+            case DAILY -> Instant.now().plus(14, ChronoUnit.DAYS);
+            case WEEKLY -> Instant.now().plus(90, ChronoUnit.DAYS);
+            case MONTHLY -> null; // Does not expire.
         };
 
         String horizon = switch (event.insightType()) {
-            case DAILY   -> "SHORT_TERM";
-            case WEEKLY  -> "MID_TERM";
+            case DAILY -> "SHORT_TERM";
+            case WEEKLY -> "MID_TERM";
             case MONTHLY -> "LONG_TERM";
         };
 
@@ -47,21 +49,32 @@ public class MemoryEventListener {
         metadata.put("memory_type", MemoryType.SEMANTIC.name());
         metadata.put("memory_horizon", horizon);
         metadata.put("created_at", Instant.now().toString());
+        String memoryId = insightMemoryId(event);
+        metadata.put("insight_memory_id", memoryId);
+        if (event.snapshotHash() != null && !event.snapshotHash().isBlank()) {
+            metadata.put("snapshot_hash", event.snapshotHash());
+        }
         if (expiresAt != null) {
             metadata.put("expires_at", expiresAt.toString());
         }
 
-        vectorStore.add(List.of(new Document(event.content(), metadata)));
+        vectorStore.delete(List.of(memoryId));
+        vectorStore.add(List.of(new Document(memoryId, event.content(), metadata)));
+    }
+
+    @ApplicationModuleListener
+    public void onInsightDeleted(InsightDeletedEvent event) {
+        vectorStore.delete(List.of(insightMemoryId(event.userId(), event.insightType(), event.date())));
     }
 
     @ApplicationModuleListener
     public void onUserNoteCreated(UserNoteCreatedEvent event) {
 
-        // Временные заметки (болезнь, событие) — 7 дней
-        // Постоянные (аллергия, цель) — никогда не истекают
+        // Temporary notes (illness, event) last 7 days.
+        // Permanent notes (allergy, goal) never expire.
         boolean isPermanent = switch (event.type()) {
             case ALLERGY, GOAL, PREFERENCE -> true;
-            case ILLNESS, TRAVEL,INJURY,STRESS, OTHER -> false;
+            case ILLNESS, TRAVEL, INJURY, STRESS, TRAINING, NUTRITION, GENERAL, MOOD, OTHER -> false;
         };
 
         Map<String, Object> metadata = new HashMap<>();
@@ -80,5 +93,17 @@ public class MemoryEventListener {
         }
 
         vectorStore.add(List.of(new Document(event.content(), metadata)));
+    }
+
+    private String insightMemoryId(InsightGeneratedEvent event) {
+        return insightMemoryId(event.userId(), event.insightType(), event.date());
+    }
+
+    private String insightMemoryId(Long userId, InsightType insightType, java.time.LocalDate date) {
+        return "insight:%d:%s:%s".formatted(
+                userId,
+                insightType.name(),
+                date
+        );
     }
 }

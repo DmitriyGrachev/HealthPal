@@ -1,20 +1,19 @@
 package com.fit.fitnessapp.auth.application.service;
 
-import com.fit.fitnessapp.auth.adapter.out.persistence.repository.UserRepository;
-import lombok.AllArgsConstructor;
+import com.fit.fitnessapp.auth.application.port.out.UserAuthenticationPort;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class UserDetailsService implements org.springframework.security.core.userdetails.UserDetailsService {
 
-    private UserRepository userRepository;
+    private final UserAuthenticationPort userAuthenticationPort;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        return userAuthenticationPort.loadUserByUsername(username);
     }
 }

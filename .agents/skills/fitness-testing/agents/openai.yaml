@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fitness Testing"
+  short_description: "Focused test workflow for FitnessApp"
+  default_prompt: "Use $fitness-testing to add or repair focused tests in FitnessApp."

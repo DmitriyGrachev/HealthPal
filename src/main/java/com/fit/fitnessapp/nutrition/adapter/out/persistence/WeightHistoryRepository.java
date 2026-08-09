@@ -17,12 +17,14 @@ public class WeightHistoryRepository implements WeightHistoryUseCase {
     
     @Override
     public WeightHistoryDto saveWeight(WeightHistoryDto dto) {
-        WeightHistory entity = WeightHistory.builder()
-                .userId(dto.userId())
-                .weightKg(dto.weightKg())
-                .date(dto.date())
-                .source(WeightHistory.WeightSource.valueOf(dto.source().name()))
-                .build();
+        WeightHistory.WeightSource source = WeightHistory.WeightSource.valueOf(dto.source().name());
+        WeightHistory entity = jpaRepository
+                .findByUserIdAndDateAndSource(dto.userId(), dto.date(), source)
+                .orElseGet(WeightHistory::new);
+        entity.setUserId(dto.userId());
+        entity.setWeightKg(dto.weightKg());
+        entity.setDate(dto.date());
+        entity.setSource(source);
         WeightHistory saved = jpaRepository.save(entity);
         return toDto(saved);
     }

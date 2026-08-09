@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class AiClientConfig {
 
-    // ─── OpenRouter ───────────────────────────────────────────────────────────
+    // OpenRouter
     @Bean("openRouterChatClient")
     public ChatClient openRouterChatClient(OpenAiChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel)
@@ -21,7 +21,7 @@ public class AiClientConfig {
                 .build();
     }
 
-    // ─── Google Gemini ────────────────────────────────────────────────────────
+    // Google Gemini
     @Bean("googleChatClient")
     public ChatClient googleChatClient(GoogleGenAiChatModel googleGenAiChatModel) {
         return ChatClient.builder(googleGenAiChatModel)

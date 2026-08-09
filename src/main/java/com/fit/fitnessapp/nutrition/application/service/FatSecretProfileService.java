@@ -1,17 +1,16 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
-import com.fit.fitnessapp.nutrition.adapter.out.persistence.WeightHistoryRepository;
+import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
 import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
-import java.util.List;
 
 import com.fit.fitnessapp.nutrition.domain.FatSecretExerciseEntryDto;
 import com.fit.fitnessapp.nutrition.domain.FatSecretUserSummaryDto;
@@ -21,9 +20,10 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class FatSecretProfileService {
     
+    private static final Logger log = LoggerFactory.getLogger(FatSecretProfileService.class);
+
     private final FatSecretApiPort fatSecretApi;
     private final WeightHistoryUseCase weightHistoryRepository;
     
@@ -51,8 +51,8 @@ public class FatSecretProfileService {
                     exercises
             );
         } catch (Exception e) {
-            log.error("Failed to get user summary from FatSecret for user {}: {}", userId, e.getMessage());
-            throw new RuntimeException("Failed to get user summary", e);
+            log.error("FatSecret user summary failed userId={} errorCode={}", userId, e.getClass().getSimpleName());
+            throw new ExternalApiException("Failed to get user summary from FatSecret", e);
         }
     }
     
@@ -64,10 +64,7 @@ public class FatSecretProfileService {
                 List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
                         userId, latestWeight.date(), latestWeight.date());
                 
-                boolean existsToday = existing.stream()
-                        .anyMatch(e -> e.source() == WeightHistoryDto.WeightSource.FATSECRET);
-                
-                if (!existsToday) {
+                if (shouldSaveFatSecretWeight(existing, latestWeight.weight())) {
                     WeightHistoryDto dto = new WeightHistoryDto(
                             null, userId,
                             latestWeight.weight().stripTrailingZeros(),
@@ -75,12 +72,13 @@ public class FatSecretProfileService {
                             WeightHistoryDto.WeightSource.FATSECRET
                     );
                     weightHistoryRepository.saveWeight(dto);
-                    log.info("Synced weight from FatSecret for user {}: {}kg on {}", 
-                            userId, latestWeight.weight(), latestWeight.date());
                 }
+                log.info("FatSecret profile sync completed userId={} date={} status=success",
+                        userId, latestWeight.date());
             }
         } catch (Exception e) {
-            log.warn("Failed to sync profile from FatSecret for user {}: {}", userId, e.getMessage());
+            log.warn("FatSecret profile sync failed userId={} status=error errorCode={}",
+                    userId, e.getClass().getSimpleName());
         }
     }
     
@@ -94,10 +92,7 @@ public class FatSecretProfileService {
                     List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
                             userId, entry.date(), entry.date());
 
-                    boolean exists = existing.stream()
-                            .anyMatch(e -> e.source() == WeightHistoryDto.WeightSource.FATSECRET);
-
-                    if (!exists) {
+                    if (shouldSaveFatSecretWeight(existing, entry.weight())) {
                         WeightHistoryDto dto = new WeightHistoryDto(
                                 null, userId,
                                 entry.weight().stripTrailingZeros(),
@@ -108,11 +103,12 @@ public class FatSecretProfileService {
                         savedCount++;
                     }
                 }
-                log.info("Synced {} new weight entries from FatSecret for user {} for date {}",
+                log.info("Synced {} weight entries from FatSecret for user {} for date {}",
                         savedCount, userId, date);
             }
         } catch (Exception e) {
-            log.warn("Failed to sync weight history from FatSecret for user {}: {}", userId, e.getMessage());
+            log.warn("FatSecret weight history sync failed userId={} status=error errorCode={}",
+                    userId, e.getClass().getSimpleName());
         }
     }
 
@@ -121,8 +117,9 @@ public class FatSecretProfileService {
         try {
             boolean success = fatSecretApi.updateWeight(authResult.token(), weightEntry);
             if (success) {
-                log.info("Successfully updated weight on FatSecret for user {}: {}kg", 
-                        authResult.userId(), weightEntry.weight());
+                log.info("FatSecret weight update completed userId={} date={} status=success",
+                        authResult.userId(),
+                        weightEntry.date() != null ? weightEntry.date() : LocalDate.now());
                 
                 // Also save to local history
                 WeightHistoryDto dto = new WeightHistoryDto(
@@ -135,8 +132,15 @@ public class FatSecretProfileService {
             }
             return success;
         } catch (Exception e) {
-            log.error("Failed to update weight on FatSecret for user {}: {}", authResult.userId(), e.getMessage());
+            log.error("FatSecret weight update failed userId={} status=error errorCode={}",
+                    authResult.userId(), e.getClass().getSimpleName());
             return false;
         }
+    }
+
+    private boolean shouldSaveFatSecretWeight(List<WeightHistoryDto> existing, BigDecimal incomingWeight) {
+        return existing.stream()
+                .filter(entry -> entry.source() == WeightHistoryDto.WeightSource.FATSECRET)
+                .noneMatch(entry -> entry.weightKg().compareTo(incomingWeight) == 0);
     }
 }

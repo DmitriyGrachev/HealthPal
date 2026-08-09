@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fitness Backlog Triage"
+  short_description: "FitnessApp backlog triage workflow"
+  default_prompt: "Use -backlog-triage to pick and prepare the next FitnessApp backlog fix."

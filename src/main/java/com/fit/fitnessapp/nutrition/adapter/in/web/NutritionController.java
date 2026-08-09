@@ -9,7 +9,11 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,7 +25,7 @@ public class NutritionController {
 
     private final ConnectFatSecretUseCase connectUseCase;
     private final SyncNutritionUseCase syncUseCase;
-    private final NutritionQueryUseCase queryUseCase;  // ← был пропущен
+    private final NutritionQueryUseCase queryUseCase;
     private final CurrentUserApi currentUserApi;
 
     @GetMapping("/connect")
@@ -55,23 +59,24 @@ public class NutritionController {
     public ResponseEntity<List<NutritionDaySummary>> getDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("from must be on or before to");
+        }
         Long userId = currentUserApi.getCurrentUserId();
         return ResponseEntity.ok(queryUseCase.getDateRange(userId, from, to));
     }
 
     @PostMapping("/sync/today")
-    public ResponseEntity<Void> syncToday() {
+    public ResponseEntity<NutritionSyncStatusResponse> syncToday() {
         Long userId = currentUserApi.getCurrentUserId();
         syncUseCase.syncDay(userId, LocalDate.now());
-        //  202 Accepted
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.ok(new NutritionSyncStatusResponse("completed", "today"));
     }
 
     @PostMapping("/sync/current-month")
-    public ResponseEntity<Void> syncCurrentMonth() {
+    public ResponseEntity<NutritionSyncStatusResponse> syncCurrentMonth() {
         Long userId = currentUserApi.getCurrentUserId();
         syncUseCase.syncMonth(userId);
-        //202 Accepted.
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.ok(new NutritionSyncStatusResponse("completed", "current-month"));
     }
 }

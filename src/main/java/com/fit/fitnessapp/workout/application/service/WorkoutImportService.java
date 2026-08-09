@@ -1,15 +1,19 @@
 package com.fit.fitnessapp.workout.application.service;
 
+import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
-import com.fit.fitnessapp.workout.domain.WorkoutSession;
+import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
+import com.fit.fitnessapp.workout.domain.WorkoutPersistenceResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -19,26 +23,43 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
 
     private final List<WorkoutParserPort> parsers;
     private final WorkoutPersistencePort persistencePort;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
-    @Transactional
-    public List<WorkoutSession> importWorkouts(InputStream fileStream, String format, Long userId) {
+    public WorkoutImportResult importWorkouts(InputStream fileStream, String format, Long userId) {
 
-        // 1. Ищем подходящий парсер (Паттерн Стратегия)
         WorkoutParserPort parser = parsers.stream()
-                .filter(p -> p.supports(format)) // Спрашиваем: "Ты умеешь парсить этот формат?"
+                .filter(p -> p.supports(format))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported workout format: " + format));
 
-        // 2. Парсим файл в чистые доменные объекты
-        List<WorkoutSession> sessions = parser.parse(fileStream);
+        WorkoutImportResult result = parser.parse(fileStream);
 
-        // 3. Отдаем абстрактному "грузчику" на сохранение
-        persistencePort.saveAll(sessions, userId);
+        WorkoutPersistenceResult persistenceResult = persistencePort.saveAll(result.sessions(), userId);
+        publishImportedEvent(userId, result, persistenceResult.changedDates());
 
-        // TODO: В будущем здесь мы добавим отправку ApplicationEvent (WorkoutSavedEvent)
-        // чтобы модуль AI узнал о новой тренировке и начал генерировать инсайт.
+        return result.withChangedCount(persistenceResult.changedDates().size());
+    }
 
-        return sessions;
+    private void publishImportedEvent(Long userId, WorkoutImportResult result, List<LocalDate> changedDates) {
+        if (changedDates.isEmpty()) {
+            return;
+        }
+
+        List<LocalDate> affectedDates = changedDates.stream()
+                .distinct()
+                .sorted()
+                .toList();
+        LocalDate fromDate = affectedDates.getFirst();
+        LocalDate toDate = affectedDates.getLast();
+
+        eventPublisher.publishEvent(new WorkoutImportedEvent(
+                userId,
+                fromDate,
+                toDate,
+                result.importedCount(),
+                result.warnings().size(),
+                affectedDates
+        ));
     }
 }

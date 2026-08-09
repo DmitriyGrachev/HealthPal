@@ -1,43 +1,54 @@
 package com.fit.fitnessapp.auth.infrastructure.utils;
 
+import com.fit.fitnessapp.auth.infrastructure.config.SecurityProperties;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import java.time.Instant;
 import java.util.Date;
+import javax.crypto.SecretKey;
 
 @Service
 public class JwtCore {
-    @Value("${fitness.app.secret}")
-    private String secret;
 
-    private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    private final SecurityProperties securityProperties;
+
+    public JwtCore(SecurityProperties securityProperties) {
+        this.securityProperties = securityProperties;
+    }
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(securityProperties.secret()));
     }
 
     public String generateToken(UserDetails userDetails) {
+        Instant issuedAt = Instant.now();
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date((new Date()).getTime() + 86400000)) // 24 часа
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .subject(userDetails.getUsername())
+                .issuedAt(Date.from(issuedAt))
+                .expiration(Date.from(issuedAt.plus(securityProperties.jwtExpiration())))
+                .signWith(getSigningKey())
                 .compact();
     }
 
     public String getNameFromJwt(String token) {
-        return Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
-                .parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
     }
 
-    // Проверка подписи (валидация)
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
+            Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token);
             return true;
         } catch (Exception e) {
             return false;

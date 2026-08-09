@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fitness Security Fix"
+  short_description: "Security fixes for FitnessApp"
+  default_prompt: "Use $fitness-security-fix to fix a FitnessApp security backlog item."

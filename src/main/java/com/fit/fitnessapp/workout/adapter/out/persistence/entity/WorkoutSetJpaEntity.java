@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,10 +15,10 @@ public class WorkoutSetJpaEntity {
     private Long id;
 
     private int setIndex;
-    private Double weight; // В кг
+    private Double weight; // In kg.
     private int reps;
 
-    @ManyToOne
-    @JoinColumn(name = "exercise_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exercise_id", nullable = false)
     private WorkoutExerciseJpaEntity exercise;
 }

@@ -1,65 +1,62 @@
 package com.fit.fitnessapp.nutrition.infrastructure;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
+@ConditionalOnProperty(prefix = "fatsecret.config-check", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class FatSecretConfigChecker implements CommandLineRunner {
 
-    @Value("${fatsecret.consumer-key}")
-    private String consumerKey;
+    private final String consumerKey;
+    private final String consumerSecret;
+    private final String callbackUrl;
 
-    @Value("${fatsecret.consumer-secret}")
-    private String consumerSecret;
-
-    @Value("${fatsecret.callback-url}")
-    private String callbackUrl;
+    public FatSecretConfigChecker(
+            @Value("${fatsecret.consumer-key}") String consumerKey,
+            @Value("${fatsecret.consumer-secret}") String consumerSecret,
+            @Value("${fatsecret.callback-url}") String callbackUrl) {
+        this.consumerKey = consumerKey;
+        this.consumerSecret = consumerSecret;
+        this.callbackUrl = callbackUrl;
+    }
 
     @Override
     public void run(String... args) {
-        System.out.println("=".repeat(60));
-        System.out.println("FatSecret Configuration Check");
-        System.out.println("=".repeat(60));
-
-        System.out.println("Consumer Key: " + maskKey(consumerKey));
-        System.out.println("Consumer Secret: " + maskKey(consumerSecret));
-        System.out.println("Callback URL: " + callbackUrl);
-
-        // Validation
         boolean valid = true;
 
         if (consumerKey == null || consumerKey.trim().isEmpty()) {
-            System.err.println("❌ Consumer Key is missing!");
+            log.warn("FatSecret consumer key is missing");
             valid = false;
         } else if (consumerKey.contains("YOUR_") || consumerKey.length() < 10) {
-            System.err.println("❌ Consumer Key looks invalid (placeholder or too short)");
+            log.warn("FatSecret consumer key looks invalid");
             valid = false;
         }
 
         if (consumerSecret == null || consumerSecret.trim().isEmpty()) {
-            System.err.println("❌ Consumer Secret is missing!");
+            log.warn("FatSecret consumer secret is missing");
             valid = false;
         } else if (consumerSecret.contains("YOUR_") || consumerSecret.length() < 10) {
-            System.err.println("❌ Consumer Secret looks invalid (placeholder or too short)");
+            log.warn("FatSecret consumer secret looks invalid");
             valid = false;
         }
 
         if (callbackUrl == null || callbackUrl.trim().isEmpty()) {
-            System.err.println("❌ Callback URL is missing!");
+            log.warn("FatSecret callback URL is missing");
             valid = false;
         } else if (!callbackUrl.startsWith("http://") && !callbackUrl.startsWith("https://")) {
-            System.err.println("❌ Callback URL must start with http:// or https://");
+            log.warn("FatSecret callback URL must start with http:// or https://");
             valid = false;
         }
 
         if (valid) {
-            System.out.println("✅ Configuration looks good!");
+            log.info("FatSecret configuration is valid. Consumer key: {}, callback URL: {}", maskKey(consumerKey), callbackUrl);
         } else {
-            System.err.println("\n⚠️  Please check your application.properties or application.yml");
+            log.warn("FatSecret configuration is invalid. Check application properties.");
         }
-
-        System.out.println("=".repeat(60));
     }
 
     private String maskKey(String key) {

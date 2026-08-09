@@ -10,8 +10,10 @@ import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
+import com.fit.fitnessapp.nutrition.domain.NutritionDaySaveResult;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
+import com.fit.fitnessapp.nutrition.domain.NutritionMonthSaveResult;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +22,13 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -32,6 +40,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
     private final FatSecretConnectionJpaRepository connectionRepository;
     private final FatsecretDayJpaRepository dayRepository;
     private final FatsecretFoodEntryJpaRepository foodEntryRepository;
+    private final FatSecretTokenCipher tokenCipher;
 
     @Override
     public void saveToken(Long userId, FatSecretToken token) {
@@ -42,8 +51,8 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
                     return newEntity;
                 });
 
-        entity.setAccessToken(token.accessToken());
-        entity.setAccessTokenSecret(token.accessTokenSecret());
+        entity.setAccessToken(tokenCipher.encrypt(token.accessToken()));
+        entity.setAccessTokenSecret(tokenCipher.encrypt(token.accessTokenSecret()));
 
         connectionRepository.save(entity);
     }
@@ -51,54 +60,103 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
     @Override
     public Optional<FatSecretToken> getToken(Long userId) {
         return connectionRepository.findByUserId(userId)
-                .map(entity -> new FatSecretToken(entity.getAccessToken(), entity.getAccessTokenSecret()));
+                .map(entity -> new FatSecretToken(
+                        tokenCipher.decrypt(entity.getAccessToken()),
+                        tokenCipher.decrypt(entity.getAccessTokenSecret())
+                ));
+    }
+
+    @Override
+    public List<Long> getAllConnectedUserIds() {
+        return connectionRepository.findAll()
+                .stream()
+                .map(FatSecretConnectionJpaEntity::getUserId)
+                .toList();
     }
 
     /**
-     * Идемпотентный upsert полного дня: обновляет агрегаты, синхронизирует записи (update/create/delete).
+     * Idempotent full-day upsert: updates aggregates and syncs entries (update/create/delete).
      */
     @Override
     @Transactional
-    public void saveNutritionDay(NutritionDay nutritionDay) {
-        String incomingHash = computeHashForDay(nutritionDay);
+    public NutritionDaySaveResult saveNutritionDay(NutritionDay nutritionDay) {
+        List<FoodEntry> entries = nutritionDay.entries();
+        int totalCalories = entries.stream().mapToInt(FoodEntry::calories).sum();
+        double totalProtein = entries.stream().mapToDouble(FoodEntry::protein).sum();
+        double totalFat = entries.stream().mapToDouble(FoodEntry::fat).sum();
+        double totalCarbs = entries.stream().mapToDouble(FoodEntry::carbohydrate).sum();
+        String summaryHash = computeSummaryHash(
+                nutritionDay.userId(),
+                nutritionDay.date(),
+                totalCalories,
+                totalProtein,
+                totalFat,
+                totalCarbs
+        );
+        String entriesHash = computeEntriesHashForDay(nutritionDay);
 
-        // 1. Ищем существующий день
+        // 1. Find an existing day.
         FatsecretJpaDay jpaDay = dayRepository
                 .findByUserIdAndDate(nutritionDay.userId(), nutritionDay.date())
                 .orElse(null);
 
         if (jpaDay != null) {
-            // 2. Если хэш не изменился — ничего не делаем
-            if (incomingHash.equals(jpaDay.getExternalHash())) {
+            // 2. If the hash is unchanged, skip the write.
+            String currentEntriesHash = Optional.ofNullable(jpaDay.getEntriesHash())
+                    .orElse(jpaDay.getExternalHash());
+            if (entriesHash.equals(currentEntriesHash)) {
                 log.debug("Day {} unchanged, skipping sync", nutritionDay.date());
-                return;
+                return new NutritionDaySaveResult(
+                        nutritionDay.userId(),
+                        nutritionDay.date(),
+                        false,
+                        summaryHash,
+                        entriesHash,
+                        totalCalories,
+                        totalProtein,
+                        totalFat,
+                        totalCarbs
+                );
             }
-            // 3. Удаляем старые записи одним DELETE
+            // 3. Delete old entries with one DELETE.
             foodEntryRepository.deleteByDayId(jpaDay.getId());
         } else {
             jpaDay = new FatsecretJpaDay();
             jpaDay.setUserId(nutritionDay.userId());
             jpaDay.setDate(nutritionDay.date());
-            jpaDay = dayRepository.save(jpaDay); // нужен id для FK
+            jpaDay = dayRepository.save(jpaDay); // Needed for the FK.
         }
 
-        // 4. Обновляем агрегаты дня
-        List<FoodEntry> entries = nutritionDay.entries();
-        jpaDay.setCalories(entries.stream().mapToInt(FoodEntry::calories).sum());
-        jpaDay.setProtein(entries.stream().mapToDouble(FoodEntry::protein).sum());
-        jpaDay.setFat(entries.stream().mapToDouble(FoodEntry::fat).sum());
-        jpaDay.setCarbohydrate(entries.stream().mapToDouble(FoodEntry::carbohydrate).sum());
-        jpaDay.setExternalHash(incomingHash);
+        // 4. Update day aggregates.
+        jpaDay.setCalories(totalCalories);
+        jpaDay.setProtein(totalProtein);
+        jpaDay.setFat(totalFat);
+        jpaDay.setCarbohydrate(totalCarbs);
+        jpaDay.setDateInt((int) nutritionDay.date().toEpochDay());
+        jpaDay.setSummaryHash(summaryHash);
+        jpaDay.setEntriesHash(entriesHash);
+        jpaDay.setExternalHash(entriesHash);
         jpaDay.setLastSyncAt(Instant.now());
         dayRepository.save(jpaDay);
 
-        // 5. Маппим и батч-вставляем новые записи
+        // 5. Map and batch-insert new entries.
         final FatsecretJpaDay finalDay = jpaDay;
         List<FatsecretFoodEntry> newEntries = entries.stream()
                 .map(e -> mapDomainToEntity(e, finalDay))
                 .collect(Collectors.toList());
 
-        foodEntryRepository.saveAll(newEntries); // Hibernate батчит по 50
+        foodEntryRepository.saveAll(newEntries); // Hibernate batches by 50.
+        return new NutritionDaySaveResult(
+                nutritionDay.userId(),
+                nutritionDay.date(),
+                true,
+                summaryHash,
+                entriesHash,
+                totalCalories,
+                totalProtein,
+                totalFat,
+                totalCarbs
+        );
     }
 
     private FatsecretFoodEntry mapDomainToEntity(FoodEntry domain, FatsecretJpaDay day) {
@@ -111,41 +169,76 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         entity.setProtein(domain.protein());
         entity.setFat(domain.fat());
         entity.setCarbohydrate(domain.carbohydrate());
-        entity.setDay(day); // Привязываем к дню (Bidirectional связь)
+        entity.setDay(day); // Attach to the day side of the bidirectional relation.
         return entity;
     }
 
     @Override
     @Transactional
-    public void saveNutritionMonth(NutritionMonth nutritionMonth) {
+    public NutritionMonthSaveResult saveNutritionMonth(NutritionMonth nutritionMonth) {
         Long userId = nutritionMonth.userId();
         List<LocalDate> dates = nutritionMonth.days().stream()
                 .map(NutritionDaySummary::date)
                 .toList();
 
-        // 1. Один SELECT на весь месяц
+        if (dates.isEmpty()) {
+            return new NutritionMonthSaveResult(userId, List.of());
+        }
+
+        // 1. One SELECT for the whole month.
         Map<LocalDate, FatsecretJpaDay> existingByDate = dayRepository
                 .findByUserIdAndDateIn(userId, dates)
                 .stream()
                 .collect(Collectors.toMap(FatsecretJpaDay::getDate, Function.identity()));
 
         List<FatsecretJpaDay> toSave = new ArrayList<>();
+        List<LocalDate> changedDates = new ArrayList<>();
 
         for (NutritionDaySummary s : nutritionMonth.days()) {
-            String hash = computeHashForSummary(s);
+            String hash = computeSummaryHash(userId, s.date(), s.calories(), s.protein(), s.fat(), s.carbohydrate());
             FatsecretJpaDay day = existingByDate.get(s.date());
 
             if (day != null) {
-                // Хэш совпадает — данные не изменились, пропускаем
-                if (hash.equals(day.getExternalHash())) continue;
+                // Hash matches, so the data did not change.
+                String currentSummaryHash = Optional.ofNullable(day.getSummaryHash())
+                        .orElse(day.getExternalHash());
+                if (hash.equals(currentSummaryHash)) continue;
                 updateDayFromSummary(day, s, hash);
             } else {
                 day = buildDayFromSummary(userId, s, hash);
             }
+            changedDates.add(s.date());
             toSave.add(day);
         }
 
-        dayRepository.saveAll(toSave); // батч INSERT/UPDATE
+        if (!toSave.isEmpty()) {
+            dayRepository.saveAll(toSave); // Batch INSERT/UPDATE.
+        }
+        return new NutritionMonthSaveResult(userId, List.copyOf(changedDates));
+    }
+
+    @Override
+    @Transactional
+    public List<NutritionDaySaveResult> deleteNutritionDaysMissingFromMonth(
+            Long userId,
+            LocalDate monthStart,
+            LocalDate monthEnd,
+            Set<LocalDate> presentDates) {
+        List<FatsecretJpaDay> daysToDelete = dayRepository.findByUserIdAndDateBetweenOrderByDate(
+                        userId, monthStart, monthEnd)
+                .stream()
+                .filter(day -> !presentDates.contains(day.getDate()))
+                .toList();
+
+        if (daysToDelete.isEmpty()) {
+            return List.of();
+        }
+
+        List<NutritionDaySaveResult> deletedResults = daysToDelete.stream()
+                .map(day -> deletedDayResult(userId, day.getDate()))
+                .toList();
+        dayRepository.deleteAll(daysToDelete);
+        return deletedResults;
     }
 
     private void updateDayFromSummary(FatsecretJpaDay day, NutritionDaySummary s, String hash) {
@@ -154,7 +247,10 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         day.setFat(s.fat());
         day.setCarbohydrate(s.carbohydrate());
         day.setDateInt(s.dateInt());
-        day.setExternalHash(hash);
+        day.setSummaryHash(hash);
+        if (day.getEntriesHash() == null) {
+            day.setExternalHash(hash);
+        }
         day.setLastSyncAt(Instant.now());
     }
 
@@ -167,27 +263,45 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         day.setProtein(s.protein());
         day.setFat(s.fat());
         day.setCarbohydrate(s.carbohydrate());
+        day.setSummaryHash(hash);
         day.setExternalHash(hash);
         day.setLastSyncAt(Instant.now());
         return day;
     }
 
-    private String computeHashForDay(NutritionDay day) {
-        // Компактное детерминированное представление списка записей
+    private String computeEntriesHashForDay(NutritionDay day) {
+        // Compact deterministic representation of the entry list.
         String payload = day.entries().stream()
                 .sorted(Comparator.comparing(fe -> Optional.ofNullable(fe.externalEntryId())
                         .map(String::valueOf).orElse(fe.name())))
-                .map(e -> String.format("%s|%s|%d|%s",
+                .map(e -> String.format(Locale.ROOT, "%s|%s|%s|%s|%d|%.4f|%.4f|%.4f",
                         Optional.ofNullable(e.externalEntryId()).map(String::valueOf).orElse("null"),
+                        Optional.ofNullable(e.externalFoodId()).map(String::valueOf).orElse("null"),
                         e.name(),
+                        Optional.ofNullable(e.mealType()).orElse("null"),
                         e.calories(),
-                        Optional.ofNullable(e.mealType()).orElse("null")))
+                        e.protein(),
+                        e.fat(),
+                        e.carbohydrate()))
                 .collect(Collectors.joining(";"));
         return DigestUtils.sha256Hex(payload);
     }
 
-    private String computeHashForSummary(NutritionDaySummary s) {
-        String payload = s.userId() + "|" + s.dateInt() + "|" + s.calories() + "|" + s.protein() + "|" + s.fat() + "|" + s.carbohydrate();
+    private String computeSummaryHash(
+            Long userId,
+            LocalDate date,
+            double calories,
+            double protein,
+            double fat,
+            double carbohydrate) {
+        String payload = String.format(Locale.ROOT, "%d|%d|%.4f|%.4f|%.4f|%.4f",
+                userId, date.toEpochDay(), calories, protein, fat, carbohydrate);
         return DigestUtils.sha256Hex(payload);
+    }
+
+    private NutritionDaySaveResult deletedDayResult(Long userId, LocalDate date) {
+        String summaryHash = computeSummaryHash(userId, date, 0, 0, 0, 0);
+        String entriesHash = DigestUtils.sha256Hex(String.format(Locale.ROOT, "%d|%d|deleted", userId, date.toEpochDay()));
+        return new NutritionDaySaveResult(userId, date, true, summaryHash, entriesHash, 0, 0, 0, 0);
     }
 }

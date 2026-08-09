@@ -1,32 +1,36 @@
 package com.fit.fitnessapp.nutrition;
 
-import lombok.Builder;
-import lombok.Data;
-
 import java.time.LocalDate;
 import java.util.Map;
 
-@Data
-@Builder
-public class NutritionMonthlyStatsDto {
-    private LocalDate monthStart;
-    private LocalDate monthEnd;
-    private int totalCalories;
-    private double avgCalories;
-    private double avgProtein;
-    private double avgFat;
-    private double avgCarbs;
-    private int daysTracked;
+public record NutritionMonthlyStatsDto(
+        LocalDate monthStart,
+        LocalDate monthEnd,
+        int totalCalories,
+        double avgCalories,
+        double avgProtein,
+        double avgFat,
+        double avgCarbs,
+        int daysTracked,
+        Map<String, DailyMacrosDto> dailyBreakdown
+) {
+    public int getTotalCalories() { return totalCalories; }
+    public double getAvgCalories() { return avgCalories; }
+    public double getAvgProtein() { return avgProtein; }
+    public double getAvgFat() { return avgFat; }
+    public double getAvgCarbs() { return avgCarbs; }
+    public int getDaysTracked() { return daysTracked; }
+    public Map<String, DailyMacrosDto> getDailyBreakdown() { return dailyBreakdown; }
 
-    // "2026-04-01" -> macros
-    private Map<String, DailyMacrosDto> dailyBreakdown;
-
-    @Data
-    @Builder
-    public static class DailyMacrosDto {
-        private int calories;
-        private double protein;
-        private double fat;
-        private double carbs;
+    public record DailyMacrosDto(
+            int calories,
+            double protein,
+            double fat,
+            double carbs
+    ) {
+        public int getCalories() { return calories; }
+        public double getProtein() { return protein; }
+        public double getFat() { return fat; }
+        public double getCarbs() { return carbs; }
     }
 }

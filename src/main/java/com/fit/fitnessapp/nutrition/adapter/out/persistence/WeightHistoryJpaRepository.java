@@ -10,4 +10,8 @@ public interface WeightHistoryJpaRepository extends JpaRepository<WeightHistory,
     List<WeightHistory> findByUserIdOrderByDateDesc(Long userId);
     List<WeightHistory> findByUserIdAndDateBetweenOrderByDateDesc(Long userId, LocalDate from, LocalDate to);
     Optional<WeightHistory> findTopByUserIdOrderByDateDesc(Long userId);
+    Optional<WeightHistory> findByUserIdAndDateAndSource(
+            Long userId,
+            LocalDate date,
+            WeightHistory.WeightSource source);
 }

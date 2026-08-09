@@ -26,7 +26,11 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
     public NutritionDay getDay(Long userId, LocalDate date) {
         String sql = """
             SELECT 
-                d.user_id, d.date, 
+                d.user_id, d.date,
+                d.calories AS day_calories,
+                d.protein AS day_protein,
+                d.fat AS day_fat,
+                d.carbohydrate AS day_carbohydrate,
                 f.external_food_id, f.external_entry_id, f.name, 
                 f.meal_type, f.calories, f.protein, f.fat, f.carbohydrate 
             FROM fatsecret_day d
@@ -38,9 +42,17 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
         return jdbc.query(sql, Map.of("userId", userId, "date", date), rs -> {
             List<FoodEntry> entries = new ArrayList<>();
             boolean dayFound = false;
+            int totalCalories = 0;
+            double totalProtein = 0.0;
+            double totalFat = 0.0;
+            double totalCarbohydrate = 0.0;
 
             while (rs.next()) {
                 dayFound = true;
+                totalCalories = rs.getInt("day_calories");
+                totalProtein = rs.getDouble("day_protein");
+                totalFat = rs.getDouble("day_fat");
+                totalCarbohydrate = rs.getDouble("day_carbohydrate");
                 if (rs.getObject("external_food_id") != null) {
                     entries.add(new FoodEntry(
                             rs.getLong("external_food_id"),
@@ -56,15 +68,21 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
             }
 
             if (!dayFound) {
-                return new NutritionDay(userId, date, Collections.emptyList());
+                return NutritionDay.missingSync(userId, date);
             }
-            return new NutritionDay(userId, date, entries);
+            return new NutritionDay(
+                    userId,
+                    date,
+                    entries,
+                    totalCalories,
+                    totalProtein,
+                    totalFat,
+                    totalCarbohydrate);
         });
     }
 
     @Override
     public List<NutritionDaySummary> getCurrentMonthSummary(Long userId) {
-        // Определяем первый и последний день текущего месяца
         YearMonth currentMonth = YearMonth.now();
         LocalDate start = currentMonth.atDay(1);
         LocalDate end = currentMonth.atEndOfMonth();
@@ -87,16 +105,16 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
                 (rs, rowNum) -> new NutritionDaySummary(
                         userId,
                         rs.getDate("date").toLocalDate(),
-                        rs.getInt("date_int"), // берем из базы, а не вычисляем на лету
+                        rs.getInt("date_int"),
                         rs.getDouble("calories"),
                         rs.getDouble("protein"),
                         rs.getDouble("fat"),
                         rs.getDouble("carbohydrate")
                 ));
     }
+
     @Override
     public NutritionWeeklyStatsDto getWeeklyStats(Long userId, LocalDate weekStart, LocalDate weekEnd) {
-        // Запрос 1: Считаем общие суммы и средние значения за неделю
         String aggSql = """
             SELECT 
                 COALESCE(SUM(calories), 0) as total_cal,
@@ -110,7 +128,6 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
               AND date < :endDatePlusOne
             """;
 
-        // Запрос 2: Получаем данные по конкретным дням для корреляции
         String dailySql = """
             SELECT 
                 TRIM(TO_CHAR(date, 'DAY')) as day_name,
@@ -130,37 +147,47 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
                 "endDatePlusOne", weekEnd.plusDays(1)
         );
 
-        NutritionWeeklyStatsDto.NutritionWeeklyStatsDtoBuilder builder = NutritionWeeklyStatsDto.builder()
-                .weekStart(weekStart)
-                .weekEnd(weekEnd);
+        final int[] totalCal = {0};
+        final double[] avgCal = {0.0};
+        final double[] avgProt = {0.0};
+        final double[] avgFat = {0.0};
+        final double[] avgCarb = {0.0};
 
         jdbc.query(aggSql, params, rs -> {
-            builder.totalCalories(rs.getInt("total_cal"));
-            builder.avgCalories(rs.getDouble("avg_cal"));
-            builder.avgProtein(rs.getDouble("avg_prot"));
-            builder.avgFat(rs.getDouble("avg_fat"));
-            builder.avgCarbs(rs.getDouble("avg_carb"));
+            totalCal[0] = rs.getInt("total_cal");
+            avgCal[0] = rs.getDouble("avg_cal");
+            avgProt[0] = rs.getDouble("avg_prot");
+            avgFat[0] = rs.getDouble("avg_fat");
+            avgCarb[0] = rs.getDouble("avg_carb");
         });
 
         Map<String, NutritionWeeklyStatsDto.DailyMacrosDto> dailyBreakdown = jdbc.query(dailySql, params, rs -> {
             Map<String, NutritionWeeklyStatsDto.DailyMacrosDto> map = new java.util.HashMap<>();
             while (rs.next()) {
                 map.put(rs.getString("day_name").toUpperCase(),
-                        NutritionWeeklyStatsDto.DailyMacrosDto.builder()
-                                .calories(rs.getInt("cal"))
-                                .protein(rs.getDouble("prot"))
-                                .fat(rs.getDouble("fat"))
-                                .carbs(rs.getDouble("carb"))
-                                .build()
+                        new NutritionWeeklyStatsDto.DailyMacrosDto(
+                                rs.getInt("cal"),
+                                rs.getDouble("prot"),
+                                rs.getDouble("fat"),
+                                rs.getDouble("carb")
+                        )
                 );
             }
             return map;
         });
 
-        builder.dailyBreakdown(dailyBreakdown != null ? dailyBreakdown : Map.of());
-
-        return builder.build();
+        return new NutritionWeeklyStatsDto(
+                weekStart,
+                weekEnd,
+                totalCal[0],
+                avgCal[0],
+                avgProt[0],
+                avgFat[0],
+                avgCarb[0],
+                dailyBreakdown != null ? dailyBreakdown : Map.of()
+        );
     }
+
     @Override
     public NutritionMonthlyStatsDto getMonthlyStats(Long userId, LocalDate monthStart, LocalDate monthEnd) {
 
@@ -198,36 +225,47 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
                 "endDatePlusOne", monthEnd.plusDays(1)
         );
 
-        NutritionMonthlyStatsDto.NutritionMonthlyStatsDtoBuilder builder = NutritionMonthlyStatsDto.builder()
-                .monthStart(monthStart)
-                .monthEnd(monthEnd);
+        final int[] totalCal = {0};
+        final double[] avgCal = {0.0};
+        final double[] avgProt = {0.0};
+        final double[] avgFat = {0.0};
+        final double[] avgCarb = {0.0};
+        final int[] daysTracked = {0};
 
         jdbc.query(aggSql, params, rs -> {
-            builder.totalCalories(rs.getInt("total_cal"));
-            builder.avgCalories(rs.getDouble("avg_cal"));
-            builder.avgProtein(rs.getDouble("avg_prot"));
-            builder.avgFat(rs.getDouble("avg_fat"));
-            builder.avgCarbs(rs.getDouble("avg_carb"));
-            builder.daysTracked(rs.getInt("days_tracked"));
+            totalCal[0] = rs.getInt("total_cal");
+            avgCal[0] = rs.getDouble("avg_cal");
+            avgProt[0] = rs.getDouble("avg_prot");
+            avgFat[0] = rs.getDouble("avg_fat");
+            avgCarb[0] = rs.getDouble("avg_carb");
+            daysTracked[0] = rs.getInt("days_tracked");
         });
 
         Map<String, NutritionMonthlyStatsDto.DailyMacrosDto> dailyBreakdown = jdbc.query(dailySql, params, rs -> {
             Map<String, NutritionMonthlyStatsDto.DailyMacrosDto> map = new java.util.LinkedHashMap<>();
             while (rs.next()) {
                 map.put(rs.getString("day_key"),
-                        NutritionMonthlyStatsDto.DailyMacrosDto.builder()
-                                .calories(rs.getInt("cal"))
-                                .protein(rs.getDouble("prot"))
-                                .fat(rs.getDouble("fat"))
-                                .carbs(rs.getDouble("carb"))
-                                .build()
+                        new NutritionMonthlyStatsDto.DailyMacrosDto(
+                                rs.getInt("cal"),
+                                rs.getDouble("prot"),
+                                rs.getDouble("fat"),
+                                rs.getDouble("carb")
+                        )
                 );
             }
             return map;
         });
 
-        builder.dailyBreakdown(dailyBreakdown != null ? dailyBreakdown : Map.of());
-        return builder.build();
+        return new NutritionMonthlyStatsDto(
+                monthStart,
+                monthEnd,
+                totalCal[0],
+                avgCal[0],
+                avgProt[0],
+                avgFat[0],
+                avgCarb[0],
+                daysTracked[0],
+                dailyBreakdown != null ? dailyBreakdown : Map.of()
+        );
     }
-
 }
