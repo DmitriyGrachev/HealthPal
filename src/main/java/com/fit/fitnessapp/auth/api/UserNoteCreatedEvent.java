@@ -4,6 +4,7 @@ import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import java.time.LocalDate;
 
 public record UserNoteCreatedEvent(
+    Long noteId,
     Long userId,
     LocalDate date,
     String content,

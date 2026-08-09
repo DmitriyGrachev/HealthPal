@@ -36,7 +36,7 @@ public class TelegramNotificationListener {
                 message = TelegramMessages.personalizedInsight(event.telegramSummary());
             }
 
-            botService.sendMessage(telegramUser.getChatId(), message);
+            botService.enqueueMessage(telegramUser.getChatId(), message);
         });
     }
 }

@@ -1,8 +1,8 @@
 package com.fit.fitnessapp.telegram.application.service;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -11,6 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
@@ -18,7 +19,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@RequiredArgsConstructor
 public class TelegramLinkCodeManager {
 
     private static final int DEFAULT_TTL_MINUTES = 10;
@@ -26,6 +26,17 @@ public class TelegramLinkCodeManager {
 
     private final SecureRandom random = new SecureRandom();
     private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
+
+    @Autowired
+    public TelegramLinkCodeManager(JdbcTemplate jdbcTemplate, Clock clock) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock;
+    }
+
+    public TelegramLinkCodeManager(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, Clock.systemUTC());
+    }
     private final ConcurrentHashMap<Long, Integer> invalidLinkAttemptsByChat = new ConcurrentHashMap<>();
 
     @Transactional
@@ -36,7 +47,7 @@ public class TelegramLinkCodeManager {
 
         String rawCode = String.format("%06d", random.nextInt(1000000));
         String codeHash = hashCode(rawCode);
-        Instant expiresAt = Instant.now().plus(DEFAULT_TTL_MINUTES, ChronoUnit.MINUTES);
+        Instant expiresAt = clock.instant().plus(DEFAULT_TTL_MINUTES, ChronoUnit.MINUTES);
 
         jdbcTemplate.update(
                 "INSERT INTO telegram_link_codes (user_id, code_hash, created_at, expires_at) VALUES (?, ?, NOW(), ?)",
@@ -51,7 +62,7 @@ public class TelegramLinkCodeManager {
     @Transactional
     public Optional<Long> consumeCode(String rawCode) {
         String codeHash = hashCode(rawCode);
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         List<Long> userIds = jdbcTemplate.query(
                 "SELECT user_id FROM telegram_link_codes WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ? FOR UPDATE",

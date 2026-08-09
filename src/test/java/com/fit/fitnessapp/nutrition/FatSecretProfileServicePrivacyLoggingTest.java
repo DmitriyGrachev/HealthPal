@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,6 +86,18 @@ class FatSecretProfileServicePrivacyLoggingTest {
         verify(weightHistoryUseCase).saveWeight(captor.capture());
         assertThat(captor.getValue().weightKg()).isEqualByComparingTo("81.50");
         assertThat(captor.getValue().source()).isEqualTo(WeightHistoryDto.WeightSource.FATSECRET);
+    }
+
+    @Test
+    void syncProfilePropagatesProviderFailureToTheScheduler() {
+        Long userId = 42L;
+        FatSecretAuthResult authResult = authResult(userId);
+        when(fatSecretApi.getLatestWeight(authResult.token()))
+                .thenThrow(new IllegalStateException("provider unavailable"));
+
+        assertThatThrownBy(() -> service.syncProfileFromFatSecret(userId, authResult))
+                .isInstanceOf(com.fit.fitnessapp.exception.ExternalApiException.class)
+                .hasCauseInstanceOf(IllegalStateException.class);
     }
 
     @Test

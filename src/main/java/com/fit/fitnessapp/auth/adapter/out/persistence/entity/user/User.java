@@ -6,7 +6,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,6 +24,9 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    @Column(name = "time_zone", nullable = false, length = 64)
+    private String timeZone = "UTC";
+
     @Column(nullable = false, length = 255)
     private String password;
 
@@ -34,7 +37,7 @@ public class User implements UserDetails {
     private Set<Role> roles = new HashSet<>();
 
     @CreationTimestamp
-    private LocalDateTime registeredAt;
+    private Instant registeredAt;
 
     public User() {}
 
@@ -53,14 +56,17 @@ public class User implements UserDetails {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
+    public String getTimeZone() { return timeZone; }
+    public void setTimeZone(String timeZone) { this.timeZone = timeZone; }
+
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
 
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
 
-    public LocalDateTime getRegisteredAt() { return registeredAt; }
-    public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
+    public Instant getRegisteredAt() { return registeredAt; }
+    public void setRegisteredAt(Instant registeredAt) { this.registeredAt = registeredAt; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

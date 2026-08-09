@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DurableJobUseCase {
-    Long createJob(String jobType, Long userId, String payloadJson);
     Long createJob(String jobType, Long userId, String payloadJson, String idempotencyKey);
     boolean startJob(Long jobId);
     void completeJob(Long jobId);

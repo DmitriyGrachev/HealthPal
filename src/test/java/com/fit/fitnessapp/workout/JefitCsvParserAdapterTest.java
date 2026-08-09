@@ -94,6 +94,27 @@ class JefitCsvParserAdapterTest {
                 });
     }
 
+    @Test
+    void followsRfcCsvQuotingForCommasEscapedQuotesAndMultilineFields() {
+        WorkoutImportResult result = parser.parse(csv("""
+                ### WORKOUT SESSIONS
+                _id,starttime
+                1,1710000000
+                ### EXERCISE LOGS
+                _id,ename,belongsession
+                10,"Bench, ""competition""
+                press",1
+                ### EXERCISE SET LOGS
+                exercise_log_id,weight_lbs,reps,set_index
+                10,225,5,1
+                """));
+
+        assertThat(result.warnings()).isEmpty();
+        assertThat(result.sessions()).singleElement().satisfies(session ->
+                assertThat(session.exercises()).singleElement().satisfies(exercise ->
+                        assertThat(exercise.name()).isEqualTo("Bench, \"competition\"\npress")));
+    }
+
     private ByteArrayInputStream csv(String content) {
         return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
     }

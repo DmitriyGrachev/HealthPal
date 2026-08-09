@@ -31,7 +31,7 @@ public class AskCommandHandler implements CommandHandler {
     public boolean canHandle(Update update) {
         return update.hasMessage() && update.getMessage().hasText()
                 && Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())
-                && update.getMessage().getText().startsWith("/ask");
+                && TelegramCommandParser.isCommand(update.getMessage().getText(), "/ask");
     }
 
     @Override

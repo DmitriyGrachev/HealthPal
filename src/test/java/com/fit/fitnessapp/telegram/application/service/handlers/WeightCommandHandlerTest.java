@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
@@ -38,12 +39,15 @@ class WeightCommandHandlerTest {
     private ConversationStateUseCase stateUseCase;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private UserTimeApi userTimeApi;
 
     private WeightCommandHandler handler;
 
     @BeforeEach
     void setUp() {
-        handler = new WeightCommandHandler(botService, telegramUserRepository, stateUseCase, eventPublisher);
+        handler = new WeightCommandHandler(botService, telegramUserRepository, stateUseCase, eventPublisher, userTimeApi);
+        lenient().when(userTimeApi.currentDate(anyLong())).thenReturn(java.time.LocalDate.now());
     }
 
     @Test

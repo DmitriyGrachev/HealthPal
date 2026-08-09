@@ -5,17 +5,19 @@ import com.fit.fitnessapp.auth.domain.UserDataExportDto;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,30 +27,36 @@ class UserDataLifecycleServiceTest {
     @Mock
     private JdbcTemplate jdbcTemplate;
 
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private final Clock clock = Clock.fixed(Instant.parse("2026-08-09T12:00:00Z"), ZoneOffset.UTC);
 
-    @InjectMocks
     private UserDataLifecycleService service;
 
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        service = new UserDataLifecycleService(jdbcTemplate, clock);
+    }
+
     @Test
-    @DisplayName("Should assemble data export for user")
+    @DisplayName("Should assemble data export using correct table/column names")
     void exportUserData_Success() {
-        when(jdbcTemplate.queryForList(contains("SELECT id, email, username"), eq(1L)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
+        when(jdbcTemplate.queryForList(contains("SELECT id, email, username FROM users"), eq(1L)))
                 .thenReturn(List.of(Map.of(
                         "username", "testuser",
                         "email", "test@example.com"
                 )));
         when(jdbcTemplate.queryForList(contains("SELECT * FROM profile"), eq(1L)))
                 .thenReturn(List.of(Map.of("age", 30)));
-        when(jdbcTemplate.queryForList(contains("SELECT id, weight_kg"), eq(1L)))
-                .thenReturn(List.of(Map.of("weight_kg", 80.0)));
-        when(jdbcTemplate.queryForList(contains("SELECT * FROM fatsecret_food_entry"), eq(1L)))
+        when(jdbcTemplate.queryForList(contains("weight_history"), eq(1L)))
+                .thenReturn(List.of(Map.of("weight_kg", 80.0, "weight_date", "2026-01-01")));
+        when(jdbcTemplate.queryForList(contains("fatsecret_food"), eq(1L)))
                 .thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("SELECT * FROM workout_session"), eq(1L)))
+        when(jdbcTemplate.queryForList(contains("FROM workout"), eq(1L)))
                 .thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("SELECT id, note_type"), eq(1L)))
+        when(jdbcTemplate.queryForList(contains("FROM user_notes"), eq(1L)))
                 .thenReturn(List.of(Map.of("content", "Test note")));
+        when(jdbcTemplate.queryForObject(contains("SELECT EXISTS"), eq(Boolean.class), eq(1L)))
+                .thenReturn(false);
 
         UserDataExportDto export = service.exportUserData(1L);
 
@@ -60,14 +68,17 @@ class UserDataLifecycleServiceTest {
     }
 
     @Test
-    @DisplayName("Should delete account and cleanup user data")
+    @DisplayName("Should delete account using correct table names")
     void deleteAccount_Success() {
-        when(jdbcTemplate.update(anyString(), eq(1L))).thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM users"), eq(Integer.class), eq(1L)))
+                .thenReturn(1);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
         UserAccountDeletionResult result = service.deleteAccount(1L);
 
         assertThat(result.userId()).isEqualTo(1L);
         assertThat(result.success()).isTrue();
+        verify(jdbcTemplate).update("DELETE FROM user_memory WHERE metadata->>'user_id' = ?", "1");
         verify(jdbcTemplate).update("DELETE FROM users WHERE id = ?", 1L);
     }
 

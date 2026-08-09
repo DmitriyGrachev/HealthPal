@@ -55,8 +55,16 @@ public class SmartAiRouter {
 
     public NutritionInsightResponse callWithFallback(String promptText) {
         List<String> models = aiProperties.openrouter().fallbackModels();
+        AiProperties.ExecutionProperties configuredPolicy = aiProperties.execution();
+        int maxAttempts = configuredPolicy != null
+                ? configuredPolicy.maxProviderAttempts()
+                : AiProperties.ExecutionProperties.defaults().maxProviderAttempts();
+        int attempts = 0;
 
         for (String modelName : models) {
+            if (attempts >= maxAttempts) {
+                break;
+            }
             String routeKey = openRouterRouteKey(modelName);
             if (isInCooldown(routeKey)) {
                 log.info("Skipping OpenRouter model {} while provider cooldown is active.", modelName);
@@ -64,6 +72,7 @@ public class SmartAiRouter {
             }
 
             log.info("Trying OpenRouter model: {}", modelName);
+            attempts++;
             try {
                 NutritionInsightResponse response = openRouterPort.generate(promptText, modelName);
                 resetFailure(routeKey);
@@ -77,6 +86,12 @@ public class SmartAiRouter {
             }
         }
 
+        if (attempts >= maxAttempts) {
+            throw new AiUnavailableException(
+                    "AI provider attempt limit reached",
+                    new IllegalStateException("Maximum provider attempts: " + maxAttempts));
+        }
+
         log.warn("OpenRouter is unavailable. Switching to Gemini fallback.");
         if (isInCooldown(GEMINI_ROUTE_KEY)) {
             log.warn("Gemini fallback is unavailable because provider cooldown is active.");
@@ -87,6 +102,7 @@ public class SmartAiRouter {
         }
 
         try {
+            attempts++;
             NutritionInsightResponse response = geminiPort.generate(promptText);
             resetFailure(GEMINI_ROUTE_KEY);
             return response;

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "weight_history")
@@ -28,11 +28,11 @@ public class WeightHistory {
     private WeightSource source;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     public WeightHistory() {}
 
-    public WeightHistory(Long id, Long userId, BigDecimal weightKg, LocalDate date, WeightSource source, LocalDateTime createdAt) {
+    public WeightHistory(Long id, Long userId, BigDecimal weightKg, LocalDate date, WeightSource source, Instant createdAt) {
         this.id = id;
         this.userId = userId;
         this.weightKg = weightKg;
@@ -56,8 +56,8 @@ public class WeightHistory {
     public WeightSource getSource() { return source; }
     public void setSource(WeightSource source) { this.source = source; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
     public enum WeightSource {
         MANUAL, FATSECRET

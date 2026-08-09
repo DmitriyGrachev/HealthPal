@@ -11,9 +11,7 @@ import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -29,10 +27,11 @@ public class DailyInsightService {
     private final MoeOrchestrator moeOrchestrator;
     private final AiInsightRepository insightRepository;
     private final DailyInsightSnapshotService snapshotService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final AiInsightPersistenceService persistenceService;
     private final AiProperties aiProperties;
     private final AiPromptRenderer promptRenderer;
     private final AiContextService aiContextService;
+    private final AiSafetyService aiSafetyService;
 
     public DailyInsightResult generate(Long userId, LocalDate date) {
         return generate(userId, date, false);
@@ -47,10 +46,9 @@ public class DailyInsightService {
         DailyInsightSnapshot snapshot = snapshotService.build(userId, date);
         if (snapshot == null) {
             log.info("No source data for user {} on {}. Skipping insight generation.", userId, date);
-            existingInsight.ifPresent(insight -> {
-                insightRepository.delete(insight);
-                eventPublisher.publishEvent(new InsightDeletedEvent(userId, date, InsightType.DAILY));
-            });
+            existingInsight.ifPresent(insight -> persistenceService.deleteAndPublish(
+                    insight,
+                    new InsightDeletedEvent(userId, date, InsightType.DAILY)));
             return DailyInsightResult.noSnapshot();
         }
 
@@ -97,7 +95,16 @@ public class DailyInsightService {
             ));
 
             model = aiProperties.DAILY_INSIGHT_MODEL();
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(userId, prompt, taskType);
+            if (!aiSafetyService.isValidNutritionInsightResponse(
+                    aiResponse,
+                    NutritionInsightResponse.ReportType.DAILY,
+                    date,
+                    date)) {
+                log.warn("AI response validation failed for userId={} date={}. Response rejected.", userId, date);
+                logAiCall(userId, taskType, model, startedAt, "rejected", "VALIDATION_FAILED");
+                return DailyInsightResult.aiFailed("VALIDATION_FAILED");
+            }
             logAiCall(userId, taskType, model, startedAt, "success", "NONE");
 
             Map<String, Object> meta = new HashMap<>(snapshot.sourceMetadata());
@@ -124,9 +131,7 @@ public class DailyInsightService {
             insight.setSchemaVersion(1);
             insight.setMetadata(meta);
 
-            insightRepository.save(insight);
-
-            eventPublisher.publishEvent(new InsightGeneratedEvent(
+            persistenceService.saveAndPublish(insight, new InsightGeneratedEvent(
                     userId,
                     date,
                     InsightType.DAILY,
@@ -147,7 +152,7 @@ public class DailyInsightService {
         String telegramSummary = structuredResponse != null ? structuredResponse.telegramSummary() : null;
         Object snapshotHashValue = insight.getMetadata() == null ? null : insight.getMetadata().get("snapshot_hash");
         String snapshotHash = snapshotHashValue == null ? null : snapshotHashValue.toString();
-        eventPublisher.publishEvent(new InsightGeneratedEvent(
+        persistenceService.publish(new InsightGeneratedEvent(
                 insight.getUserId(),
                 insight.getDate(),
                 insight.getInsightType(),

@@ -2,6 +2,7 @@ package com.fit.fitnessapp.nutrition;
 
 import com.fit.fitnessapp.ai.RateLimitInterceptor;
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.nutrition.adapter.in.web.NutritionController;
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
@@ -42,6 +43,8 @@ class NutritionControllerSyncTest {
     @MockitoBean
     private CurrentUserApi currentUserApi;
     @MockitoBean
+    private UserTimeApi userTimeApi;
+    @MockitoBean
     private RateLimitInterceptor rateLimitInterceptor;
     @MockitoBean
     private TokenFilter tokenFilter;
@@ -51,6 +54,7 @@ class NutritionControllerSyncTest {
     @Test
     void syncTodayReturnsOkStatusDtoAndRunsSyncForCurrentUser() throws Exception {
         when(currentUserApi.getCurrentUserId()).thenReturn(42L);
+        when(userTimeApi.currentDate(42L)).thenReturn(LocalDate.of(2026, 7, 1));
 
         mockMvc.perform(post("/api/v1/nutrition/sync/today"))
                 .andExpect(status().isOk())

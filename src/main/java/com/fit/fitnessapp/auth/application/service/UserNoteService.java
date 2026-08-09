@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.auth.application.service;
 
 import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
+import com.fit.fitnessapp.auth.api.UserNoteDeletedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.auth.application.port.out.UserNotePersistencePort;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
@@ -25,6 +26,7 @@ public class UserNoteService implements UserNoteUseCase {
         UserNoteDto saved = userNotePersistencePort.save(dto);
 
         eventPublisher.publishEvent(new UserNoteCreatedEvent(
+                saved.id(),
                 saved.userId(),
                 saved.relatedDate(),
                 saved.content(),
@@ -50,5 +52,6 @@ public class UserNoteService implements UserNoteUseCase {
     @Transactional
     public void deleteNote(Long userId, Long noteId) {
         userNotePersistencePort.deleteByUserIdAndId(userId, noteId);
+        eventPublisher.publishEvent(new UserNoteDeletedEvent(userId, noteId));
     }
 }

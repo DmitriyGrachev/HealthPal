@@ -8,6 +8,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import java.util.Date;
 import javax.crypto.SecretKey;
 
@@ -15,9 +17,17 @@ import javax.crypto.SecretKey;
 public class JwtCore {
 
     private final SecurityProperties securityProperties;
+    private final Clock clock;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JwtCore(SecurityProperties securityProperties, ObjectProvider<Clock> clockProvider) {
+        this.securityProperties = securityProperties;
+        this.clock = clockProvider.getIfAvailable(Clock::systemUTC);
+    }
 
     public JwtCore(SecurityProperties securityProperties) {
         this.securityProperties = securityProperties;
+        this.clock = Clock.systemUTC();
     }
 
     private SecretKey getSigningKey() {
@@ -25,7 +35,7 @@ public class JwtCore {
     }
 
     public String generateToken(UserDetails userDetails) {
-        Instant issuedAt = Instant.now();
+        Instant issuedAt = clock.instant();
         return Jwts.builder()
                 .subject(userDetails.getUsername())
                 .issuedAt(Date.from(issuedAt))

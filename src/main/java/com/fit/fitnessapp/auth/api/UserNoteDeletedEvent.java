@@ -1,6 +1,4 @@
 package com.fit.fitnessapp.auth.api;
 
-public record UserNoteDeletedEvent(
-        Long noteId,
-        Long userId
-) {}
+public record UserNoteDeletedEvent(Long userId, Long noteId) {
+}

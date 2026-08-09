@@ -8,7 +8,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -25,7 +28,9 @@ class WorkoutQueryUseCaseTest {
     @Test
     void weeklySummaryMapsJdbcRowsToWorkoutSummaryDtos() throws Exception {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
-        WorkoutJdbcQueryAdapter adapter = new WorkoutJdbcQueryAdapter(jdbc);
+        WorkoutJdbcQueryAdapter adapter = new WorkoutJdbcQueryAdapter(
+                jdbc,
+                Clock.fixed(Instant.parse("2026-03-18T12:00:00Z"), ZoneOffset.UTC));
 
         ResultSet rs = mock(ResultSet.class);
         LocalDateTime weekStart = LocalDateTime.of(2026, 3, 16, 0, 0);

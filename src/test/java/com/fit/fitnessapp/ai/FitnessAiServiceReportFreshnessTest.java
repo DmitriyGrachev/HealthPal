@@ -1,8 +1,13 @@
 package com.fit.fitnessapp.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
+import com.fit.fitnessapp.ai.application.service.AiInsightPersistenceService;
 import com.fit.fitnessapp.ai.application.service.DailyInsightService;
 import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
+import com.fit.fitnessapp.ai.application.service.MonthlyReportService;
+import com.fit.fitnessapp.ai.application.service.WeeklyReportService;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
@@ -25,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -76,20 +82,32 @@ class FitnessAiServiceReportFreshnessTest {
 
     @BeforeEach
     void setUp() {
-        org.mockito.Mockito.lenient().when(durableJobUseCase.startJob(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         service = new FitnessAiService(
                 dailyInsightService,
                 telegramAskAiService,
-                aiContextService,
-                moeOrchestrator,
-                insightRepository,
-                userNoteUseCase,
-                profileUseCase,
-                weightHistoryUseCase,
                 eventPublisher,
-                aiProperties,
-                promptRenderer,
-                durableJobUseCase
+                durableJobUseCase,
+                new ObjectMapper().registerModule(new JavaTimeModule()),
+                new WeeklyReportService(
+                        aiContextService,
+                        moeOrchestrator,
+                        insightRepository,
+                        new AiInsightPersistenceService(insightRepository, eventPublisher),
+                        userNoteUseCase,
+                        profileUseCase,
+                        weightHistoryUseCase,
+                        promptRenderer,
+                        new com.fit.fitnessapp.ai.application.service.AiSafetyService()),
+                new MonthlyReportService(
+                        aiContextService,
+                        moeOrchestrator,
+                        insightRepository,
+                        new AiInsightPersistenceService(insightRepository, eventPublisher),
+                        userNoteUseCase,
+                        profileUseCase,
+                        weightHistoryUseCase,
+                        promptRenderer,
+                        new com.fit.fitnessapp.ai.application.service.AiSafetyService())
         );
     }
 
@@ -100,10 +118,11 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.empty());
         when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
-        when(moeOrchestrator.route("weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
-                .thenReturn(response("Weekly summary", "Weekly telegram"));
+        when(moeOrchestrator.route(42L, "weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
+                        event.weekStart(), event.weekEnd(), "Weekly summary", "Weekly telegram"));
 
-        service.onWeeklyReportRequested(event);
+        service.generateWeeklyReport(event);
 
         ArgumentCaptor<AiInsightEntity> insightCaptor = ArgumentCaptor.forClass(AiInsightEntity.class);
         verify(insightRepository).save(insightCaptor.capture());
@@ -117,7 +136,7 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.of(saved));
 
-        service.onWeeklyReportRequested(event);
+        service.generateWeeklyReport(event);
 
         verify(insightRepository, never()).save(any());
         verifyNoInteractions(moeOrchestrator, eventPublisher);
@@ -136,10 +155,11 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.of(existing));
         when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
-        when(moeOrchestrator.route("weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
-                .thenReturn(response("Updated weekly", "Updated weekly telegram"));
+        when(moeOrchestrator.route(42L, "weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
+                        event.weekStart(), event.weekEnd(), "Updated weekly", "Updated weekly telegram"));
 
-        service.onWeeklyReportRequested(event);
+        service.generateWeeklyReport(event);
 
         verify(insightRepository).save(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated weekly");
@@ -166,10 +186,11 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, firstEvent.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.empty());
         when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
-        when(moeOrchestrator.route("weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
-                .thenReturn(response("Weekly summary", "Weekly telegram"));
+        when(moeOrchestrator.route(42L, "weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
+                        firstEvent.weekStart(), firstEvent.weekEnd(), "Weekly summary", "Weekly telegram"));
 
-        service.onWeeklyReportRequested(firstEvent);
+        service.generateWeeklyReport(firstEvent);
 
         ArgumentCaptor<AiInsightEntity> insightCaptor = ArgumentCaptor.forClass(AiInsightEntity.class);
         verify(insightRepository).save(insightCaptor.capture());
@@ -180,10 +201,12 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, cardioChanged.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.of(existing));
         when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt after cardio");
-        when(moeOrchestrator.route("weekly prompt after cardio", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
-                .thenReturn(response("Updated weekly", "Updated weekly telegram"));
+        when(moeOrchestrator.route(42L, "weekly prompt after cardio", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
+                        cardioChanged.weekStart(), cardioChanged.weekEnd(),
+                        "Updated weekly", "Updated weekly telegram"));
 
-        service.onWeeklyReportRequested(cardioChanged);
+        service.generateWeeklyReport(cardioChanged);
 
         verify(insightRepository).save(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated weekly");
@@ -202,10 +225,11 @@ class FitnessAiServiceReportFreshnessTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.monthStart(), InsightType.MONTHLY))
                 .thenReturn(Optional.of(existing));
         when(promptRenderer.render(eq("monthly-report-v1.md"), any())).thenReturn("monthly prompt");
-        when(moeOrchestrator.route("monthly prompt", MoeOrchestrator.AiTaskType.MONTHLY_REPORT))
-                .thenReturn(response("Updated monthly", "Updated monthly telegram"));
+        when(moeOrchestrator.route(42L, "monthly prompt", MoeOrchestrator.AiTaskType.MONTHLY_REPORT))
+                .thenReturn(response(NutritionInsightResponse.ReportType.MONTHLY,
+                        event.monthStart(), event.monthEnd(), "Updated monthly", "Updated monthly telegram"));
 
-        service.onMonthlyReportRequested(event);
+        service.generateMonthlyReport(event);
 
         verify(insightRepository).save(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated monthly");
@@ -225,6 +249,25 @@ class FitnessAiServiceReportFreshnessTest {
         assertThat(published.snapshotHash())
                 .isNotBlank()
                 .isEqualTo(existing.getMetadata().get("snapshot_hash"));
+    }
+
+    @Test
+    void weeklyReportRejectsProviderResponseForTheWrongPeriod() {
+        WeeklyReportRequestedEvent event = weeklyEvent(2100);
+        stubReportContext();
+        when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
+                .thenReturn(Optional.empty());
+        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(moeOrchestrator.route(42L, "weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+                .thenReturn(response(
+                        NutritionInsightResponse.ReportType.WEEKLY,
+                        event.weekStart().minusDays(7), event.weekEnd().minusDays(7),
+                        "Wrong-period summary", "Wrong-period Telegram"));
+
+        assertThatThrownBy(() -> service.generateWeeklyReport(event))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("report contract");
+        verify(insightRepository, never()).save(any());
     }
 
     private void stubReportContext() {
@@ -295,14 +338,25 @@ class FitnessAiServiceReportFreshnessTest {
         );
     }
 
-    private NutritionInsightResponse response(String summary, String telegramSummary) {
+    private NutritionInsightResponse response(
+            NutritionInsightResponse.ReportType reportType,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            String summary,
+            String telegramSummary) {
         return new NutritionInsightResponse(
-                null,
-                null,
+                reportType,
+                new NutritionInsightResponse.Period(periodStart, periodEnd),
                 summary,
                 telegramSummary,
-                null,
-                null,
+                new NutritionInsightResponse.MacroAnalysis(
+                        2_000,
+                        140,
+                        80,
+                        220,
+                        NutritionInsightResponse.CalorieBalance.MAINTENANCE,
+                        NutritionInsightResponse.ProteinAdequacy.ADEQUATE),
+                NutritionInsightResponse.WeightTrend.STALLING,
                 List.of(),
                 List.of(),
                 List.of(),

@@ -3,6 +3,9 @@ package com.fit.fitnessapp.memory;
 import com.fit.fitnessapp.memory.application.service.MemoryCleanupService;
 import com.fit.fitnessapp.memory.application.service.MemoryService;
 import com.fit.fitnessapp.memory.domain.UserMemory;
+import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
+import com.fit.fitnessapp.auth.api.UserNoteDeletedEvent;
+import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.support.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,16 +18,23 @@ import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -33,6 +43,7 @@ import static org.mockito.Mockito.when;
 class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
 
     private static final int EMBEDDING_DIMENSIONS = 2048;
+    private static final Logger log = LoggerFactory.getLogger(MemoryPgVectorIntegrationTest.class);
 
     @Autowired
     private VectorStore vectorStore;
@@ -42,6 +53,10 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
     private MemoryCleanupService memoryCleanupService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @MockitoBean(name = "openAiEmbeddingModel")
     private EmbeddingModel embeddingModel;
@@ -137,6 +152,72 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                 .containsExactly("active short term note", "long term allergy fact");
     }
 
+    @Test
+    void noteMemoryCarriesProvenanceAndIsRemovedWhenSourceNoteIsDeleted() throws Exception {
+        assertPgvectorSchemaMigrated();
+        UserNoteCreatedEvent created = new UserNoteCreatedEvent(
+                9001L,
+                901L,
+                java.time.LocalDate.of(2026, 8, 9),
+                "peanut allergy",
+                UserNoteDto.NoteType.ALLERGY);
+
+        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(created));
+        String vectorId = UUID.nameUUIDFromBytes("note:901:9001".getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        awaitMemoryCount(vectorId, 1);
+        assertThat(jdbcTemplate.queryForMap(
+                "SELECT metadata FROM user_memory WHERE id = ?::uuid", vectorId).get("metadata").toString())
+                .contains("source_type", "USER_NOTE")
+                .contains("source_id", "9001");
+
+        transactionTemplate.executeWithoutResult(status ->
+                eventPublisher.publishEvent(new UserNoteDeletedEvent(901L, 9001L)));
+        awaitMemoryCount(vectorId, 0);
+    }
+
+    @Test
+    void hnswCapacityHarnessDocumentsPgvectorDimensionLimit() {
+        assertPgvectorSchemaMigrated();
+        Long userId = 404L;
+        vectorStore.add(IntStream.range(0, 128)
+                .mapToObj(index -> memoryDocument(userId, "benchmark memory " + index))
+                .toList());
+
+        assertThatThrownBy(() -> jdbcTemplate.update("CREATE INDEX idx_user_memory_embedding_hnsw "
+                + "ON user_memory USING hnsw (embedding vector_cosine_ops)"))
+                .isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class)
+                .hasMessageContaining("2000 dimensions");
+    }
+
+    @Test
+    void exactSearchCapacityHarnessMeetsDocumentedLatencySlo() {
+        assertPgvectorSchemaMigrated();
+        Long userId = 505L;
+        int memoriesPerUser = 512;
+        long p95SloMillis = 1_000L;
+        vectorStore.add(IntStream.range(0, memoriesPerUser)
+                .mapToObj(index -> memoryDocument(userId, "capacity benchmark memory " + index))
+                .toList());
+
+        memoryService.findRelevantMemories(userId, "capacity benchmark warmup", 5);
+        List<Long> latencies = new ArrayList<>();
+        for (int query = 0; query < 20; query++) {
+            long started = System.nanoTime();
+            memoryService.findRelevantMemories(userId, "capacity benchmark query " + query, 5);
+            latencies.add((System.nanoTime() - started) / 1_000_000L);
+        }
+        Collections.sort(latencies);
+        long p50 = latencies.get((int) Math.ceil(latencies.size() * 0.50) - 1);
+        long p95 = latencies.get((int) Math.ceil(latencies.size() * 0.95) - 1);
+
+        log.info("Vector exact benchmark memoriesPerUser={} p50Millis={} p95Millis={} p95SloMillis={}",
+                memoriesPerUser, p50, p95, p95SloMillis);
+        assertThat(p50).isLessThanOrEqualTo(p95);
+        assertThat(p95)
+                .as("exact pgvector search p95 for %d memories/user", memoriesPerUser)
+                .isLessThanOrEqualTo(p95SloMillis);
+    }
+
     private void assertPgvectorSchemaMigrated() {
         assertThat(jdbcTemplate.queryForObject(
                 """
@@ -187,5 +268,19 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
         embedding[0] = 1.0f;
         embedding[Math.floorMod(text.hashCode(), EMBEDDING_DIMENSIONS)] += 0.1f;
         return embedding;
+    }
+
+    private void awaitMemoryCount(String memoryId, long expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5_000;
+        long count = -1;
+        while (System.currentTimeMillis() < deadline) {
+            count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM user_memory WHERE id = ?::uuid", Long.class, memoryId);
+            if (count == expected) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        assertThat(count).isEqualTo(expected);
     }
 }

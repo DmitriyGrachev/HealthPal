@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.Map;
 
 @Entity
@@ -29,11 +29,7 @@ public class ConversationStateEntity {
     private Map<String, Object> data;
 
     @Column(name = "updated_at")
-    private OffsetDateTime updatedAt;
+    @org.hibernate.annotations.UpdateTimestamp
+    private Instant updatedAt;
 
-    @PreUpdate
-    @PrePersist
-    protected void onUpdate() {
-        updatedAt = OffsetDateTime.now();
-    }
 }

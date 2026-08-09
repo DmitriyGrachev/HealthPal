@@ -4,6 +4,7 @@ import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -22,13 +23,14 @@ import java.util.Optional;
 public class AiController {
 
     private final CurrentUserApi currentUserApi;
+    private final UserTimeApi userTimeApi;
     private final AiInsightRepository insightRepository;
     private final FitnessAiService fitnessAiService;
 
     @GetMapping("/insights/today")
     public ResponseEntity<AiTodayInsightResponse> getTodayInsight() {
         Long userId = currentUserApi.getCurrentUserId();
-        LocalDate today = LocalDate.now();
+        LocalDate today = userTimeApi.currentDate(userId);
         Optional<AiInsightEntity> insightOpt =
                 insightRepository.findByUserIdAndDateAndInsightType(userId, today, InsightType.DAILY);
 
@@ -51,7 +53,7 @@ public class AiController {
     public ResponseEntity<AiInsightGenerationResponse> generateInsight(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         Long userId = currentUserApi.getCurrentUserId();
-        LocalDate targetDate = date != null ? date : LocalDate.now();
+        LocalDate targetDate = date != null ? date : userTimeApi.currentDate(userId);
 
         DailyInsightResult result = fitnessAiService.generateDailyInsight(userId, targetDate);
 

@@ -9,6 +9,10 @@ import java.util.List;
 public interface NutritionQueryUseCase {
     NutritionDay getDay(Long userId, LocalDate date);
     List<NutritionDaySummary> getCurrentMonthSummary(Long userId);
+
+    default List<NutritionDaySummary> getCurrentMonthSummary(Long userId, LocalDate referenceDate) {
+        return getCurrentMonthSummary(userId);
+    }
     List<NutritionDaySummary> getDateRange(Long userId, LocalDate from, LocalDate to);
 
     //for analytics

@@ -152,6 +152,22 @@ class SmartAiRouterTest {
     }
 
     @Test
+    @DisplayName("Provider attempts never exceed the configured cap")
+    void providerAttemptsAreCapped() {
+        when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b", "model-c"));
+        when(aiProperties.execution()).thenReturn(new AiProperties.ExecutionProperties(
+                Duration.ofSeconds(30), 2, 8, 1, 1_000_000, 50_000, 2_000));
+        when(openRouterPort.generate(anyString(), anyString()))
+                .thenThrow(new AiUnavailableException("provider down", new RuntimeException()));
+
+        assertThatThrownBy(() -> smartAiRouter.callWithFallback("Prompt"))
+                .isInstanceOf(AiUnavailableException.class);
+
+        verify(openRouterPort, times(2)).generate(anyString(), anyString());
+        verifyNoInteractions(geminiPort);
+    }
+
+    @Test
     @DisplayName("When model is cooling down, should skip it on repeated call")
     void repeatedCallInsideCooldown_skipsRecentlyUnavailableModel() {
         when(openRouterProperties.fallbackModels()).thenReturn(List.of("model-a", "model-b"));

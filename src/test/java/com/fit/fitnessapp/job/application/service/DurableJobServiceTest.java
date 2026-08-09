@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,12 +33,20 @@ class DurableJobServiceTest {
     @Test
     @DisplayName("Should create durable job with PENDING status")
     void createJob_Success() {
-        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), eq("NUTRITION_SYNC"), eq(1L), eq("{}"), any()))
+        when(jdbcTemplate.queryForObject(
+                anyString(), eq(Long.class), eq("NUTRITION_SYNC"), eq(1L), eq("{}"), eq("nutrition:1")))
                 .thenReturn(100L);
 
-        Long jobId = service.createJob("NUTRITION_SYNC", 1L, "{}");
+        Long jobId = service.createJob("NUTRITION_SYNC", 1L, "{}", "nutrition:1");
 
         assertThat(jobId).isEqualTo(100L);
+    }
+
+    @Test
+    void createJobRejectsMissingIdempotencyKey() {
+        assertThatThrownBy(() -> service.createJob("NUTRITION_SYNC", 1L, "{}", " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("idempotencyKey");
     }
 
     @Test

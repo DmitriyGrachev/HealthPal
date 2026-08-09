@@ -14,16 +14,19 @@ public class MoeOrchestrator {
     private final AiModelPort geminiPort;
     private final SmartAiRouter smartAiRouter;
     private final AiProperties aiProperties;
+    private final AiExecutionGuard executionGuard;
 
     public MoeOrchestrator(
             @Qualifier("openRouterPort") AiModelPort openRouterPort,
             @Qualifier("geminiPort") AiModelPort geminiPort,
             SmartAiRouter smartAiRouter,
-            AiProperties aiProperties) {
+            AiProperties aiProperties,
+            AiExecutionGuard executionGuard) {
         this.openRouterPort = openRouterPort;
         this.geminiPort = geminiPort;
         this.smartAiRouter = smartAiRouter;
         this.aiProperties = aiProperties;
+        this.executionGuard = executionGuard;
     }
 
     public enum AiTaskType {
@@ -33,11 +36,15 @@ public class MoeOrchestrator {
         QUICK_ANALYSIS
     }
 
-    public NutritionInsightResponse route(String prompt, AiTaskType taskType) {
+    public NutritionInsightResponse route(Long userId, String prompt, AiTaskType taskType) {
         log.info("MoE routing task type: {}", taskType);
         log.debug("AI prompt length: {}", prompt != null ? prompt.length() : 0);
 
-        return switch (taskType) {
+        int reservedAttempts = switch (taskType) {
+            case WEEKLY_REPORT, MONTHLY_REPORT -> aiProperties.executionOrDefaults().maxProviderAttempts();
+            case DAILY_INSIGHT, QUICK_ANALYSIS -> 1;
+        };
+        return executionGuard.execute(userId, prompt, reservedAttempts, () -> switch (taskType) {
             case WEEKLY_REPORT, MONTHLY_REPORT -> {
                 log.info("Routing report through SmartAiRouter fallback chain");
                 yield smartAiRouter.callWithFallback(prompt);
@@ -50,6 +57,6 @@ public class MoeOrchestrator {
                 log.info("Routing quick analysis through OpenRouter");
                 yield openRouterPort.generate(prompt, aiProperties.QUICK_ANALYSIS_MODEL());
             }
-        };
+        });
     }
 }

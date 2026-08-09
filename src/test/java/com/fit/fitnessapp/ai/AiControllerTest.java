@@ -4,6 +4,7 @@ import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.auth.application.service.UserDetailsService;
 import com.fit.fitnessapp.auth.infrastructure.utils.JwtCore;
 import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
@@ -42,6 +43,9 @@ class AiControllerTest {
     private CurrentUserApi currentUserApi;
 
     @MockitoBean
+    private UserTimeApi userTimeApi;
+
+    @MockitoBean
     private AiInsightRepository insightRepository;
 
     @MockitoBean
@@ -62,6 +66,7 @@ class AiControllerTest {
     @Test
     void todayInsightReturnsTypedPendingResponseWhenMissing() throws Exception {
         allowCurrentUser();
+        when(userTimeApi.currentDate(USER_ID)).thenReturn(LocalDate.of(2026, 7, 1));
         when(insightRepository.findByUserIdAndDateAndInsightType(
                 eq(USER_ID), any(LocalDate.class), eq(InsightType.DAILY)))
                 .thenReturn(Optional.empty());
@@ -76,6 +81,7 @@ class AiControllerTest {
     void todayInsightReturnsTypedInsightResponseWhenPresent() throws Exception {
         LocalDate today = LocalDate.now();
         allowCurrentUser();
+        when(userTimeApi.currentDate(USER_ID)).thenReturn(today);
         when(insightRepository.findByUserIdAndDateAndInsightType(USER_ID, today, InsightType.DAILY))
                 .thenReturn(Optional.of(AiInsightEntity.builder()
                         .userId(USER_ID)

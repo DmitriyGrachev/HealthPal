@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
@@ -27,12 +28,14 @@ class TodayCommandHandlerTest {
     private final TelegramBotService botService = mock(TelegramBotService.class);
     private final TelegramUserRepository telegramUserRepository = mock(TelegramUserRepository.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final UserTimeApi userTimeApi = mock(UserTimeApi.class);
     private final TodayCommandHandler handler = new TodayCommandHandler(
-            botService, telegramUserRepository, eventPublisher);
+            botService, telegramUserRepository, eventPublisher, userTimeApi);
 
     @BeforeEach
     void resetMocks() {
-        org.mockito.Mockito.reset(botService, telegramUserRepository, eventPublisher);
+        org.mockito.Mockito.reset(botService, telegramUserRepository, eventPublisher, userTimeApi);
+        when(userTimeApi.currentDate(42L)).thenReturn(java.time.LocalDate.now());
     }
 
     @Test

@@ -7,9 +7,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,6 +24,9 @@ class WorkoutJdbcQueryAdapterIntegrationTest extends AbstractPostgresIntegration
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private NamedParameterJdbcTemplate namedJdbc;
 
     @BeforeEach
     void cleanWorkoutTables() {
@@ -89,6 +96,24 @@ class WorkoutJdbcQueryAdapterIntegrationTest extends AbstractPostgresIntegration
                 .containsEntry("2026-07-06", 815.0)
                 .containsEntry("2026-07-20", 600.0)
                 .doesNotContainValue(9_990.0);
+    }
+
+    @Test
+    void currentWeekSummaryExcludesWorkoutsAfterTheClockWeek() {
+        long userId = 505L;
+        long currentWorkout = insertWorkout(userId, LocalDateTime.of(2026, 7, 8, 18, 0));
+        insertExercise(currentWorkout, "Current Week Exercise");
+        long futureWorkout = insertWorkout(userId, LocalDateTime.of(2026, 7, 13, 9, 0));
+        insertExercise(futureWorkout, "Future Exercise");
+        WorkoutJdbcQueryAdapter fixedAdapter = new WorkoutJdbcQueryAdapter(
+                namedJdbc,
+                Clock.fixed(Instant.parse("2026-07-08T12:00:00Z"), ZoneOffset.UTC));
+
+        var summaries = fixedAdapter.getAllWorkoutSummaryThisWeek(userId);
+
+        assertThat(summaries)
+                .extracting(summary -> summary.getExerciseName())
+                .containsExactly("Current Week Exercise");
     }
 
     private void ensureUser(long userId) {

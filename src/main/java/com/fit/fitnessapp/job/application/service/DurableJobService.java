@@ -3,12 +3,12 @@ package com.fit.fitnessapp.job.application.service;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobUseCase;
 import com.fit.fitnessapp.job.JobStatus;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -18,12 +18,22 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 public class DurableJobService implements DurableJobUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(DurableJobService.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final java.time.Clock clock;
+
+    @Autowired
+    public DurableJobService(JdbcTemplate jdbcTemplate, java.time.Clock clock) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock;
+    }
+
+    public DurableJobService(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, java.time.Clock.systemUTC());
+    }
 
     private final RowMapper<DurableJobDto> rowMapper = (rs, rowNum) -> new DurableJobDto(
             rs.getLong("id"),
@@ -42,35 +52,23 @@ public class DurableJobService implements DurableJobUseCase {
 
     @Override
     @Transactional
-    public Long createJob(String jobType, Long userId, String payloadJson) {
-        return createJob(jobType, userId, payloadJson, null);
-    }
-
-    @Override
-    @Transactional
     public Long createJob(String jobType, Long userId, String payloadJson, String idempotencyKey) {
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            List<Long> existing = jdbcTemplate.query(
-                    "SELECT id FROM durable_jobs WHERE idempotency_key = ?",
-                    (rs, rowNum) -> rs.getLong("id"),
-                    idempotencyKey.trim()
-            );
-            if (!existing.isEmpty()) {
-                log.info("Durable job creation deduplicated via idempotencyKey={} existingId={}", idempotencyKey, existing.get(0));
-                return existing.get(0);
-            }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("idempotencyKey must not be blank");
         }
+        String normalizedKey = idempotencyKey.trim();
 
         Long id = jdbcTemplate.queryForObject(
                 "INSERT INTO durable_jobs (job_type, user_id, status, attempts, max_attempts, payload_json, idempotency_key, created_at, updated_at) " +
-                        "VALUES (?, ?, 'PENDING', 0, 3, ?, ?, NOW(), NOW()) RETURNING id",
+                        "VALUES (?, ?, 'PENDING', 0, 3, ?, ?, NOW(), NOW()) " +
+                        "ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL " +
+                        "DO UPDATE SET updated_at = durable_jobs.updated_at " +
+                        "RETURNING id",
                 Long.class,
-                jobType,
-                userId,
-                payloadJson,
-                idempotencyKey != null ? idempotencyKey.trim() : null
+                jobType, userId, payloadJson, normalizedKey
         );
-        log.info("Created durable job id={} type={} userId={} idempotencyKey={}", id, jobType, userId, idempotencyKey);
+        log.info("Created/deduplicated durable job id={} type={} userId={} idempotencyKey={}",
+                id, jobType, userId, normalizedKey);
         return id;
     }
 
@@ -98,33 +96,29 @@ public class DurableJobService implements DurableJobUseCase {
     @Override
     @Transactional
     public void failJob(Long jobId, Exception exception) {
-        String msg = exception != null && exception.getMessage() != null ? exception.getMessage() : (exception != null ? exception.getClass().getSimpleName() : "Unknown error");
+        String msg = exception != null && exception.getMessage() != null
+                ? exception.getMessage()
+                : (exception != null ? exception.getClass().getSimpleName() : "Unknown error");
 
         Optional<DurableJobDto> jobOpt = getJob(jobId);
         if (jobOpt.isEmpty()) return;
 
         DurableJobDto job = jobOpt.get();
-        int attempts = job.attempts();
-        int maxAttempts = job.maxAttempts();
-
-        if (attempts >= maxAttempts) {
+        if (job.attempts() >= job.maxAttempts()) {
             jdbcTemplate.update(
                     "UPDATE durable_jobs SET status = 'FAILED', error_message = ?, updated_at = NOW() WHERE id = ?",
-                    msg,
-                    jobId
+                    msg, jobId
             );
             log.error("Durable job id={} reached terminal failure: {}", jobId, msg);
         } else {
-            int backoffMinutes = (int) Math.pow(2, attempts);
-            Instant nextRetryAt = Instant.now().plus(backoffMinutes, ChronoUnit.MINUTES);
-
+            int backoffMinutes = (int) Math.pow(2, job.attempts());
+            Instant nextRetryAt = effectiveClock().instant().plus(backoffMinutes, ChronoUnit.MINUTES);
             jdbcTemplate.update(
                     "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = ?, error_message = ?, updated_at = NOW() WHERE id = ?",
-                    Timestamp.from(nextRetryAt),
-                    msg,
-                    jobId
+                    Timestamp.from(nextRetryAt), msg, jobId
             );
-            log.warn("Durable job id={} attempt {}/{} failed. Next retry at {}", jobId, attempts, maxAttempts, nextRetryAt);
+            log.warn("Durable job id={} attempt {}/{} failed. Next retry at {}",
+                    jobId, job.attempts(), job.maxAttempts(), nextRetryAt);
         }
     }
 
@@ -133,8 +127,7 @@ public class DurableJobService implements DurableJobUseCase {
     public void skipJob(Long jobId, String reason) {
         jdbcTemplate.update(
                 "UPDATE durable_jobs SET status = 'SKIPPED', error_message = ?, updated_at = NOW() WHERE id = ?",
-                reason,
-                jobId
+                reason, jobId
         );
         log.info("Durable job id={} skipped: {}", jobId, reason);
     }
@@ -142,20 +135,14 @@ public class DurableJobService implements DurableJobUseCase {
     @Override
     public Optional<DurableJobDto> getJob(Long jobId) {
         List<DurableJobDto> jobs = jdbcTemplate.query(
-                "SELECT * FROM durable_jobs WHERE id = ?",
-                rowMapper,
-                jobId
-        );
+                "SELECT * FROM durable_jobs WHERE id = ?", rowMapper, jobId);
         return jobs.stream().findFirst();
     }
 
     @Override
     public List<DurableJobDto> getJobsByUser(Long userId) {
         return jdbcTemplate.query(
-                "SELECT * FROM durable_jobs WHERE user_id = ? ORDER BY id DESC",
-                rowMapper,
-                userId
-        );
+                "SELECT * FROM durable_jobs WHERE user_id = ? ORDER BY id DESC", rowMapper, userId);
     }
 
     @Override
@@ -169,9 +156,10 @@ public class DurableJobService implements DurableJobUseCase {
     @Override
     @Transactional
     public void recoverStuckJobs(int timeoutMinutes) {
-        Instant cutoff = Instant.now().minus(timeoutMinutes, ChronoUnit.MINUTES);
+        Instant cutoff = effectiveClock().instant().minus(timeoutMinutes, ChronoUnit.MINUTES);
         int resetCount = jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = NOW(), error_message = 'Reset stuck RUNNING job', updated_at = NOW() " +
+                "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = NOW(), " +
+                        "error_message = 'Reset stuck RUNNING job', updated_at = NOW() " +
                         "WHERE status = 'RUNNING' AND updated_at <= ?",
                 Timestamp.from(cutoff)
         );
@@ -184,9 +172,14 @@ public class DurableJobService implements DurableJobUseCase {
     @Transactional
     public void retryJob(Long jobId) {
         jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'PENDING', attempts = 0, next_retry_at = NOW(), error_message = NULL, updated_at = NOW() WHERE id = ?",
+                "UPDATE durable_jobs SET status = 'PENDING', attempts = 0, next_retry_at = NOW(), " +
+                        "error_message = NULL, updated_at = NOW() WHERE id = ?",
                 jobId
         );
         log.info("Operator triggered retry for durable job id={}", jobId);
+    }
+
+    private java.time.Clock effectiveClock() {
+        return clock != null ? clock : java.time.Clock.systemUTC();
     }
 }

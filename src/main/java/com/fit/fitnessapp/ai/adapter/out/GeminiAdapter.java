@@ -53,7 +53,7 @@ public class GeminiAdapter implements AiModelPort {
             if (rawContent != null) {
                 return createDegradedResponse(rawContent);
             }
-            throw new AiUnavailableException("Google Gemini is unavailable", e);
+            throw AiProviderExceptionClassifier.translate("Google Gemini", e);
         }
     }
 

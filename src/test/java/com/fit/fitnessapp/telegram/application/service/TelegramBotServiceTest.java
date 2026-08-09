@@ -55,6 +55,62 @@ class TelegramBotServiceTest {
         service.sendMessage(100L, "Hello");
 
         verify(botSender, times(2)).execute(any(SendMessage.class));
-        verify(jdbcTemplate).update(contains("UPDATE telegram_delivery_outbox SET status = ?"), eq("SENT"), any(), eq(1L));
+        verify(jdbcTemplate).update(contains("UPDATE telegram_delivery_outbox SET status = 'SENT'"), eq(1L));
+    }
+
+    @Test
+    void sendMessageDoesNotFallbackForUnrelatedBadRequest() throws Exception {
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO telegram_delivery_outbox"),
+                eq(Long.class), eq(100L), eq("Hello"))).thenReturn(1L);
+        TelegramApiRequestException error = telegramError(400, "Bad Request: chat not found");
+        when(botSender.execute(any(SendMessage.class))).thenThrow(error);
+
+        service.sendMessage(100L, "Hello");
+
+        verify(botSender).execute(any(SendMessage.class));
+        verify(jdbcTemplate).update(
+                contains("status = 'FAILED'"),
+                anyString(),
+                eq(1L));
+    }
+
+    @Test
+    void sendMessageSchedulesRateLimitForRetryWithoutPlainTextDuplicate() throws Exception {
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO telegram_delivery_outbox"),
+                eq(Long.class), eq(100L), eq("Hello"))).thenReturn(1L);
+        TelegramApiRequestException error = telegramError(429, "Too Many Requests");
+        when(botSender.execute(any(SendMessage.class))).thenThrow(error);
+
+        service.sendMessage(100L, "Hello");
+
+        verify(botSender).execute(any(SendMessage.class));
+        verify(jdbcTemplate).update(
+                contains("status = 'PENDING'"),
+                anyString(),
+                any(),
+                eq(1L));
+    }
+
+    @Test
+    void retryWorkerAtomicallyClaimsPendingRowsBeforeSending() throws Exception {
+        when(jdbcTemplate.query(
+                org.mockito.ArgumentMatchers.<String>argThat(sql -> sql.contains("FOR UPDATE SKIP LOCKED")
+                        && sql.contains("UPDATE telegram_delivery_outbox")
+                        && sql.contains("status = 'SENDING'")),
+                any(org.springframework.jdbc.core.RowMapper.class)))
+                .thenReturn(List.of(new TelegramBotService.OutboxItem(1L, 100L, "Hello", 2, 5)));
+        when(botSender.execute(any(SendMessage.class))).thenReturn(null);
+
+        service.processOutboxRetries();
+
+        verify(botSender).execute(any(SendMessage.class));
+        verify(jdbcTemplate).update(contains("status = 'SENT'"), eq(1L));
+    }
+
+    private TelegramApiRequestException telegramError(int code, String message) {
+        TelegramApiRequestException error = mock(TelegramApiRequestException.class);
+        when(error.getErrorCode()).thenReturn(code);
+        lenient().when(error.getMessage()).thenReturn(message);
+        return error;
     }
 }

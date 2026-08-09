@@ -68,7 +68,8 @@ class ApiErrorHandlerWebTest {
         mockMvc.perform(get("/errors/ai-unavailable"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("AI_UNAVAILABLE"))
-                .andExpect(jsonPath("$.status").value(503));
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("External AI service is temporarily unavailable"));
     }
 
     @Test
@@ -76,7 +77,8 @@ class ApiErrorHandlerWebTest {
         mockMvc.perform(get("/errors/external-api"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value("EXTERNAL_API_FAILURE"))
-                .andExpect(jsonPath("$.status").value(502));
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.message").value("External provider request failed"));
     }
 
     @RestController

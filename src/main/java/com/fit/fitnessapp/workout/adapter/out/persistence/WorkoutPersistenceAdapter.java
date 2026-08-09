@@ -54,12 +54,13 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
 
         if (strengthSessions.isEmpty()) {
             changedDates.addAll(syncCardio(sessions, userId));
-            return new WorkoutPersistenceResult(changedDates);
+            return new WorkoutPersistenceResult(distinctDates(changedDates));
         }
 
         List<Long> incomingJefitIds = strengthSessions.stream()
                 .map(WorkoutSession::externalId)
                 .filter(Objects::nonNull)
+                .distinct()
                 .toList();
 
         List<WorkoutJpaEntity> foundWorkouts = incomingJefitIds.isEmpty()
@@ -98,6 +99,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             workout.setJefitId(session.externalId());
             workout.setDate(session.date());
             workout.setUserId(userId);
+            existingWorkouts.put(session.externalId(), workout);
 
             java.util.Set<Long> incomingExerciseLogIds = session.exercises().stream()
                     .map(Exercise::jefitLogId)
@@ -139,7 +141,11 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             workoutJpaRepository.saveAll(toSave);
         }
         changedDates.addAll(syncCardio(sessions, userId));
-        return new WorkoutPersistenceResult(changedDates);
+        return new WorkoutPersistenceResult(distinctDates(changedDates));
+    }
+
+    private List<LocalDate> distinctDates(List<LocalDate> dates) {
+        return dates.stream().filter(Objects::nonNull).distinct().sorted().toList();
     }
 
     private List<LocalDate> syncCardio(List<WorkoutSession> sessions, Long userId) {

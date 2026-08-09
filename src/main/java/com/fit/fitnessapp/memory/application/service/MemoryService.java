@@ -8,19 +8,31 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MemoryService implements MemoryQueryUseCase {
 
     private final VectorStore vectorStore;
+    private final Clock clock;
+
+    @Autowired
+    public MemoryService(VectorStore vectorStore, Clock clock) {
+        this.vectorStore = vectorStore;
+        this.clock = clock;
+    }
+
+    public MemoryService(VectorStore vectorStore) {
+        this(vectorStore, Clock.systemUTC());
+    }
 
     @Override
     public List<UserMemory> findRelevantMemories(Long userId, String query, int limit) {
@@ -33,7 +45,7 @@ public class MemoryService implements MemoryQueryUseCase {
                         .build())
                 .build();
 
-        String now = Instant.now().toString();
+        String now = clock.instant().toString();
 
         return vectorStore.similaritySearch(request)
                 .stream()
@@ -71,8 +83,8 @@ public class MemoryService implements MemoryQueryUseCase {
 
     @Override
     public List<UserMemory> findRecentContext(Long userId, int daysBack, int limit) {
-        String cutoffDate = LocalDate.now().minusDays(daysBack).toString();
-        String now = Instant.now().toString();
+        String cutoffDate = LocalDate.now(clock).minusDays(daysBack).toString();
+        String now = clock.instant().toString();
 
         SearchRequest request = SearchRequest.builder()
                 .query("recent events health notes context")
@@ -107,7 +119,7 @@ public class MemoryService implements MemoryQueryUseCase {
                 (String) doc.getMetadata().getOrDefault("memory_type", "FACT"));
         Instant createdAt = doc.getMetadata().containsKey("created_at")
                 ? Instant.parse((String) doc.getMetadata().get("created_at"))
-                : Instant.now();
+                : clock.instant();
         UUID id;
         try {
             id = UUID.fromString(doc.getId());

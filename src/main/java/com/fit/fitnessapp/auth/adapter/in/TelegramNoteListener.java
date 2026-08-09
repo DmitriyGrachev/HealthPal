@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.auth.adapter.in;
 
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.api.TelegramNoteRequestedEvent;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class TelegramNoteListener {
     private static final Logger log = LoggerFactory.getLogger(TelegramNoteListener.class);
 
     private final UserNoteUseCase userNoteUseCase;
+    private final UserTimeApi userTimeApi;
 
     @ApplicationModuleListener
     public void onNoteRequested(TelegramNoteRequestedEvent event) {
@@ -26,7 +28,7 @@ public class TelegramNoteListener {
         UserNoteDto dto = new UserNoteDto(
                 null,
                 event.userId(),
-                LocalDate.now(),
+                userTimeApi.currentDate(event.userId()),
                 event.content(),
                 UserNoteDto.NoteType.valueOf(event.type())
         );

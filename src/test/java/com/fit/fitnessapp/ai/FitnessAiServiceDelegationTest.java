@@ -1,9 +1,14 @@
 package com.fit.fitnessapp.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
+import com.fit.fitnessapp.ai.application.service.AiInsightPersistenceService;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.ai.application.service.DailyInsightService;
+import com.fit.fitnessapp.ai.application.service.MonthlyReportService;
 import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
+import com.fit.fitnessapp.ai.application.service.WeeklyReportService;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
@@ -25,6 +30,8 @@ import java.util.List;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 @ExtendWith(MockitoExtension.class)
 class FitnessAiServiceDelegationTest {
@@ -36,53 +43,31 @@ class FitnessAiServiceDelegationTest {
     private TelegramAskAiService telegramAskAiService;
 
     @Mock
-    private AiContextService aiContextService;
-
-    @Mock
-    private MoeOrchestrator moeOrchestrator;
-
-    @Mock
-    private AiInsightRepository insightRepository;
-
-    @Mock
-    private UserNoteUseCase userNoteUseCase;
-
-    @Mock
-    private ProfileUseCase profileUseCase;
-
-    @Mock
-    private WeightHistoryUseCase weightHistoryUseCase;
-
-    @Mock
     private ApplicationEventPublisher eventPublisher;
-
-    @Mock
-    private AiProperties aiProperties;
-
-    @Mock
-    private AiPromptRenderer promptRenderer;
 
     @Mock
     private com.fit.fitnessapp.job.DurableJobUseCase durableJobUseCase;
 
+    @Mock
+    private WeeklyReportService weeklyReportService;
+
+    @Mock
+    private MonthlyReportService monthlyReportService;
+
     private FitnessAiService service;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        org.mockito.Mockito.lenient().when(durableJobUseCase.startJob(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         service = new FitnessAiService(
                 dailyInsightService,
                 telegramAskAiService,
-                aiContextService,
-                moeOrchestrator,
-                insightRepository,
-                userNoteUseCase,
-                profileUseCase,
-                weightHistoryUseCase,
                 eventPublisher,
-                aiProperties,
-                promptRenderer,
-                durableJobUseCase
+                durableJobUseCase,
+                objectMapper,
+                weeklyReportService,
+                monthlyReportService
         );
     }
 
@@ -166,37 +151,47 @@ class FitnessAiServiceDelegationTest {
     }
 
     @Test
-    void nutritionSyncedEventDelegatesToDailyInsightWorkflow() {
+    void nutritionSyncedEventCreatesIdempotentDailyInsightJob() {
         LocalDate date = LocalDate.of(2026, 7, 6);
 
         service.onNutritionSynced(new NutritionSyncedEvent(
                 42L, date, 2100, 140.0, 70.0, 220.0, true, "summary", "entries"));
 
-        verify(dailyInsightService).generate(42L, date);
+        verify(durableJobUseCase).createJob(
+                eq(AiDurableJobExecutor.DAILY_INSIGHT),
+                eq(42L),
+                anyString(),
+                anyString());
+        verify(dailyInsightService, never()).generate(42L, date);
     }
 
     @Test
-    void workoutImportedEventDelegatesAffectedDatesToDailyInsightWorkflow() {
+    void workoutImportedEventCreatesJobsOnlyForAffectedDates() {
         LocalDate from = LocalDate.of(2026, 7, 4);
         LocalDate to = LocalDate.of(2026, 7, 6);
 
         service.onWorkoutImported(new WorkoutImportedEvent(42L, from, to, 3, 0, List.of(from, to)));
 
-        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 4));
-        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 6));
-        verify(dailyInsightService, never()).generate(42L, LocalDate.of(2026, 7, 5));
+        verify(durableJobUseCase, org.mockito.Mockito.times(2)).createJob(
+                eq(AiDurableJobExecutor.DAILY_INSIGHT),
+                eq(42L),
+                anyString(),
+                anyString());
+        verify(dailyInsightService, never()).generate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    void workoutImportedEventFallsBackToDateRangeForLegacyEvents() {
+    void workoutImportedEventCreatesJobsForLegacyDateRange() {
         LocalDate from = LocalDate.of(2026, 7, 4);
         LocalDate to = LocalDate.of(2026, 7, 6);
 
         service.onWorkoutImported(new WorkoutImportedEvent(42L, from, to, 3, 0));
 
-        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 4));
-        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 5));
-        verify(dailyInsightService).generate(42L, LocalDate.of(2026, 7, 6));
+        verify(durableJobUseCase, org.mockito.Mockito.times(3)).createJob(
+                eq(AiDurableJobExecutor.DAILY_INSIGHT),
+                eq(42L),
+                anyString(),
+                anyString());
     }
 
     @Test

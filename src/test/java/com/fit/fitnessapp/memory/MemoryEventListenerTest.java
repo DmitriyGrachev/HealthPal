@@ -3,6 +3,9 @@ package com.fit.fitnessapp.memory;
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
+import com.fit.fitnessapp.auth.api.UserNoteDeletedEvent;
+import com.fit.fitnessapp.auth.domain.UserNoteDto;
 import com.fit.fitnessapp.memory.application.service.MemoryEventListener;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,10 +17,13 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,14 +46,15 @@ class MemoryEventListenerTest {
                 "snapshot-hash-1"));
 
         String expectedDocumentId = "insight:42:DAILY:2026-07-06";
+        String expectedVectorId = UUID.nameUUIDFromBytes(expectedDocumentId.getBytes(StandardCharsets.UTF_8)).toString();
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Document>> documentsCaptor = ArgumentCaptor.forClass(List.class);
         InOrder inOrder = inOrder(vectorStore);
-        inOrder.verify(vectorStore).delete(List.of(expectedDocumentId));
+        inOrder.verify(vectorStore).delete(List.of(expectedVectorId));
         inOrder.verify(vectorStore).add(documentsCaptor.capture());
 
         Document document = documentsCaptor.getValue().getFirst();
-        assertThat(document.getId()).isEqualTo(expectedDocumentId);
+        assertThat(document.getId()).isEqualTo(expectedVectorId);
         assertThat(document.getText()).isEqualTo("Daily summary");
         assertThat(document.getMetadata())
                 .containsEntry("insight_memory_id", expectedDocumentId)
@@ -63,6 +70,39 @@ class MemoryEventListenerTest {
 
         listener.onInsightDeleted(new InsightDeletedEvent(42L, date, InsightType.DAILY));
 
-        verify(vectorStore).delete(List.of("insight:42:DAILY:2026-07-06"));
+        String expectedVectorId = UUID.nameUUIDFromBytes(
+                "insight:42:DAILY:2026-07-06".getBytes(StandardCharsets.UTF_8)).toString();
+        verify(vectorStore).delete(List.of(expectedVectorId));
+    }
+
+    @Test
+    void userNoteMemoryUsesStableSourceIdAndDeletesOnNoteDeletion() {
+        MemoryEventListener listener = new MemoryEventListener(vectorStore);
+        UserNoteCreatedEvent created = new UserNoteCreatedEvent(
+                77L,
+                42L,
+                LocalDate.of(2026, 7, 6),
+                "peanut allergy",
+                UserNoteDto.NoteType.ALLERGY);
+
+        listener.onUserNoteCreated(created);
+
+        String expectedVectorId = UUID.nameUUIDFromBytes(
+                "note:42:77".getBytes(StandardCharsets.UTF_8)).toString();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Document>> documentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore).delete(List.of(expectedVectorId));
+        verify(vectorStore).add(documentsCaptor.capture());
+        Document document = documentsCaptor.getValue().getFirst();
+        assertThat(document.getId()).isEqualTo(expectedVectorId);
+        assertThat(document.getMetadata())
+                .containsEntry("source_type", "USER_NOTE")
+                .containsEntry("source_id", 77L)
+                .containsEntry("memory_id", "note:42:77");
+
+        clearInvocations(vectorStore);
+        listener.onUserNoteDeleted(new UserNoteDeletedEvent(42L, 77L));
+
+        verify(vectorStore).delete(List.of(expectedVectorId));
     }
 }

@@ -2,8 +2,6 @@ package com.fit.fitnessapp.ai.adapter.out;
 
 import com.fit.fitnessapp.ai.application.port.out.AiModelPort;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
-import com.fit.fitnessapp.ai.exception.AiAuthException;
-import com.fit.fitnessapp.ai.exception.AiInvalidRequestException;
 import com.fit.fitnessapp.ai.exception.AiUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,27 +54,10 @@ public class OpenRouterAdapter implements AiModelPort {
             throw new AiUnavailableException("Empty response received from OpenRouter");
 
         } catch (Exception e) {
-            handleExceptionIfKnown(e);
             if (rawContent != null) {
                 return createDegradedResponse(rawContent);
             }
-            if (e instanceof AiUnavailableException) {
-                throw (AiUnavailableException) e;
-            }
-            throw new AiUnavailableException("OpenRouter is unavailable", e);
-        }
-    }
-
-    private void handleExceptionIfKnown(Exception e) {
-        if (e instanceof AiAuthException || e instanceof AiInvalidRequestException) {
-            return;
-        }
-        String msg = e.getMessage() != null ? e.getMessage() : "";
-        if (msg.contains("401") || msg.contains("403")) {
-            throw new AiAuthException("OpenRouter auth error", e);
-        }
-        if (msg.contains("400")) {
-            throw new AiInvalidRequestException("Invalid prompt for OpenRouter", e);
+            throw AiProviderExceptionClassifier.translate("OpenRouter", e);
         }
     }
 

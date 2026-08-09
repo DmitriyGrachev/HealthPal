@@ -9,15 +9,23 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private final Clock clock;
+
+    public GlobalExceptionHandler(ObjectProvider<Clock> clockProvider) {
+        this.clock = clockProvider.getIfAvailable(Clock::systemUTC);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception, HttpServletRequest request) {
@@ -49,6 +57,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access denied", request);
     }
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiError> notFound(ResourceNotFoundException exception, HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiError> userAlreadyExists(UserAlreadyExistsException exception, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, exception.getMessage(), request);
@@ -65,12 +78,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> externalServiceUnavailable(
             ExternalServiceUnavailableException exception,
             HttpServletRequest request) {
-        return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.AI_UNAVAILABLE, exception.getMessage(), request);
+        return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.AI_UNAVAILABLE,
+                "External AI service is temporarily unavailable", request);
     }
 
     @ExceptionHandler(ExternalApiException.class)
     public ResponseEntity<ApiError> externalApiFailure(RuntimeException exception, HttpServletRequest request) {
-        return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE, exception.getMessage(), request);
+        return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE,
+                "External provider request failed", request);
     }
 
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentTypeMismatchException.class})
@@ -100,7 +115,8 @@ public class GlobalExceptionHandler {
             return error(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "Could not parse uploaded file", request);
         }
         if (isExternalApiFailure(exception)) {
-            return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE, exception.getMessage(), request);
+            return error(HttpStatus.BAD_GATEWAY, ErrorCode.EXTERNAL_API_FAILURE,
+                    "External provider request failed", request);
         }
         if (exception.getCause() instanceof ExternalServiceUnavailableException) {
             return error(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.AI_UNAVAILABLE, exception.getMessage(), request);
@@ -125,7 +141,7 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ApiError> error(HttpStatus status, String code, String message, HttpServletRequest request) {
         return ResponseEntity.status(status)
-                .body(ApiError.of(code, message, status.value(), pathWithinApplication(request)));
+                .body(ApiError.of(code, message, status.value(), pathWithinApplication(request), clock.instant()));
     }
 
     private ResponseEntity<ApiError> error(
@@ -135,7 +151,8 @@ public class GlobalExceptionHandler {
             HttpServletRequest request,
             Map<String, List<String>> fieldErrors) {
         return ResponseEntity.status(status)
-                .body(ApiError.validation(message, status.value(), pathWithinApplication(request), fieldErrors));
+                .body(ApiError.validation(message, status.value(), pathWithinApplication(request), fieldErrors,
+                        clock.instant()));
     }
 
     private String pathWithinApplication(HttpServletRequest request) {

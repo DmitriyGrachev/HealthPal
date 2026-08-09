@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -185,6 +186,21 @@ class WorkoutPersistenceAdapterTest {
         verify(workoutRepository, never()).findWithExercisesByJefitIdInAndUserId(any(), any());
         verify(workoutRepository, never()).saveAll(any());
         verify(cardioRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void duplicateSessionsOnSameDateProduceOneChangedDateForDownstreamEvents() {
+        when(workoutRepository.findWithExercisesByJefitIdInAndUserId(List.of(1770220318L), 42L))
+                .thenReturn(List.of());
+
+        var result = adapter.saveAll(List.of(
+                new WorkoutSession(1770220318L, LocalDateTime.of(2026, 2, 4, 18, 0),
+                        List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0))))),
+                new WorkoutSession(1770220318L, LocalDateTime.of(2026, 2, 4, 18, 0),
+                        List.of(new Exercise(1L, "Bench Press", List.of(new Set(0, 5, 65.0)))))
+        ), 42L);
+
+        assertThat(result.changedDates()).containsExactly(LocalDate.of(2026, 2, 4));
     }
 
     @Test

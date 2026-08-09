@@ -1,8 +1,8 @@
 package com.fit.fitnessapp.ai.application.service;
 
 import com.fit.fitnessapp.ai.AiInsightEntity;
-import com.fit.fitnessapp.ai.AiInsightRepository;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.ai.application.port.out.AiInsightPort;
 import com.fit.fitnessapp.memory.application.port.in.MemoryQueryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class AiContextService {
 
     private final MemoryQueryUseCase memoryQueryUseCase;
-    private final AiInsightRepository insightRepository;
+    private final AiInsightPort insightRepository;
 
     public String buildMemoryContext(Long userId, String semanticQuery) {
         StringBuilder sb = new StringBuilder();

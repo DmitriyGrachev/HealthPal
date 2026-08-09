@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,10 +50,17 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
     private final Cache<String, FatSecretAuthState> requestTokenCache;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
-    public FatSecretApiAdapter(Cache<String, FatSecretAuthState> requestTokenCache, ObjectMapper objectMapper) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public FatSecretApiAdapter(Cache<String, FatSecretAuthState> requestTokenCache, ObjectMapper objectMapper, Clock clock) {
         this.requestTokenCache = requestTokenCache;
         this.objectMapper = objectMapper;
+        this.clock = clock;
+    }
+
+    public FatSecretApiAdapter(Cache<String, FatSecretAuthState> requestTokenCache, ObjectMapper objectMapper) {
+        this(requestTokenCache, objectMapper, Clock.systemUTC());
     }
 
     @Override
@@ -131,7 +139,7 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
 
     @Override
     public WeightEntryDto getLatestWeight(FatSecretToken token) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         List<WeightEntryDto> history = getWeightHistory(token, today.toEpochDay());
 
         if (history.isEmpty()) {

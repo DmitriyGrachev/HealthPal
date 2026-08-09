@@ -6,10 +6,8 @@ import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.domain.ConversationState;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
+import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
@@ -20,13 +18,12 @@ import java.util.Optional;
 import java.util.Set;
 
 @Component
-@RequiredArgsConstructor
 public class NoteCommandHandler implements CommandHandler {
 
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
     private final ConversationStateUseCase stateUseCase;
-    private final ApplicationEventPublisher eventPublisher;
+    private final TransactionalEventPublisher eventPublisher;
     private static final Set<String> NOTE_TYPES = Set.of(
             "ILLNESS",
             "TRAVEL",
@@ -41,6 +38,24 @@ public class NoteCommandHandler implements CommandHandler {
             "MOOD",
             "OTHER"
     );
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NoteCommandHandler(TelegramBotService botService,
+                              TelegramUserRepository telegramUserRepository,
+                              ConversationStateUseCase stateUseCase,
+                              TransactionalEventPublisher eventPublisher) {
+        this.botService = botService;
+        this.telegramUserRepository = telegramUserRepository;
+        this.stateUseCase = stateUseCase;
+        this.eventPublisher = eventPublisher;
+    }
+
+    public NoteCommandHandler(TelegramBotService botService,
+                              TelegramUserRepository telegramUserRepository,
+                              ConversationStateUseCase stateUseCase,
+                              org.springframework.context.ApplicationEventPublisher eventPublisher) {
+        this(botService, telegramUserRepository, stateUseCase, new TransactionalEventPublisher(eventPublisher));
+    }
 
     @Override
     public boolean canHandle(Update update) {
@@ -60,7 +75,7 @@ public class NoteCommandHandler implements CommandHandler {
         }
         ConversationState currentState = stateUseCase.getState(chatId);
 
-        return text.startsWith("/note")
+        return TelegramCommandParser.isCommand(text, "/note")
                 || currentState == ConversationState.WAITING_NOTE_TYPE
                 || currentState == ConversationState.WAITING_NOTE_CONTENT;
     }
@@ -85,7 +100,7 @@ public class NoteCommandHandler implements CommandHandler {
         }
         ConversationState state = stateUseCase.getState(chatId);
 
-        if (text.startsWith("/note")) {
+        if (TelegramCommandParser.isCommand(text, "/note")) {
             startNoteFlow(chatId);
         } else if (state == ConversationState.WAITING_NOTE_TYPE) {
             handleNoteType(chatId, text);
@@ -129,7 +144,7 @@ public class NoteCommandHandler implements CommandHandler {
         var data = stateUseCase.getData(chatId);
         String type = (String) data.get("noteType");
 
-        eventPublisher.publishEvent(new com.fit.fitnessapp.api.TelegramNoteRequestedEvent(
+        eventPublisher.publish(new com.fit.fitnessapp.api.TelegramNoteRequestedEvent(
                 userId,
                 chatId,
                 content,

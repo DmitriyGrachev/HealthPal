@@ -12,7 +12,10 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.sql.ResultSet;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +29,22 @@ import static org.mockito.Mockito.when;
 class WorkoutJdbcQueryAdapterSqlTest {
 
     private final NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
-    private final WorkoutJdbcQueryAdapter adapter = new WorkoutJdbcQueryAdapter(jdbc);
+    private final Clock clock = Clock.fixed(Instant.parse("2026-07-08T12:00:00Z"), ZoneOffset.UTC);
+    private final WorkoutJdbcQueryAdapter adapter = new WorkoutJdbcQueryAdapter(jdbc, clock);
+
+    @Test
+    void currentWeekSummaryUsesClockAndExclusiveEndBoundary() {
+        when(jdbc.query(anyString(), any(Map.class), any(RowMapper.class))).thenReturn(List.of());
+
+        adapter.getAllWorkoutSummaryThisWeek(42L);
+
+        ArgumentCaptor<Map<String, Object>> params = ArgumentCaptor.forClass(Map.class);
+        org.mockito.Mockito.verify(jdbc).query(anyString(), params.capture(), any(RowMapper.class));
+        assertThat(params.getValue())
+                .containsEntry("userId", 42L)
+                .containsEntry("startDate", LocalDate.of(2026, 7, 6).atStartOfDay())
+                .containsEntry("endDate", LocalDate.of(2026, 7, 13).atStartOfDay());
+    }
 
     @Test
     void workoutQueriesUseMigratedWorkoutTableName() {

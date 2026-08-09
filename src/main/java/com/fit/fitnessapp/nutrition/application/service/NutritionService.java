@@ -7,10 +7,11 @@ import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.domain.*;
-import lombok.RequiredArgsConstructor;
+import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,15 +23,28 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(NutritionService.class);
 
     private final FatSecretApiPort apiPort;
     private final NutritionCommandPort nutritionCommandPort;
-    private final ApplicationEventPublisher eventPublisher;
-    private Clock clock = Clock.systemDefaultZone();
+    private final TransactionalEventPublisher eventPublisher;
+    private final Clock clock;
+
+    @Autowired
+    public NutritionService(FatSecretApiPort apiPort, NutritionCommandPort nutritionCommandPort,
+                            TransactionalEventPublisher eventPublisher, Clock clock) {
+        this.apiPort = apiPort;
+        this.nutritionCommandPort = nutritionCommandPort;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
+    }
+
+    public NutritionService(FatSecretApiPort apiPort, NutritionCommandPort nutritionCommandPort,
+                            ApplicationEventPublisher eventPublisher) {
+        this(apiPort, nutritionCommandPort, new TransactionalEventPublisher(eventPublisher), Clock.systemUTC());
+    }
 
     @Value("${nutrition.sync.detail-window-days:3}")
     private int detailWindowDays = 3;
@@ -127,7 +141,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
     }
 
     private void publishNutritionSyncedEvent(NutritionDaySaveResult result) {
-        eventPublisher.publishEvent(new NutritionSyncedEvent(
+        eventPublisher.publish(new NutritionSyncedEvent(
                 result.userId(),
                 result.date(),
                 result.totalCalories(),

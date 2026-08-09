@@ -19,7 +19,7 @@ public class TestGenerateHandler implements CommandHandler {
     @Override
     public boolean canHandle(Update update) {
         return update.hasMessage() && update.getMessage().hasText() 
-                && update.getMessage().getText().startsWith("/test_generate");
+                && TelegramCommandParser.isCommand(update.getMessage().getText(), "/test_generate");
     }
 
     @Override

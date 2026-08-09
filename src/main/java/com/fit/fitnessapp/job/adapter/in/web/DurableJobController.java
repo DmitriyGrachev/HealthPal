@@ -1,15 +1,15 @@
 package com.fit.fitnessapp.job.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.exception.ResourceNotFoundException;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobUseCase;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -25,12 +25,12 @@ public class DurableJobController {
         Long currentUserId = currentUserApi.getCurrentUserId();
         Optional<DurableJobDto> jobOpt = durableJobUseCase.getJob(id);
         if (jobOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            throw new ResourceNotFoundException("Job not found");
         }
 
         DurableJobDto job = jobOpt.get();
         if (currentUserId == null || !job.userId().equals(currentUserId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied"));
+            throw new AccessDeniedException("Access denied");
         }
 
         return ResponseEntity.ok(job);
@@ -40,7 +40,7 @@ public class DurableJobController {
     public ResponseEntity<?> getJobsByUser(@PathVariable Long userId) {
         Long currentUserId = currentUserApi.getCurrentUserId();
         if (currentUserId == null || !userId.equals(currentUserId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied"));
+            throw new AccessDeniedException("Access denied");
         }
 
         return ResponseEntity.ok(durableJobUseCase.getJobsByUser(userId));
@@ -51,19 +51,18 @@ public class DurableJobController {
         Long currentUserId = currentUserApi.getCurrentUserId();
         Optional<DurableJobDto> jobOpt = durableJobUseCase.getJob(id);
         if (jobOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            throw new ResourceNotFoundException("Job not found");
         }
 
         DurableJobDto job = jobOpt.get();
         if (currentUserId == null || !job.userId().equals(currentUserId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied"));
+            throw new AccessDeniedException("Access denied");
         }
 
         durableJobUseCase.retryJob(id);
-        return ResponseEntity.ok(Map.of(
-                "jobId", id,
-                "status", "PENDING",
-                "message", "Job reset for retry"
-        ));
+        return ResponseEntity.ok(new RetryResponse(id, "PENDING", "Job reset for retry"));
+    }
+
+    private record RetryResponse(Long jobId, String status, String message) {
     }
 }

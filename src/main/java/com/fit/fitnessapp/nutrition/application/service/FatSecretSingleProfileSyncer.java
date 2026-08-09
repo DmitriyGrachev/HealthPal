@@ -7,11 +7,15 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 
+/**
+ * Syncs a single user's FatSecret profile.
+ * Network calls to FatSecret must not hold open a database transaction.
+ * Persistence ports manage their own short transactions.
+ */
 @Service
 @RequiredArgsConstructor
 public class FatSecretSingleProfileSyncer {
@@ -20,8 +24,8 @@ public class FatSecretSingleProfileSyncer {
 
     private final NutritionCommandPort nutritionCommandPort;
     private final FatSecretProfileService fatSecretProfileService;
+    private final Clock clock;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncUserProfile(Long userId) {
         FatSecretToken token = nutritionCommandPort.getToken(userId).orElse(null);
         if (token == null || token.accessToken() == null || token.accessToken().isEmpty()) {
@@ -36,8 +40,7 @@ public class FatSecretSingleProfileSyncer {
 
         fatSecretProfileService.syncProfileFromFatSecret(userId, authResult);
 
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        fatSecretProfileService.syncWeightHistoryFromFatSecret(
-                userId, authResult, yesterday);
+        LocalDate yesterday = LocalDate.now(clock).minusDays(1);
+        fatSecretProfileService.syncWeightHistoryFromFatSecret(userId, authResult, yesterday);
     }
 }

@@ -10,20 +10,54 @@ import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Service
 public class TelegramBotService {
 
     private static final int MAX_TELEGRAM_MESSAGE_LENGTH = 4000;
+    private static final int DEFAULT_MAX_ATTEMPTS = 5;
+    private static final String CLAIM_PENDING_SQL = """
+            WITH claimable AS (
+                SELECT id
+                FROM telegram_delivery_outbox
+                WHERE status = 'PENDING'
+                  AND attempts < max_attempts
+                  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+                ORDER BY id
+                LIMIT 50
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE telegram_delivery_outbox AS outbox
+            SET status = 'SENDING',
+                claimed_at = NOW(),
+                attempts = outbox.attempts + 1,
+                next_retry_at = NULL
+            FROM claimable
+            WHERE outbox.id = claimable.id
+            RETURNING outbox.id, outbox.chat_id, outbox.text, outbox.attempts, outbox.max_attempts
+            """;
+
     private final AbsSender botSender;
     private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
 
-    public TelegramBotService(@Lazy AbsSender botSender, JdbcTemplate jdbcTemplate) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public TelegramBotService(@Lazy AbsSender botSender, JdbcTemplate jdbcTemplate, Clock clock) {
         this.botSender = botSender;
         this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+    }
+
+    public TelegramBotService(@Lazy AbsSender botSender, JdbcTemplate jdbcTemplate) {
+        this(botSender, jdbcTemplate, Clock.systemUTC());
     }
 
     public void sendMessage(Long chatId, String text) {
@@ -37,78 +71,145 @@ public class TelegramBotService {
 
         List<String> chunks = chunkText(text, MAX_TELEGRAM_MESSAGE_LENGTH);
         for (int i = 0; i < chunks.size(); i++) {
-            String chunk = chunks.get(i);
-            ReplyKeyboard markup = (i == chunks.size() - 1) ? keyboard : null;
-            sendSingleChunkWithFallback(chatId, chunk, markup);
+            ReplyKeyboard markup = i == chunks.size() - 1 ? keyboard : null;
+            sendSingleChunk(chatId, chunks.get(i), markup);
         }
     }
 
-    private void sendSingleChunkWithFallback(Long chatId, String text, ReplyKeyboard keyboard) {
-        Long outboxId = recordOutboxEntry(chatId, text);
+    /** Records delivery work without performing network I/O; the outbox worker sends it later. */
+    public void enqueueMessage(Long chatId, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        for (String chunk : chunkText(text, MAX_TELEGRAM_MESSAGE_LENGTH)) {
+            jdbcTemplate.update(
+                    "INSERT INTO telegram_delivery_outbox "
+                            + "(chat_id, text, status, attempts, created_at) "
+                            + "VALUES (?, ?, 'PENDING', 0, NOW())",
+                    chatId, chunk);
+        }
+    }
+
+    private void sendSingleChunk(Long chatId, String text, ReplyKeyboard keyboard) {
+        Long outboxId = recordClaimedOutboxEntry(chatId, text);
         try {
-            SendMessage message = SendMessage.builder()
-                    .chatId(chatId.toString())
-                    .text(text)
-                    .replyMarkup(keyboard)
-                    .parseMode("Markdown")
-                    .build();
-            botSender.execute(message);
-            updateOutboxStatus(outboxId, "SENT", null);
-        } catch (TelegramApiException markdownError) {
-            log.warn("Markdown delivery failed for chatId={}. Retrying as plain text: {}", chatId, markdownError.getMessage());
-            try {
-                SendMessage plainMessage = SendMessage.builder()
-                        .chatId(chatId.toString())
-                        .text(text)
-                        .replyMarkup(keyboard)
-                        .build();
-                botSender.execute(plainMessage);
-                updateOutboxStatus(outboxId, "SENT", null);
-            } catch (TelegramApiException plainError) {
-                boolean isRateLimitOrServerError = isRetryableError(plainError);
-                String status = isRateLimitOrServerError ? "PENDING" : "FAILED";
-                log.error("Failed to send plain text message to {} (retryable={}): {}", chatId, isRateLimitOrServerError, plainError.getMessage());
-                updateOutboxStatus(outboxId, status, plainError.getMessage());
+            executeTelegramSend(chatId, text, keyboard, "Markdown");
+            updateOutboxSent(outboxId);
+        } catch (TelegramApiRequestException requestError) {
+            if (isMarkdownFormattingError(requestError)) {
+                log.warn("Telegram Markdown formatting rejected chatId={} errorCode={}; retrying as plain text",
+                        chatId, requestError.getErrorCode());
+                try {
+                    executeTelegramSend(chatId, text, keyboard, null);
+                    updateOutboxSent(outboxId);
+                } catch (TelegramApiException plainError) {
+                    handleSendFailure(outboxId, plainError, 1, DEFAULT_MAX_ATTEMPTS);
+                }
+            } else {
+                handleSendFailure(outboxId, requestError, 1, DEFAULT_MAX_ATTEMPTS);
             }
+        } catch (TelegramApiException error) {
+            handleSendFailure(outboxId, error, 1, DEFAULT_MAX_ATTEMPTS);
         }
     }
 
-    public static boolean isRetryableError(TelegramApiException e) {
-        if (e instanceof TelegramApiRequestException reqEx) {
-            int code = reqEx.getErrorCode();
-            return code == 429 || code >= 500;
+    private void executeTelegramSend(Long chatId, String text, ReplyKeyboard keyboard, String parseMode)
+            throws TelegramApiException {
+        SendMessage.SendMessageBuilder builder = SendMessage.builder()
+                .chatId(chatId.toString())
+                .text(text)
+                .replyMarkup(keyboard);
+        if (parseMode != null) {
+            builder.parseMode(parseMode);
         }
-        return false;
+        botSender.execute(builder.build());
     }
 
+    private void handleSendFailure(
+            Long outboxId,
+            TelegramApiException error,
+            int attempts,
+            int maxAttempts) {
+        String safeError = safeErrorCode(error);
+        if (isRetryableError(error) && attempts < maxAttempts) {
+            Instant nextRetry = clock.instant().plus(backoffSeconds(attempts), ChronoUnit.SECONDS);
+            jdbcTemplate.update(
+                    "UPDATE telegram_delivery_outbox " +
+                            "SET status = 'PENDING', error_message = ?, next_retry_at = ?, claimed_at = NULL " +
+                            "WHERE id = ? AND status = 'SENDING'",
+                    safeError, Timestamp.from(nextRetry), outboxId);
+            log.warn("Retryable Telegram delivery failure outboxId={} attempts={} nextRetryAt={} errorCode={}",
+                    outboxId, attempts, nextRetry, safeError);
+            return;
+        }
+
+        jdbcTemplate.update(
+                "UPDATE telegram_delivery_outbox " +
+                        "SET status = 'FAILED', error_message = ?, next_retry_at = NULL, claimed_at = NULL " +
+                        "WHERE id = ? AND status = 'SENDING'",
+                safeError, outboxId);
+        log.error("Permanent Telegram delivery failure outboxId={} attempts={} errorCode={}",
+                outboxId, attempts, safeError);
+    }
+
+    static boolean isMarkdownFormattingError(TelegramApiRequestException error) {
+        Integer code = error.getErrorCode();
+        if ((code != null && code != 0 && code != 400) || error.getMessage() == null) {
+            return false;
+        }
+        String message = error.getMessage().toLowerCase(Locale.ROOT);
+        return message.contains("parse") || message.contains("entit");
+    }
+
+    public static boolean isRetryableError(TelegramApiException error) {
+        if (error instanceof TelegramApiRequestException requestError) {
+            Integer code = requestError.getErrorCode();
+            return code != null && (code == 429 || code >= 500);
+        }
+        return true;
+    }
+
+    /**
+     * Atomically claims pending rows, then performs network calls without a database transaction.
+     */
     public void processOutboxRetries() {
-        List<OutboxItem> pendingItems = jdbcTemplate.query(
-                "SELECT id, chat_id, text, attempts FROM telegram_delivery_outbox WHERE status = 'PENDING' AND attempts < 5 ORDER BY id ASC LIMIT 50",
+        recoverStuckClaims();
+        List<OutboxItem> claimedItems = jdbcTemplate.query(
+                CLAIM_PENDING_SQL,
                 (rs, rowNum) -> new OutboxItem(
                         rs.getLong("id"),
                         rs.getLong("chat_id"),
                         rs.getString("text"),
-                        rs.getInt("attempts")
-                )
-        );
+                        rs.getInt("attempts"),
+                        rs.getInt("max_attempts")));
 
-        for (OutboxItem item : pendingItems) {
+        for (OutboxItem item : claimedItems) {
             try {
-                SendMessage message = SendMessage.builder()
-                        .chatId(item.chatId().toString())
-                        .text(item.text())
-                        .build();
-                botSender.execute(message);
-                updateOutboxStatus(item.id(), "SENT", null);
-            } catch (TelegramApiException e) {
-                boolean retryable = isRetryableError(e);
-                String nextStatus = (retryable && item.attempts() + 1 < 5) ? "PENDING" : "FAILED";
-                updateOutboxStatus(item.id(), nextStatus, e.getMessage());
+                executeTelegramSend(item.chatId(), item.text(), null, null);
+                updateOutboxSent(item.id());
+            } catch (TelegramApiException error) {
+                handleSendFailure(item.id(), error, item.attempts(), item.maxAttempts());
             }
         }
     }
 
-    record OutboxItem(Long id, Long chatId, String text, int attempts) {}
+    private void recoverStuckClaims() {
+        int recovered = jdbcTemplate.update("""
+                UPDATE telegram_delivery_outbox
+                SET status = 'PENDING',
+                    claimed_at = NULL,
+                    next_retry_at = NOW(),
+                    error_message = 'CLAIM_TIMEOUT'
+                WHERE status = 'SENDING'
+                  AND claimed_at < NOW() - INTERVAL '15 minutes'
+                """);
+        if (recovered > 0) {
+            log.warn("Recovered {} stuck Telegram outbox claims", recovered);
+        }
+    }
+
+    record OutboxItem(Long id, Long chatId, String text, int attempts, int maxAttempts) {
+    }
 
     public static List<String> chunkText(String text, int maxChunkSize) {
         if (text == null || text.isEmpty()) {
@@ -118,47 +219,43 @@ public class TelegramBotService {
             return List.of(text);
         }
         List<String> chunks = new ArrayList<>();
-        int length = text.length();
-        for (int i = 0; i < length; i += maxChunkSize) {
-            chunks.add(text.substring(i, Math.min(length, i + maxChunkSize)));
+        for (int i = 0; i < text.length(); i += maxChunkSize) {
+            chunks.add(text.substring(i, Math.min(text.length(), i + maxChunkSize)));
         }
         return chunks;
     }
 
-    private Long recordOutboxEntry(Long chatId, String text) {
+    private Long recordClaimedOutboxEntry(Long chatId, String text) {
         try {
             return jdbcTemplate.queryForObject(
-                    "INSERT INTO telegram_delivery_outbox (chat_id, text, status, attempts, created_at) VALUES (?, ?, 'PENDING', 0, NOW()) RETURNING id",
-                    Long.class,
-                    chatId,
-                    text
-            );
-        } catch (Exception e) {
-            log.warn("Failed to record Telegram outbox entry: {}", e.getMessage());
-            return null;
+                    "INSERT INTO telegram_delivery_outbox " +
+                            "(chat_id, text, status, attempts, claimed_at, created_at) " +
+                            "VALUES (?, ?, 'SENDING', 1, NOW(), NOW()) RETURNING id",
+                    Long.class, chatId, text);
+        } catch (Exception error) {
+            log.error("Failed to record Telegram outbox entry chatId={} errorCode={}",
+                    chatId, error.getClass().getSimpleName());
+            throw new IllegalStateException("Cannot record Telegram delivery before sending", error);
         }
     }
 
-    private void updateOutboxStatus(Long outboxId, String status, String error) {
-        if (outboxId == null) return;
-        try {
-            if ("SENT".equals(status)) {
-                jdbcTemplate.update(
-                        "UPDATE telegram_delivery_outbox SET status = ?, error_message = ?, sent_at = NOW(), attempts = attempts + 1 WHERE id = ?",
-                        status,
-                        error,
-                        outboxId
-                );
-            } else {
-                jdbcTemplate.update(
-                        "UPDATE telegram_delivery_outbox SET status = ?, error_message = ?, attempts = attempts + 1 WHERE id = ?",
-                        status,
-                        error,
-                        outboxId
-                );
-            }
-        } catch (Exception e) {
-            log.warn("Failed to update Telegram outbox entry {}: {}", outboxId, e.getMessage());
+    private void updateOutboxSent(Long outboxId) {
+        jdbcTemplate.update(
+                "UPDATE telegram_delivery_outbox " +
+                        "SET status = 'SENT', sent_at = NOW(), error_message = NULL, " +
+                        "next_retry_at = NULL, claimed_at = NULL " +
+                        "WHERE id = ? AND status = 'SENDING'",
+                outboxId);
+    }
+
+    private int backoffSeconds(int attempts) {
+        return (int) Math.pow(2, Math.min(attempts, 8)) * 30;
+    }
+
+    private String safeErrorCode(TelegramApiException error) {
+        if (error instanceof TelegramApiRequestException requestError && requestError.getErrorCode() != null) {
+            return error.getClass().getSimpleName() + ":" + requestError.getErrorCode();
         }
+        return error.getClass().getSimpleName();
     }
 }

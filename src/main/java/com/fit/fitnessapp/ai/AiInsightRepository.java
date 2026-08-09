@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.ai;
 
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.ai.application.port.out.AiInsightPort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface AiInsightRepository extends JpaRepository<AiInsightEntity, Long> {
+public interface AiInsightRepository extends JpaRepository<AiInsightEntity, Long>, AiInsightPort {
 
     Optional<AiInsightEntity> findByUserIdAndDateAndInsightType(
             Long userId,

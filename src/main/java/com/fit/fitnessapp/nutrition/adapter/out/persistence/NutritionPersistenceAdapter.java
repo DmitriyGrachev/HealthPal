@@ -15,12 +15,12 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonthSaveResult;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,13 +34,32 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class NutritionPersistenceAdapter implements NutritionCommandPort {
 
     private final FatSecretConnectionJpaRepository connectionRepository;
     private final FatsecretDayJpaRepository dayRepository;
     private final FatsecretFoodEntryJpaRepository foodEntryRepository;
     private final FatSecretTokenCipher tokenCipher;
+    private final Clock clock;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NutritionPersistenceAdapter(FatSecretConnectionJpaRepository connectionRepository,
+                                       FatsecretDayJpaRepository dayRepository,
+                                       FatsecretFoodEntryJpaRepository foodEntryRepository,
+                                       FatSecretTokenCipher tokenCipher, Clock clock) {
+        this.connectionRepository = connectionRepository;
+        this.dayRepository = dayRepository;
+        this.foodEntryRepository = foodEntryRepository;
+        this.tokenCipher = tokenCipher;
+        this.clock = clock;
+    }
+
+    public NutritionPersistenceAdapter(FatSecretConnectionJpaRepository connectionRepository,
+                                       FatsecretDayJpaRepository dayRepository,
+                                       FatsecretFoodEntryJpaRepository foodEntryRepository,
+                                       FatSecretTokenCipher tokenCipher) {
+        this(connectionRepository, dayRepository, foodEntryRepository, tokenCipher, Clock.systemUTC());
+    }
 
     @Override
     public void saveToken(Long userId, FatSecretToken token) {
@@ -136,7 +155,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         jpaDay.setSummaryHash(summaryHash);
         jpaDay.setEntriesHash(entriesHash);
         jpaDay.setExternalHash(entriesHash);
-        jpaDay.setLastSyncAt(Instant.now());
+        jpaDay.setLastSyncAt(clock.instant());
         dayRepository.save(jpaDay);
 
         // 5. Map and batch-insert new entries.
@@ -251,7 +270,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         if (day.getEntriesHash() == null) {
             day.setExternalHash(hash);
         }
-        day.setLastSyncAt(Instant.now());
+        day.setLastSyncAt(clock.instant());
     }
 
     private FatsecretJpaDay buildDayFromSummary(Long userId, NutritionDaySummary s, String hash) {
@@ -265,7 +284,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
         day.setCarbohydrate(s.carbohydrate());
         day.setSummaryHash(hash);
         day.setExternalHash(hash);
-        day.setLastSyncAt(Instant.now());
+        day.setLastSyncAt(clock.instant());
         return day;
     }
 

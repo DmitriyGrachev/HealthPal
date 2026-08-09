@@ -1,6 +1,7 @@
 package com.fit.fitnessapp.nutrition.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
@@ -27,6 +28,7 @@ public class NutritionController {
     private final SyncNutritionUseCase syncUseCase;
     private final NutritionQueryUseCase queryUseCase;
     private final CurrentUserApi currentUserApi;
+    private final UserTimeApi userTimeApi;
 
     @GetMapping("/connect")
     public ResponseEntity<String> getAuthUrl() {
@@ -52,7 +54,7 @@ public class NutritionController {
     @GetMapping("/month/summary")
     public ResponseEntity<List<NutritionDaySummary>> getCurrentMonthSummary() {
         Long userId = currentUserApi.getCurrentUserId();
-        return ResponseEntity.ok(queryUseCase.getCurrentMonthSummary(userId));
+        return ResponseEntity.ok(queryUseCase.getCurrentMonthSummary(userId, userTimeApi.currentDate(userId)));
     }
 
     @GetMapping("/range")
@@ -69,7 +71,7 @@ public class NutritionController {
     @PostMapping("/sync/today")
     public ResponseEntity<NutritionSyncStatusResponse> syncToday() {
         Long userId = currentUserApi.getCurrentUserId();
-        syncUseCase.syncDay(userId, LocalDate.now());
+        syncUseCase.syncDay(userId, userTimeApi.currentDate(userId));
         return ResponseEntity.ok(new NutritionSyncStatusResponse("completed", "today"));
     }
 

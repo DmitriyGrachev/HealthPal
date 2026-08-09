@@ -69,7 +69,7 @@ class TelegramAskAiServiceTest {
         when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
         when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
-        when(moeOrchestrator.route("ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
+        when(moeOrchestrator.route(42L, "ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenReturn(response("Your daily overview show a calorie increase"));
 
         service.answer(event);
@@ -121,7 +121,7 @@ class TelegramAskAiServiceTest {
         when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
         when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
-        when(moeOrchestrator.route("ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
+        when(moeOrchestrator.route(42L, "ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenThrow(new IllegalStateException("provider down"));
 
         service.answer(event);

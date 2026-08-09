@@ -27,7 +27,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -50,7 +49,7 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
             String line;
             String currentSection = "";
             String[] headers = null;
-            String delimiter = ",";
+            char delimiter = ',';
             int lineNumber = 0;
 
             reader.mark(1);
@@ -72,14 +71,23 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
                 }
 
                 if (headers == null) {
-                    delimiter = line.contains(";") ? ";" : ",";
-                    headers = cleanColumns(line.split(Pattern.quote(delimiter)));
+                    delimiter = detectDelimiter(line);
+                    headers = parseCsvRecord(line, delimiter);
                     continue;
                 }
 
-                String[] data = cleanColumns(line.split(
-                        Pattern.quote(delimiter) + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)",
-                        -1));
+                String[] data;
+                try {
+                    StringBuilder record = new StringBuilder(line);
+                    while (!hasBalancedQuotes(record) && (line = reader.readLine()) != null) {
+                        lineNumber++;
+                        record.append('\n').append(line);
+                    }
+                    data = parseCsvRecord(record.toString(), delimiter);
+                } catch (IllegalArgumentException malformedRow) {
+                    recordWarning(warnings, currentSection, lineNumber, "malformed CSV row");
+                    continue;
+                }
                 parseRow(currentSection, headers, data, lineNumber, tempWorkouts, tempExercises, tempCardio, warnings);
             }
         } catch (IOException | RuntimeException e) {
@@ -340,11 +348,50 @@ public class JefitCsvParserAdapter implements WorkoutParserPort {
         return index >= 0 && data.length > index && !data[index].isBlank();
     }
 
-    private String[] cleanColumns(String[] columns) {
-        for (int i = 0; i < columns.length; i++) {
-            columns[i] = columns[i].trim().replace("\"", "");
+    private char detectDelimiter(String line) {
+        return line.indexOf(';') >= 0 && line.indexOf(',') < 0 ? ';' : ',';
+    }
+
+    private String[] parseCsvRecord(String record, char delimiter) {
+        List<String> columns = new ArrayList<>();
+        StringBuilder value = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < record.length(); i++) {
+            char current = record.charAt(i);
+            if (current == '"') {
+                if (quoted && i + 1 < record.length() && record.charAt(i + 1) == '"') {
+                    value.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (current == delimiter && !quoted) {
+                columns.add(value.toString().trim());
+                value.setLength(0);
+            } else {
+                value.append(current);
+            }
         }
-        return columns;
+        if (quoted) {
+            throw new IllegalArgumentException("Unterminated quoted CSV field");
+        }
+        columns.add(value.toString().trim());
+        return columns.toArray(String[]::new);
+    }
+
+    private boolean hasBalancedQuotes(CharSequence record) {
+        boolean quoted = false;
+        for (int i = 0; i < record.length(); i++) {
+            if (record.charAt(i) != '"') {
+                continue;
+            }
+            if (quoted && i + 1 < record.length() && record.charAt(i + 1) == '"') {
+                i++;
+            } else {
+                quoted = !quoted;
+            }
+        }
+        return !quoted;
     }
 
     private int findIndex(String[] headers, String colName) {

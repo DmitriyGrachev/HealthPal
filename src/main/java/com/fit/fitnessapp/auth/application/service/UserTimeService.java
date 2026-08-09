@@ -3,6 +3,7 @@ package com.fit.fitnessapp.auth.application.service;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -18,6 +19,17 @@ public class UserTimeService {
             return ZoneId.of(userIanaTimezone.trim());
         } catch (Exception e) {
             return ZoneId.of("UTC");
+        }
+    }
+
+    public ZoneId resolveUserZoneIdStrict(String userIanaTimezone) {
+        if (userIanaTimezone == null || userIanaTimezone.isBlank()) {
+            throw new IllegalArgumentException("IANA timezone must not be blank");
+        }
+        try {
+            return ZoneId.of(userIanaTimezone.trim());
+        } catch (DateTimeException exception) {
+            throw new IllegalArgumentException("Unknown IANA timezone: " + userIanaTimezone, exception);
         }
     }
 

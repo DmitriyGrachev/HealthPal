@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
@@ -7,12 +8,10 @@ import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.domain.ConversationState;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
-import lombok.RequiredArgsConstructor;
+import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.math.BigDecimal;
@@ -20,7 +19,6 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 @Component
-@RequiredArgsConstructor
 public class WeightCommandHandler implements CommandHandler {
 
     private static final Logger log = LoggerFactory.getLogger(WeightCommandHandler.class);
@@ -28,7 +26,30 @@ public class WeightCommandHandler implements CommandHandler {
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
     private final ConversationStateUseCase stateUseCase;
-    private final ApplicationEventPublisher eventPublisher;
+    private final TransactionalEventPublisher eventPublisher;
+    private final UserTimeApi userTimeApi;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public WeightCommandHandler(TelegramBotService botService,
+                                 TelegramUserRepository telegramUserRepository,
+                                 ConversationStateUseCase stateUseCase,
+                                 TransactionalEventPublisher eventPublisher,
+                                 UserTimeApi userTimeApi) {
+        this.botService = botService;
+        this.telegramUserRepository = telegramUserRepository;
+        this.stateUseCase = stateUseCase;
+        this.eventPublisher = eventPublisher;
+        this.userTimeApi = userTimeApi;
+    }
+
+    public WeightCommandHandler(TelegramBotService botService,
+                                TelegramUserRepository telegramUserRepository,
+                                ConversationStateUseCase stateUseCase,
+                                org.springframework.context.ApplicationEventPublisher eventPublisher,
+                                UserTimeApi userTimeApi) {
+        this(botService, telegramUserRepository, stateUseCase,
+                new TransactionalEventPublisher(eventPublisher), userTimeApi);
+    }
 
     @Override
     public boolean canHandle(Update update) {
@@ -44,7 +65,7 @@ public class WeightCommandHandler implements CommandHandler {
         }
         ConversationState currentState = stateUseCase.getState(chatId);
 
-        return text.startsWith("/weight") || currentState == ConversationState.WAITING_WEIGHT;
+        return TelegramCommandParser.isCommand(text, "/weight") || currentState == ConversationState.WAITING_WEIGHT;
     }
 
     @Override
@@ -67,7 +88,7 @@ public class WeightCommandHandler implements CommandHandler {
         }
         ConversationState state = stateUseCase.getState(chatId);
 
-        if (text.startsWith("/weight")) {
+        if (TelegramCommandParser.isCommand(text, "/weight")) {
             startWeightFlow(chatId);
         } else if (state == ConversationState.WAITING_WEIGHT) {
             handleWeightInput(chatId, userOpt.get().getUserId(), text);
@@ -89,11 +110,11 @@ public class WeightCommandHandler implements CommandHandler {
                 return;
             }
 
-            eventPublisher.publishEvent(new TelegramWeightRequestedEvent(
+            eventPublisher.publish(new TelegramWeightRequestedEvent(
                     userId,
                     chatId,
                     weight,
-                    LocalDate.now()
+                    userTimeApi.currentDate(userId)
             ));
 
             String formattedWeight = weight.stripTrailingZeros().toPlainString();

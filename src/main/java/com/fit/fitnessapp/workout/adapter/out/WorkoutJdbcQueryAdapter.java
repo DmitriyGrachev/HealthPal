@@ -13,8 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +27,7 @@ import java.util.Map;
 public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDailyApi, WorkoutWeeklyApi, WorkoutMonthlyApi {
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final Clock clock;
 
     @Override
     public List<WorkoutSummaryDto> getAllWorkoutSummaryByUser(Long userId) {
@@ -58,23 +61,29 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getAllWorkoutSummaryThisWeek(Long userId) {
-        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.isoWeek(LocalDate.now());
-        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
+        com.fit.fitnessapp.domain.DateRange range =
+                com.fit.fitnessapp.domain.DateRange.isoWeek(LocalDate.now(clock));
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay(), range.endDate().plusDays(1).atStartOfDay());
     }
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getWorkoutSummaryLastTwoWeeks(Long userId) {
-        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.isoWeek(LocalDate.now().minusWeeks(1));
-        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
+        LocalDate today = LocalDate.now(clock);
+        com.fit.fitnessapp.domain.DateRange range =
+                com.fit.fitnessapp.domain.DateRange.isoWeek(today.minusWeeks(1));
+        com.fit.fitnessapp.domain.DateRange currentWeek =
+                com.fit.fitnessapp.domain.DateRange.isoWeek(today);
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay(), currentWeek.endDate().plusDays(1).atStartOfDay());
     }
 
     @Override
     public List<WorkoutSummaryWeeklyDto> getWorkoutSummaryThisMonth(Long userId) {
-        com.fit.fitnessapp.domain.DateRange range = com.fit.fitnessapp.domain.DateRange.calendarMonth(java.time.YearMonth.now());
-        return getWorkoutSummary(userId, range.startDate().atStartOfDay());
+        com.fit.fitnessapp.domain.DateRange range =
+                com.fit.fitnessapp.domain.DateRange.calendarMonth(YearMonth.now(clock));
+        return getWorkoutSummary(userId, range.startDate().atStartOfDay(), range.endDate().plusDays(1).atStartOfDay());
     }
 
-    private List<WorkoutSummaryWeeklyDto> getWorkoutSummary(Long userId, LocalDateTime startDate) {
+    private List<WorkoutSummaryWeeklyDto> getWorkoutSummary(Long userId, LocalDateTime startDate, LocalDateTime endDate) {
         String sql = """
                 SELECT
                     we.exercise_name,
@@ -85,12 +94,13 @@ public class WorkoutJdbcQueryAdapter implements WorkoutQueryUseCase, WorkoutDail
                 LEFT JOIN workout_exercises we ON w.id = we.workout_id
                 LEFT JOIN workout_sets ws      ON we.id = ws.exercise_id
                 WHERE w.date >= :startDate
+                  AND w.date < :endDate
                   AND w.user_id = :userId
                 GROUP BY week, we.exercise_name
                 ORDER BY we.exercise_name, week
                 """;
 
-        return jdbc.query(sql, Map.of("userId", userId, "startDate", startDate), (rs, rowNum) ->
+        return jdbc.query(sql, Map.of("userId", userId, "startDate", startDate, "endDate", endDate), (rs, rowNum) ->
                 WorkoutSummaryWeeklyDto.builder()
                         .exerciseName(rs.getString("exercise_name"))
                         .totalReps(rs.getLong("weekly_reps_sum"))

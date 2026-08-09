@@ -2,6 +2,7 @@ package com.fit.fitnessapp.nutrition;
 
 import com.fit.fitnessapp.ai.RateLimitInterceptor;
 import com.fit.fitnessapp.auth.CurrentUserApi;
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.nutrition.adapter.in.web.NutritionController;
 import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
@@ -43,6 +44,8 @@ class NutritionControllerValidationTest {
     private NutritionQueryUseCase queryUseCase;
     @MockitoBean
     private CurrentUserApi currentUserApi;
+    @MockitoBean
+    private UserTimeApi userTimeApi;
     @MockitoBean
     private RateLimitInterceptor rateLimitInterceptor;
     @MockitoBean

@@ -17,7 +17,7 @@ public class StartCommandHandler implements CommandHandler {
     @Override
     public boolean canHandle(Update update) {
         return update.hasMessage() && update.getMessage().hasText()
-                && update.getMessage().getText().startsWith("/start");
+                && TelegramCommandParser.isCommand(update.getMessage().getText(), "/start");
     }
 
     @Override

@@ -5,7 +5,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "user_notes")
@@ -29,14 +29,14 @@ public class UserNote {
     private NoteType type;
 
     @CreationTimestamp
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     public UserNote() {}
 
-    public UserNote(Long id, Long userId, LocalDate relatedDate, String content, NoteType type, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public UserNote(Long id, Long userId, LocalDate relatedDate, String content, NoteType type, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.userId = userId;
         this.relatedDate = relatedDate;
@@ -61,11 +61,11 @@ public class UserNote {
     public NoteType getType() { return type; }
     public void setType(NoteType type) { this.type = type; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
     public enum NoteType {
         ILLNESS, TRAVEL, INJURY, STRESS, ALLERGY, GOAL, PREFERENCE,

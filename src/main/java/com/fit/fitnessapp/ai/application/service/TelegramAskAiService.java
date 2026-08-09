@@ -63,7 +63,10 @@ public class TelegramAskAiService {
         ));
 
         try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(prompt, taskType);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(event.userId(), prompt, taskType);
+            if (!aiSafetyService.isValidNutritionInsightResponse(aiResponse)) {
+                throw new IllegalStateException("AI response failed output validation");
+            }
             logAiCall(event.userId(), taskType, model, startedAt, "success", "NONE");
 
             eventPublisher.publishEvent(new TelegramAiResponseEvent(

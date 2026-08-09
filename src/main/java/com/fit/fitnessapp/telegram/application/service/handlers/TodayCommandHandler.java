@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
+import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
@@ -25,12 +26,13 @@ public class TodayCommandHandler implements CommandHandler {
     private final TelegramBotService botService;
     private final TelegramUserRepository telegramUserRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserTimeApi userTimeApi;
 
     @Override
     public boolean canHandle(Update update) {
         return update.hasMessage() && update.getMessage().hasText()
                 && Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())
-                && update.getMessage().getText().startsWith("/today");
+                && TelegramCommandParser.isCommand(update.getMessage().getText(), "/today");
     }
 
     @Override
@@ -56,7 +58,7 @@ public class TodayCommandHandler implements CommandHandler {
             eventPublisher.publishEvent(new TelegramTodayRequestedEvent(
                     userId,
                     chatId,
-                    LocalDate.now()
+                    userTimeApi.currentDate(userId)
             ));
             log.info("TodayCommandHandler: Event published.");
         } else {

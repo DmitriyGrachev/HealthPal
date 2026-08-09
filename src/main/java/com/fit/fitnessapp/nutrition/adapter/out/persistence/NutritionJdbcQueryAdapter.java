@@ -83,7 +83,12 @@ public class NutritionJdbcQueryAdapter implements NutritionQueryUseCase, Nutriti
 
     @Override
     public List<NutritionDaySummary> getCurrentMonthSummary(Long userId) {
-        YearMonth currentMonth = YearMonth.now();
+        return getCurrentMonthSummary(userId, LocalDate.now(java.time.Clock.systemUTC()));
+    }
+
+    @Override
+    public List<NutritionDaySummary> getCurrentMonthSummary(Long userId, LocalDate referenceDate) {
+        YearMonth currentMonth = YearMonth.from(referenceDate);
         LocalDate start = currentMonth.atDay(1);
         LocalDate end = currentMonth.atEndOfMonth();
 

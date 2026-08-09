@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -55,18 +56,27 @@ class DailyInsightServiceTest {
     @Mock
     private AiContextService aiContextService;
 
+    @Mock
+    private AiSafetyService aiSafetyService;
+
     private DailyInsightService service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(aiSafetyService.isValidNutritionInsightResponse(
+                any(),
+                eq(NutritionInsightResponse.ReportType.DAILY),
+                any(LocalDate.class),
+                any(LocalDate.class))).thenReturn(true);
         service = new DailyInsightService(
                 moeOrchestrator,
                 insightRepository,
                 snapshotService,
-                eventPublisher,
+                new AiInsightPersistenceService(insightRepository, eventPublisher),
                 aiProperties,
                 promptRenderer,
-                aiContextService
+                aiContextService,
+                aiSafetyService
         );
     }
 
@@ -84,7 +94,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Daily summary", "Telegram summary"));
 
         DailyInsightResult result = service.generate(userId, date);
@@ -214,7 +224,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Updated summary", "Updated telegram"));
 
         DailyInsightResult result = service.generate(userId, date);
@@ -225,7 +235,7 @@ class DailyInsightServiceTest {
         assertThat(insightCaptor.getValue()).isSameAs(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated summary");
         assertThat(existing.getMetadata()).containsEntry("snapshot_hash", "new");
-        verify(moeOrchestrator).route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
+        verify(moeOrchestrator).route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
     }
 
     @Test
@@ -282,7 +292,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route("daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenThrow(new IllegalStateException("provider down"));
 
         DailyInsightResult result = service.generateOrPublishExisting(userId, date);
