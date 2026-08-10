@@ -15,18 +15,21 @@ public class MoeOrchestrator {
     private final SmartAiRouter smartAiRouter;
     private final AiProperties aiProperties;
     private final AiExecutionGuard executionGuard;
+    private final AiEgressPolicy egressPolicy;
 
     public MoeOrchestrator(
             @Qualifier("openRouterPort") AiModelPort openRouterPort,
             @Qualifier("geminiPort") AiModelPort geminiPort,
             SmartAiRouter smartAiRouter,
             AiProperties aiProperties,
-            AiExecutionGuard executionGuard) {
+            AiExecutionGuard executionGuard,
+            AiEgressPolicy egressPolicy) {
         this.openRouterPort = openRouterPort;
         this.geminiPort = geminiPort;
         this.smartAiRouter = smartAiRouter;
         this.aiProperties = aiProperties;
         this.executionGuard = executionGuard;
+        this.egressPolicy = egressPolicy;
     }
 
     public enum AiTaskType {
@@ -36,8 +39,10 @@ public class MoeOrchestrator {
         QUICK_ANALYSIS
     }
 
-    public NutritionInsightResponse route(Long userId, String prompt, AiTaskType taskType) {
-        log.info("MoE routing task type: {}", taskType);
+    public NutritionInsightResponse route(Long userId, ClassifiedAiPrompt request, AiTaskType taskType) {
+        AiDataClass classification = egressPolicy.validate(request);
+        String prompt = request.prompt();
+        log.info("MoE routing task type={} dataClass={}", taskType, classification);
         log.debug("AI prompt length: {}", prompt != null ? prompt.length() : 0);
 
         int reservedAttempts = switch (taskType) {

@@ -16,6 +16,9 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class ConversationStateEntity {
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
     @Id
     @Column(name = "chat_id")
     private Long chatId;

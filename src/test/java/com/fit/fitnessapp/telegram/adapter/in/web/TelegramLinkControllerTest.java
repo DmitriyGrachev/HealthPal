@@ -2,6 +2,7 @@ package com.fit.fitnessapp.telegram.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.telegram.application.service.TelegramLinkCodeManager;
+import com.fit.fitnessapp.telegram.application.service.TelegramLinkRevocationService;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,9 @@ class TelegramLinkControllerTest {
 
     @Mock
     private TelegramLinkCodeManager codeManager;
+
+    @Mock
+    private TelegramLinkRevocationService revocationService;
 
     @Mock
     private TelegramUserRepository telegramUserRepository;
@@ -77,6 +81,7 @@ class TelegramLinkControllerTest {
         ResponseEntity<Map<String, Object>> response = controller.unlinkTelegram();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(telegramUserRepository).deleteByUserId(1L);
+        verify(revocationService).unlink(1L);
+        verify(telegramUserRepository, never()).deleteByUserId(anyLong());
     }
 }

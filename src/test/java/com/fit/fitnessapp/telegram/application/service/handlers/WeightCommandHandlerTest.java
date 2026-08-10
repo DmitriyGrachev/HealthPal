@@ -81,11 +81,24 @@ class WeightCommandHandlerTest {
 
         when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(user));
         when(stateUseCase.getState(chatId)).thenReturn(ConversationState.IDLE);
+        when(stateUseCase.updateState(1L, chatId, ConversationState.WAITING_WEIGHT)).thenReturn(true);
 
         handler.handle(update);
 
-        verify(stateUseCase).updateState(chatId, ConversationState.WAITING_WEIGHT);
+        verify(stateUseCase).updateState(1L, chatId, ConversationState.WAITING_WEIGHT);
         verify(botService).sendMessage(eq(chatId), contains("enter your current weight"));
+    }
+
+    @Test
+    void revokedLinkDuringWeightStartDoesNotSendPrompt() {
+        Update update = createFullMessageUpdate("/weight");
+        when(telegramUserRepository.findById(123L)).thenReturn(Optional.of(linkedUser(123L, 456L)));
+        when(stateUseCase.getState(456L)).thenReturn(ConversationState.IDLE);
+        when(stateUseCase.updateState(1L, 456L, ConversationState.WAITING_WEIGHT)).thenReturn(false);
+
+        handler.handle(update);
+
+        verifyNoInteractions(botService);
     }
 
     @Test
@@ -112,7 +125,8 @@ class WeightCommandHandlerTest {
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.weightKg()).isEqualByComparingTo("82.5");
 
-        verify(botService).sendMessage(eq(chatId), contains("82.5 kg received for processing"));
+        verify(botService).enqueueOwnedMessage(eq(userId), eq(chatId), contains("82.5 kg received for processing"));
+        verify(botService, never()).sendMessage(eq(chatId), contains("82.5 kg received for processing"));
         verify(stateUseCase).clearState(chatId);
     }
 

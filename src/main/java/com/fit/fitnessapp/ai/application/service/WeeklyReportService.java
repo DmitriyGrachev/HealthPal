@@ -3,8 +3,11 @@ package com.fit.fitnessapp.ai.application.service;
 import com.fit.fitnessapp.ai.AiInsightEntity;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
+import com.fit.fitnessapp.ai.AiDataClass;
+import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.application.port.out.AiInsightPort;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.exception.AiEgressDeniedException;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
@@ -74,7 +77,8 @@ public class WeeklyReportService {
         long startedAt = System.nanoTime();
         try {
             NutritionInsightResponse response = moeOrchestrator.route(
-                    event.userId(), prompt, MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
+                    event.userId(), new ClassifiedAiPrompt(prompt, AiDataClass.SENSITIVE),
+                    MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
             if (!aiSafetyService.isValidNutritionInsightResponse(
                     response,
                     NutritionInsightResponse.ReportType.WEEKLY,
@@ -96,7 +100,8 @@ public class WeeklyReportService {
                     event.userId(), event.weekStart(), InsightType.WEEKLY,
                     response.summary(), response.telegramSummary(), snapshotHash));
         } catch (Exception e) {
-            logAiCall(event.userId(), startedAt, "error", e.getClass().getSimpleName());
+            logAiCall(event.userId(), startedAt, "error",
+                    e instanceof AiEgressDeniedException denied ? denied.code() : e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -109,7 +114,8 @@ public class WeeklyReportService {
         } else {
             context.append("- Notes for period:\n");
             notes.forEach(note -> context.append(String.format("  * %s (%s): %s\n",
-                    note.relatedDate(), note.type(), note.content())));
+                    note.relatedDate(), note.type(), aiSafetyService.wrapUntrusted(
+                            AiSafetyService.UntrustedDataType.USER_NOTE, note.content()))));
         }
         profileUseCase.getProfileByUserId(userId).ifPresentOrElse(
                 profile -> {

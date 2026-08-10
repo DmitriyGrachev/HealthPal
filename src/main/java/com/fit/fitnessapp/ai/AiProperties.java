@@ -16,7 +16,8 @@ public record AiProperties(
         Map<String, ProviderSettings> providers,
         @NotNull String DAILY_INSIGHT_MODEL,
         @NotNull String QUICK_ANALYSIS_MODEL,
-        ExecutionProperties execution
+        ExecutionProperties execution,
+        boolean allowSensitiveExternalEgress
 ) {
     public record ProviderSettings(boolean enabled) {}
 

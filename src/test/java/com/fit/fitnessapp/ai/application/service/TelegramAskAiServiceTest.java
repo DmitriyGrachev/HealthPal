@@ -3,6 +3,8 @@ package com.fit.fitnessapp.ai.application.service;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
+import com.fit.fitnessapp.ai.AiDataClass;
+import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
@@ -69,7 +71,7 @@ class TelegramAskAiServiceTest {
         when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
         when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
-        when(moeOrchestrator.route(42L, "ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
+        when(moeOrchestrator.route(42L, classified("ask prompt"), MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenReturn(response("Your daily overview show a calorie increase"));
 
         service.answer(event);
@@ -121,7 +123,7 @@ class TelegramAskAiServiceTest {
         when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
         when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
-        when(moeOrchestrator.route(42L, "ask prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
+        when(moeOrchestrator.route(42L, classified("ask prompt"), MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenThrow(new IllegalStateException("provider down"));
 
         service.answer(event);
@@ -146,5 +148,9 @@ class TelegramAskAiServiceTest {
                 1.0f,
                 1.0f
         );
+    }
+
+    private ClassifiedAiPrompt classified(String content) {
+        return new ClassifiedAiPrompt(content, AiDataClass.SENSITIVE);
     }
 }

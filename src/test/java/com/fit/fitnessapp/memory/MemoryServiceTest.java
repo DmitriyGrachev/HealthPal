@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.memory;
 
+import com.fit.fitnessapp.api.SensitiveAiEgressGuard;
 import com.fit.fitnessapp.memory.application.service.MemoryService;
 import com.fit.fitnessapp.memory.domain.MemoryType;
 import org.springframework.ai.document.Document;
@@ -22,12 +23,29 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class MemoryServiceTest {
 
     @Mock
     private VectorStore vectorStore;
+
+    @Mock
+    private SensitiveAiEgressGuard egressGuard;
+
+    @Test
+    void deniedSensitiveEgressDoesNotReachVectorSearch() {
+        doThrow(new IllegalStateException("denied")).when(egressGuard).validateSensitiveEgress();
+        MemoryService service = new MemoryService(vectorStore, egressGuard);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.findRelevantMemories(42L, "private question", 5))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(vectorStore);
+    }
 
     @Test
     void relevantMemorySearchUsesServerSideUserIdFilter() {
@@ -53,7 +71,7 @@ class MemoryServiceTest {
                 document("Monthly report summary", "SEMANTIC", "LONG_TERM"),
                 document("User is allergic to peanuts", "FACT", "LONG_TERM")
         ));
-        MemoryService service = new MemoryService(vectorStore);
+        MemoryService service = new MemoryService(vectorStore, egressGuard);
 
         var facts = service.findLongTermFacts(77L, 3);
 
@@ -76,7 +94,7 @@ class MemoryServiceTest {
 
     private MemoryService serviceWithEmptyVectorResults() {
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
-        return new MemoryService(vectorStore);
+        return new MemoryService(vectorStore, egressGuard);
     }
 
     private SearchRequest capturedSearchRequest() {

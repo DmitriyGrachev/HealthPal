@@ -61,9 +61,8 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
 
         verify(sender, times(1)).execute(any(SendMessage.class));
         assertThat(transactionActiveAtProvider).isFalse();
-        assertThat(jdbc.queryForMap(
-                "SELECT status, attempts FROM telegram_delivery_outbox WHERE id = ?", outboxId))
-                .containsEntry("status", "SENT")
-                .containsEntry("attempts", 1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM telegram_delivery_outbox WHERE id = ?", Long.class, outboxId))
+                .isZero();
     }
 }

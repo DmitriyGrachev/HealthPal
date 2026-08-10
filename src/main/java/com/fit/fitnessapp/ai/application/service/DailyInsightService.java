@@ -5,7 +5,10 @@ import com.fit.fitnessapp.ai.AiInsightRepository;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
+import com.fit.fitnessapp.ai.AiDataClass;
+import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.exception.AiEgressDeniedException;
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
@@ -95,7 +98,8 @@ public class DailyInsightService {
             ));
 
             model = aiProperties.DAILY_INSIGHT_MODEL();
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(userId, prompt, taskType);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(
+                    userId, new ClassifiedAiPrompt(prompt, AiDataClass.SENSITIVE), taskType);
             if (!aiSafetyService.isValidNutritionInsightResponse(
                     aiResponse,
                     NutritionInsightResponse.ReportType.DAILY,
@@ -141,7 +145,9 @@ public class DailyInsightService {
             ));
             return DailyInsightResult.generated();
         } catch (Exception e) {
-            String errorCode = e.getClass().getSimpleName();
+            String errorCode = e instanceof AiEgressDeniedException denied
+                    ? denied.code()
+                    : e.getClass().getSimpleName();
             logAiCall(userId, taskType, model, startedAt, "error", errorCode);
             return DailyInsightResult.aiFailed(errorCode);
         }

@@ -5,6 +5,8 @@ import com.fit.fitnessapp.ai.AiInsightRepository;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
+import com.fit.fitnessapp.ai.AiDataClass;
+import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
@@ -48,6 +50,9 @@ class DailyInsightServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
+    private InsightSourceLock insightSourceLock;
+
+    @Mock
     private AiProperties aiProperties;
 
     @Mock
@@ -72,7 +77,7 @@ class DailyInsightServiceTest {
                 moeOrchestrator,
                 insightRepository,
                 snapshotService,
-                new AiInsightPersistenceService(insightRepository, eventPublisher),
+                new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock),
                 aiProperties,
                 promptRenderer,
                 aiContextService,
@@ -94,7 +99,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Daily summary", "Telegram summary"));
 
         DailyInsightResult result = service.generate(userId, date);
@@ -224,7 +229,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Updated summary", "Updated telegram"));
 
         DailyInsightResult result = service.generate(userId, date);
@@ -235,7 +240,7 @@ class DailyInsightServiceTest {
         assertThat(insightCaptor.getValue()).isSameAs(existing);
         assertThat(existing.getInsightText()).isEqualTo("Updated summary");
         assertThat(existing.getMetadata()).containsEntry("snapshot_hash", "new");
-        verify(moeOrchestrator).route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
+        verify(moeOrchestrator).route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
     }
 
     @Test
@@ -292,7 +297,7 @@ class DailyInsightServiceTest {
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
-        when(moeOrchestrator.route(42L, "daily prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+        when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenThrow(new IllegalStateException("provider down"));
 
         DailyInsightResult result = service.generateOrPublishExisting(userId, date);
@@ -365,5 +370,9 @@ class DailyInsightServiceTest {
                 1.0f,
                 1.0f
         );
+    }
+
+    private ClassifiedAiPrompt classified(String content) {
+        return new ClassifiedAiPrompt(content, AiDataClass.SENSITIVE);
     }
 }

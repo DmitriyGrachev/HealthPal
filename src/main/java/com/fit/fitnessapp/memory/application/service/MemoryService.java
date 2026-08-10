@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.memory.application.service;
 
+import com.fit.fitnessapp.api.SensitiveAiEgressGuard;
 import com.fit.fitnessapp.memory.application.port.in.MemoryQueryUseCase;
 import com.fit.fitnessapp.memory.domain.MemoryType;
 import com.fit.fitnessapp.memory.domain.UserMemory;
@@ -23,19 +24,22 @@ public class MemoryService implements MemoryQueryUseCase {
 
     private final VectorStore vectorStore;
     private final Clock clock;
+    private final SensitiveAiEgressGuard egressGuard;
 
     @Autowired
-    public MemoryService(VectorStore vectorStore, Clock clock) {
+    public MemoryService(VectorStore vectorStore, Clock clock, SensitiveAiEgressGuard egressGuard) {
         this.vectorStore = vectorStore;
         this.clock = clock;
+        this.egressGuard = egressGuard;
     }
 
-    public MemoryService(VectorStore vectorStore) {
-        this(vectorStore, Clock.systemUTC());
+    public MemoryService(VectorStore vectorStore, SensitiveAiEgressGuard egressGuard) {
+        this(vectorStore, Clock.systemUTC(), egressGuard);
     }
 
     @Override
     public List<UserMemory> findRelevantMemories(Long userId, String query, int limit) {
+        egressGuard.validateSensitiveEgress();
         // Base search by user_id.
         SearchRequest request = SearchRequest.builder()
                 .query(query)

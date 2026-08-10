@@ -3,6 +3,7 @@ package com.fit.fitnessapp.ai.application.service;
 import com.fit.fitnessapp.ai.AiInsightEntity;
 import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.ai.application.port.out.AiInsightPort;
+import com.fit.fitnessapp.api.SensitiveAiEgressGuard;
 import com.fit.fitnessapp.memory.application.port.in.MemoryQueryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,29 +19,38 @@ public class AiContextService {
 
     private final MemoryQueryUseCase memoryQueryUseCase;
     private final AiInsightPort insightRepository;
+    private final AiSafetyService aiSafetyService;
+    private final SensitiveAiEgressGuard egressGuard;
 
     public String buildMemoryContext(Long userId, String semanticQuery) {
+        egressGuard.validateSensitiveEgress();
         StringBuilder sb = new StringBuilder();
 
         var facts = memoryQueryUseCase.findLongTermFacts(userId, 5);
         if (!facts.isEmpty()) {
             sb.append("PERMANENT USER FACTS:\n");
-            facts.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+            facts.forEach(m -> appendMemory(sb, m.content()));
         }
 
         var patterns = memoryQueryUseCase.findRelevantMemories(userId, semanticQuery, 3);
         if (!patterns.isEmpty()) {
             sb.append("\nPATTERNS AND HISTORY:\n");
-            patterns.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+            patterns.forEach(m -> appendMemory(sb, m.content()));
         }
 
         var recentContext = memoryQueryUseCase.findRecentContext(userId, 7, 3);
         if (!recentContext.isEmpty()) {
             sb.append("\nCURRENT CONTEXT (last 7 days):\n");
-            recentContext.forEach(m -> sb.append("- ").append(m.content()).append("\n"));
+            recentContext.forEach(m -> appendMemory(sb, m.content()));
         }
 
         return sb.length() > 0 ? sb.toString() : "No user data.";
+    }
+
+    private void appendMemory(StringBuilder context, String content) {
+        context.append("- ")
+                .append(aiSafetyService.wrapUntrusted(AiSafetyService.UntrustedDataType.USER_MEMORY, content))
+                .append('\n');
     }
 
     public String getRecentInsightsSummary(Long userId, InsightType currentType) {

@@ -24,7 +24,7 @@ public class TelegramNotificationListener {
     public void onInsightGenerated(InsightGeneratedEvent event) {
         log.info("Telegram module received InsightGeneratedEvent for user {}", event.userId());
 
-        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findByUserId(event.userId());
+        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findByUserIdForUpdate(event.userId());
 
         userOpt.ifPresent(telegramUser -> {
             String message = TelegramMessages.insight(
@@ -36,7 +36,7 @@ public class TelegramNotificationListener {
                 message = TelegramMessages.personalizedInsight(event.telegramSummary());
             }
 
-            botService.enqueueMessage(telegramUser.getChatId(), message);
+            botService.enqueueOwnedMessage(event.userId(), telegramUser.getChatId(), message);
         });
     }
 }

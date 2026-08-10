@@ -25,5 +25,6 @@ public record UserDataExportDto(
         List<Map<String, Object>> conversationHistory,
         List<Map<String, Object>> telegramDeliveries,
         List<Map<String, Object>> durableJobs,
-        boolean fatSecretConnected
+        boolean fatSecretConnected,
+        List<Map<String, Object>> aiUsageBudget
 ) {}

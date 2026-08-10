@@ -64,6 +64,7 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM user_memory");
+        List.of(101L, 202L, 303L, 404L, 505L, 901L).forEach(this::insertUserIfMissing);
         when(embeddingModel.dimensions()).thenReturn(EMBEDDING_DIMENSIONS);
         when(embeddingModel.embed(anyString())).thenAnswer(invocation ->
                 embeddingFor(invocation.getArgument(0, String.class)));
@@ -85,6 +86,44 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                     .toList();
             return new EmbeddingResponse(embeddings);
         });
+    }
+
+    @Test
+    void generatedOwnerColumnRejectsOrphansAndCascadesWithUserDeletion() {
+        long userId = 606L;
+        insertUserIfMissing(userId);
+        UUID memoryId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO user_memory (id, content, metadata)
+                VALUES (?::uuid, 'constraint-backed memory', jsonb_build_object('user_id', ?::bigint))
+                """, memoryId.toString(), userId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT user_id FROM user_memory WHERE id = ?::uuid",
+                Long.class,
+                memoryId.toString())).isEqualTo(userId);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO user_memory (content, metadata)
+                VALUES ('orphan memory', jsonb_build_object('user_id', 999999999::bigint))
+                """))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO user_memory (content, metadata)
+                VALUES ('ownerless memory', '{}'::jsonb)
+                """))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO user_memory (content, metadata)
+                VALUES ('malformed owner', jsonb_build_object('user_id', 'not-a-number'))
+                """))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_memory WHERE id = ?::uuid",
+                Long.class,
+                memoryId.toString())).isZero();
     }
 
     @Test
@@ -155,6 +194,11 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     void noteMemoryCarriesProvenanceAndIsRemovedWhenSourceNoteIsDeleted() throws Exception {
         assertPgvectorSchemaMigrated();
+        jdbcTemplate.update("""
+                INSERT INTO user_notes (id, user_id, related_date, content, type)
+                VALUES (9001, 901, DATE '2026-08-09', 'peanut allergy', 'ALLERGY')
+                ON CONFLICT (id) DO NOTHING
+                """);
         UserNoteCreatedEvent created = new UserNoteCreatedEvent(
                 9001L,
                 901L,
@@ -268,6 +312,14 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
         embedding[0] = 1.0f;
         embedding[Math.floorMod(text.hashCode(), EMBEDDING_DIMENSIONS)] += 0.1f;
         return embedding;
+    }
+
+    private void insertUserIfMissing(long userId) {
+        jdbcTemplate.update("""
+                INSERT INTO users (id, username, email, password)
+                VALUES (?, ?, ?, 'pass')
+                ON CONFLICT (id) DO NOTHING
+                """, userId, "memory-user-" + userId, "memory-user-" + userId + "@example.test");
     }
 
     private void awaitMemoryCount(String memoryId, long expected) throws InterruptedException {

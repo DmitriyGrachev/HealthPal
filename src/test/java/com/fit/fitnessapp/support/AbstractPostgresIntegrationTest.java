@@ -61,6 +61,7 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.ai.vectorstore.pgvector.table-name", () -> "user_memory");
         registry.add("spring.ai.vectorstore.pgvector.index-type", () -> "NONE");
         registry.add("spring.ai.vectorstore.pgvector.dimension", () -> "2048");
+        registry.add("app.ai.allow-sensitive-external-egress", () -> "true");
         registry.add("memory.cleanup.enabled", () -> "false");
     }
 }

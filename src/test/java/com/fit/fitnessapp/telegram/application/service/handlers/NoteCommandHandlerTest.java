@@ -41,6 +41,23 @@ class NoteCommandHandlerTest {
     );
 
     @Test
+    void revokedLinkDuringNoteStartDoesNotSendPrompt() {
+        Long chatId = 10L;
+        Long telegramId = 20L;
+        Long appUserId = 30L;
+        when(telegramUserRepository.findById(telegramId)).thenReturn(Optional.of(
+                TelegramUserEntity.builder()
+                        .telegramId(telegramId).userId(appUserId).chatId(chatId).build()));
+        when(stateUseCase.getState(chatId)).thenReturn(ConversationState.IDLE);
+        when(stateUseCase.updateState(appUserId, chatId, ConversationState.WAITING_NOTE_TYPE))
+                .thenReturn(false);
+
+        handler.handle(update(chatId, telegramId, "/note"));
+
+        verifyNoInteractions(botService);
+    }
+
+    @Test
     void visibleTrainingNoteTypePublishesEnumCompatibleEventType() {
         Long chatId = 10L;
         Long telegramId = 20L;
@@ -57,11 +74,17 @@ class NoteCommandHandlerTest {
                 ConversationState.WAITING_NOTE_TYPE,
                 ConversationState.WAITING_NOTE_CONTENT
         );
+        when(stateUseCase.updateState(
+                eq(appUserId),
+                eq(chatId),
+                eq(ConversationState.WAITING_NOTE_CONTENT),
+                any())).thenReturn(true);
 
         handler.handle(update(chatId, telegramId, "Training"));
 
         ArgumentCaptor<Map<String, Object>> dataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(stateUseCase).updateState(
+                eq(appUserId),
                 eq(chatId),
                 eq(ConversationState.WAITING_NOTE_CONTENT),
                 dataCaptor.capture()
@@ -79,6 +102,12 @@ class NoteCommandHandlerTest {
         String eventType = eventCaptor.getValue().type();
         assertThat(eventType).isEqualTo(storedType);
         assertThatCode(() -> UserNoteDto.NoteType.valueOf(eventType));
+        verify(botService).enqueueOwnedMessage(
+                appUserId, chatId, com.fit.fitnessapp.telegram.application.service.TelegramMessages.noteSaved(
+                        storedType, "Felt strong on squats"));
+        verify(botService, never()).sendMessage(
+                chatId, com.fit.fitnessapp.telegram.application.service.TelegramMessages.noteSaved(
+                        storedType, "Felt strong on squats"));
     }
 
     @Test
@@ -97,7 +126,8 @@ class NoteCommandHandlerTest {
 
         handler.handle(update(chatId, telegramId, "Sleep"));
 
-        verify(stateUseCase, never()).updateState(eq(chatId), eq(ConversationState.WAITING_NOTE_CONTENT), any());
+        verify(stateUseCase, never()).updateState(
+                eq(appUserId), eq(chatId), eq(ConversationState.WAITING_NOTE_CONTENT), any());
         verify(eventPublisher, never()).publishEvent(any());
         verify(botService).sendMessage(chatId, com.fit.fitnessapp.telegram.application.service.TelegramMessages.NOTE_TYPE_INVALID);
     }

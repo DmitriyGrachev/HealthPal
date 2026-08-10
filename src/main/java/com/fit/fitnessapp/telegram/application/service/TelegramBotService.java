@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
 import org.telegram.telegrambots.meta.bots.AbsSender;
@@ -31,6 +32,12 @@ public class TelegramBotService {
                 WHERE status = 'PENDING'
                   AND attempts < max_attempts
                   AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+                  AND (user_id IS NULL OR EXISTS (
+                      SELECT 1
+                        FROM telegram_users active_link
+                       WHERE active_link.user_id = telegram_delivery_outbox.user_id
+                         AND active_link.chat_id = telegram_delivery_outbox.chat_id
+                  ))
                 ORDER BY id
                 LIMIT 50
                 FOR UPDATE SKIP LOCKED
@@ -42,7 +49,8 @@ public class TelegramBotService {
                 next_retry_at = NULL
             FROM claimable
             WHERE outbox.id = claimable.id
-            RETURNING outbox.id, outbox.chat_id, outbox.text, outbox.attempts, outbox.max_attempts
+            RETURNING outbox.id, outbox.user_id, outbox.chat_id, outbox.text,
+                      outbox.attempts, outbox.max_attempts
             """;
 
     private final AbsSender botSender;
@@ -90,18 +98,43 @@ public class TelegramBotService {
         }
     }
 
+    /** Queues private delivery only while the exact user-to-chat link is active. */
+    @Transactional
+    public boolean enqueueOwnedMessage(Long userId, Long chatId, String text) {
+        if (userId == null || chatId == null || text == null || text.isBlank()) {
+            return false;
+        }
+        for (String chunk : chunkText(text, MAX_TELEGRAM_MESSAGE_LENGTH)) {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO telegram_delivery_outbox
+                        (user_id, chat_id, text, status, attempts, created_at)
+                    SELECT active_link.user_id, active_link.chat_id, ?, 'PENDING', 0, NOW()
+                      FROM telegram_users active_link
+                     WHERE active_link.user_id = ?
+                       AND active_link.chat_id = ?
+                    FOR KEY SHARE OF active_link
+                    """, chunk, userId, chatId);
+            if (inserted == 0) {
+                log.info("Skipped owned Telegram enqueue userId={} chatId={} errorCode=TELEGRAM_LINK_REVOKED",
+                        userId, chatId);
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void sendSingleChunk(Long chatId, String text, ReplyKeyboard keyboard) {
         Long outboxId = recordClaimedOutboxEntry(chatId, text);
         try {
             executeTelegramSend(chatId, text, keyboard, "Markdown");
-            updateOutboxSent(outboxId);
+            completeDelivery(outboxId);
         } catch (TelegramApiRequestException requestError) {
             if (isMarkdownFormattingError(requestError)) {
                 log.warn("Telegram Markdown formatting rejected chatId={} errorCode={}; retrying as plain text",
                         chatId, requestError.getErrorCode());
                 try {
                     executeTelegramSend(chatId, text, keyboard, null);
-                    updateOutboxSent(outboxId);
+                    completeDelivery(outboxId);
                 } catch (TelegramApiException plainError) {
                     handleSendFailure(outboxId, plainError, 1, DEFAULT_MAX_ATTEMPTS);
                 }
@@ -143,11 +176,7 @@ public class TelegramBotService {
             return;
         }
 
-        jdbcTemplate.update(
-                "UPDATE telegram_delivery_outbox " +
-                        "SET status = 'FAILED', error_message = ?, next_retry_at = NULL, claimed_at = NULL " +
-                        "WHERE id = ? AND status = 'SENDING'",
-                safeError, outboxId);
+        permanentlyFailDelivery(outboxId, safeError);
         log.error("Permanent Telegram delivery failure outboxId={} attempts={} errorCode={}",
                 outboxId, attempts, safeError);
     }
@@ -178,22 +207,79 @@ public class TelegramBotService {
                 CLAIM_PENDING_SQL,
                 (rs, rowNum) -> new OutboxItem(
                         rs.getLong("id"),
+                        rs.getObject("user_id", Long.class),
                         rs.getLong("chat_id"),
                         rs.getString("text"),
                         rs.getInt("attempts"),
                         rs.getInt("max_attempts")));
 
         for (OutboxItem item : claimedItems) {
+            if (!isDeliveryAuthorized(item)) {
+                jdbcTemplate.update("""
+                        UPDATE telegram_delivery_outbox
+                           SET status = 'FAILED',
+                               error_message = 'TELEGRAM_LINK_REVOKED',
+                               next_retry_at = NULL,
+                               claimed_at = NULL
+                         WHERE id = ? AND status = 'SENDING'
+                        """, item.id());
+                log.info("Skipped owned Telegram delivery outboxId={} userId={} chatId={} errorCode=TELEGRAM_LINK_REVOKED",
+                        item.id(), item.userId(), item.chatId());
+                continue;
+            }
             try {
                 executeTelegramSend(item.chatId(), item.text(), null, null);
-                updateOutboxSent(item.id());
+                completeDelivery(item.id());
             } catch (TelegramApiException error) {
                 handleSendFailure(item.id(), error, item.attempts(), item.maxAttempts());
             }
         }
     }
 
+    private boolean isDeliveryAuthorized(OutboxItem item) {
+        if (item.userId() == null) {
+            return true;
+        }
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM telegram_users active_link
+                     WHERE active_link.user_id = ?
+                       AND active_link.chat_id = ?
+                )
+                """, Boolean.class, item.userId(), item.chatId()));
+    }
+
     private void recoverStuckClaims() {
+        int discarded = jdbcTemplate.update("""
+                DELETE FROM telegram_delivery_outbox
+                WHERE user_id IS NULL
+                  AND attempts >= max_attempts
+                  AND (
+                      status = 'PENDING'
+                      OR (status = 'SENDING'
+                          AND claimed_at < NOW() - INTERVAL '15 minutes')
+                  )
+                """);
+        if (discarded > 0) {
+            log.warn("Discarded {} exhausted anonymous Telegram outbox claims", discarded);
+        }
+
+        int failedOwned = jdbcTemplate.update("""
+                UPDATE telegram_delivery_outbox
+                SET status = 'FAILED',
+                    claimed_at = NULL,
+                    next_retry_at = NULL,
+                    error_message = 'CLAIM_TIMEOUT_MAX_ATTEMPTS'
+                WHERE user_id IS NOT NULL
+                  AND status = 'SENDING'
+                  AND attempts >= max_attempts
+                  AND claimed_at < NOW() - INTERVAL '15 minutes'
+                """);
+        if (failedOwned > 0) {
+            log.warn("Failed {} exhausted owned Telegram outbox claims", failedOwned);
+        }
+
         int recovered = jdbcTemplate.update("""
                 UPDATE telegram_delivery_outbox
                 SET status = 'PENDING',
@@ -201,6 +287,7 @@ public class TelegramBotService {
                     next_retry_at = NOW(),
                     error_message = 'CLAIM_TIMEOUT'
                 WHERE status = 'SENDING'
+                  AND attempts < max_attempts
                   AND claimed_at < NOW() - INTERVAL '15 minutes'
                 """);
         if (recovered > 0) {
@@ -208,7 +295,7 @@ public class TelegramBotService {
         }
     }
 
-    record OutboxItem(Long id, Long chatId, String text, int attempts, int maxAttempts) {
+    record OutboxItem(Long id, Long userId, Long chatId, String text, int attempts, int maxAttempts) {
     }
 
     public static List<String> chunkText(String text, int maxChunkSize) {
@@ -239,13 +326,39 @@ public class TelegramBotService {
         }
     }
 
-    private void updateOutboxSent(Long outboxId) {
+    private void completeDelivery(Long outboxId) {
+        int deleted = jdbcTemplate.update("""
+                DELETE FROM telegram_delivery_outbox
+                 WHERE id = ?
+                   AND status = 'SENDING'
+                   AND user_id IS NULL
+                """, outboxId);
+        if (deleted > 0) {
+            return;
+        }
         jdbcTemplate.update(
                 "UPDATE telegram_delivery_outbox " +
                         "SET status = 'SENT', sent_at = NOW(), error_message = NULL, " +
                         "next_retry_at = NULL, claimed_at = NULL " +
-                        "WHERE id = ? AND status = 'SENDING'",
+                        "WHERE id = ? AND status = 'SENDING' AND user_id IS NOT NULL",
                 outboxId);
+    }
+
+    private void permanentlyFailDelivery(Long outboxId, String safeError) {
+        int deleted = jdbcTemplate.update("""
+                DELETE FROM telegram_delivery_outbox
+                 WHERE id = ?
+                   AND status = 'SENDING'
+                   AND user_id IS NULL
+                """, outboxId);
+        if (deleted > 0) {
+            return;
+        }
+        jdbcTemplate.update(
+                "UPDATE telegram_delivery_outbox " +
+                        "SET status = 'FAILED', error_message = ?, next_retry_at = NULL, claimed_at = NULL " +
+                        "WHERE id = ? AND status = 'SENDING' AND user_id IS NOT NULL",
+                safeError, outboxId);
     }
 
     private int backoffSeconds(int attempts) {

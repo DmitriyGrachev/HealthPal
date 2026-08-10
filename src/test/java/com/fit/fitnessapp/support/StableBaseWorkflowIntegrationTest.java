@@ -114,6 +114,11 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
         awaitCount("SELECT COUNT(*) FROM durable_jobs WHERE user_id = ? AND job_type = 'DAILY_INSIGHT'",
                 userId, 1L);
 
+        jdbc.update("""
+                INSERT INTO ai_insights (user_id, insight_type, date, insight_text, metadata)
+                VALUES (?, 'DAILY', ?, 'Daily insight', '{"snapshot_hash":"summary-hash"}')
+                """, userId, date);
+
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(new InsightGeneratedEvent(
                 userId, date, InsightType.DAILY, "Daily insight", "Daily Telegram summary", "summary-hash")));
         awaitCount("SELECT COUNT(*) FROM user_memory WHERE metadata->>'user_id' = ?",
@@ -143,6 +148,11 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
 
         awaitCount("SELECT COUNT(*) FROM weight_history WHERE user_id = ? AND weight_kg = 77.7",
                 userId, 1L);
+        awaitCount("SELECT COUNT(*) FROM telegram_delivery_outbox WHERE chat_id = ? AND status = 'PENDING'",
+                8202L, 1L);
+
+        telegramBotService.processOutboxRetries();
+
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM telegram_delivery_outbox WHERE chat_id = ? AND status = 'SENT'",
                 Long.class, 8202L)).isGreaterThanOrEqualTo(1L);

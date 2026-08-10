@@ -3,7 +3,10 @@ package com.fit.fitnessapp.ai.application.service;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.MoeOrchestrator;
+import com.fit.fitnessapp.ai.AiDataClass;
+import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.ai.exception.AiEgressDeniedException;
 import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +58,8 @@ public class TelegramAskAiService {
         MoeOrchestrator.AiTaskType taskType = MoeOrchestrator.AiTaskType.QUICK_ANALYSIS;
         String model = aiProperties.QUICK_ANALYSIS_MODEL();
 
-        String safeQuestion = aiSafetyService.wrapUserBoundary("user_question", event.question());
+        String safeQuestion = aiSafetyService.wrapUntrusted(
+                AiSafetyService.UntrustedDataType.USER_QUESTION, event.question());
         String memoryContext = aiContextService.buildMemoryContext(event.userId(), event.question());
         String prompt = promptRenderer.render("telegram-ask-v1.md", Map.of(
                 "memoryContext", memoryContext,
@@ -63,7 +67,8 @@ public class TelegramAskAiService {
         ));
 
         try {
-            NutritionInsightResponse aiResponse = moeOrchestrator.route(event.userId(), prompt, taskType);
+            NutritionInsightResponse aiResponse = moeOrchestrator.route(
+                    event.userId(), new ClassifiedAiPrompt(prompt, AiDataClass.SENSITIVE), taskType);
             if (!aiSafetyService.isValidNutritionInsightResponse(aiResponse)) {
                 throw new IllegalStateException("AI response failed output validation");
             }
@@ -75,7 +80,8 @@ public class TelegramAskAiService {
                     aiResponse.summary()
             ));
         } catch (Exception e) {
-            logAiCall(event.userId(), taskType, model, startedAt, "error", e.getClass().getSimpleName());
+            logAiCall(event.userId(), taskType, model, startedAt, "error",
+                    e instanceof AiEgressDeniedException denied ? denied.code() : e.getClass().getSimpleName());
             eventPublisher.publishEvent(new TelegramAiResponseEvent(
                     event.userId(),
                     event.chatId(),

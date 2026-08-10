@@ -15,15 +15,18 @@ public class AiInsightPersistenceService {
 
     private final AiInsightRepository insightRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final InsightSourceLock insightSourceLock;
 
     @Transactional
     public void saveAndPublish(AiInsightEntity insight, InsightGeneratedEvent event) {
+        insightSourceLock.lock(insight.getUserId(), insight.getInsightType(), insight.getDate());
         insightRepository.save(insight);
         eventPublisher.publishEvent(event);
     }
 
     @Transactional
     public void deleteAndPublish(AiInsightEntity insight, InsightDeletedEvent event) {
+        insightSourceLock.lock(insight.getUserId(), insight.getInsightType(), insight.getDate());
         insightRepository.delete(insight);
         eventPublisher.publishEvent(event);
     }

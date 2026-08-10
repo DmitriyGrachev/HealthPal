@@ -1,23 +1,28 @@
 package com.fit.fitnessapp.auth.application.service;
 
+import com.fit.fitnessapp.api.UserDataExportFragment;
+import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.auth.application.port.out.UserIdentityLifecyclePort;
 import com.fit.fitnessapp.auth.domain.UserAccountDeletionResult;
 import com.fit.fitnessapp.auth.domain.UserDataExportDto;
-import org.junit.jupiter.api.DisplayName;
+import com.fit.fitnessapp.auth.domain.UserIdentityData;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,68 +30,81 @@ import static org.mockito.Mockito.when;
 class UserDataLifecycleServiceTest {
 
     @Mock
-    private JdbcTemplate jdbcTemplate;
+    private UserIdentityLifecyclePort userIdentityPort;
+
+    @Mock
+    private UserDataLifecycleParticipant nutritionParticipant;
+
+    @Mock
+    private UserDataLifecycleParticipant aiParticipant;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-09T12:00:00Z"), ZoneOffset.UTC);
 
     private UserDataLifecycleService service;
+    private UserIdentityData user;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
-        service = new UserDataLifecycleService(jdbcTemplate, clock);
+        user = new UserIdentityData(42L, "test@example.com", "testuser");
+        when(nutritionParticipant.key()).thenReturn("nutrition");
+        when(aiParticipant.key()).thenReturn("ai");
+        service = new UserDataLifecycleService(
+                userIdentityPort,
+                List.of(nutritionParticipant, aiParticipant),
+                clock);
     }
 
     @Test
-    @DisplayName("Should assemble data export using correct table/column names")
-    void exportUserData_Success() {
-        lenient().when(jdbcTemplate.queryForList(anyString(), eq(1L))).thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("SELECT id, email, username FROM users"), eq(1L)))
-                .thenReturn(List.of(Map.of(
-                        "username", "testuser",
-                        "email", "test@example.com"
-                )));
-        when(jdbcTemplate.queryForList(contains("SELECT * FROM profile"), eq(1L)))
-                .thenReturn(List.of(Map.of("age", 30)));
-        when(jdbcTemplate.queryForList(contains("weight_history"), eq(1L)))
-                .thenReturn(List.of(Map.of("weight_kg", 80.0, "weight_date", "2026-01-01")));
-        when(jdbcTemplate.queryForList(contains("fatsecret_food"), eq(1L)))
-                .thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("FROM workout"), eq(1L)))
-                .thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("FROM user_notes"), eq(1L)))
-                .thenReturn(List.of(Map.of("content", "Test note")));
-        when(jdbcTemplate.queryForObject(contains("SELECT EXISTS"), eq(Boolean.class), eq(1L)))
-                .thenReturn(false);
+    void exportCombinesStableParticipantFragmentsAndAddsUserAiBudget() {
+        Map<String, Object> budgetRow = Map.of(
+                "scope_type", "USER",
+                "scope_id", 42L,
+                "used_tokens", 250L);
+        when(userIdentityPort.findById(42L)).thenReturn(Optional.of(user));
+        when(aiParticipant.exportData(42L)).thenReturn(new UserDataExportFragment("ai", Map.of(
+                "aiInsights", List.of(Map.of("insight_type", "daily")),
+                "aiUsageBudget", List.of(budgetRow))));
+        when(nutritionParticipant.exportData(42L)).thenReturn(new UserDataExportFragment("nutrition", Map.of(
+                "profile", Map.of("goal_weight_kg", 75.0),
+                "fatSecretConnected", true)));
 
-        UserDataExportDto export = service.exportUserData(1L);
+        UserDataExportDto export = service.exportUserData(42L);
 
-        assertThat(export.userId()).isEqualTo(1L);
+        assertThat(export.userId()).isEqualTo(42L);
         assertThat(export.username()).isEqualTo("testuser");
         assertThat(export.email()).isEqualTo("test@example.com");
-        assertThat(export.profile()).containsEntry("age", 30);
-        assertThat(export.weightHistory()).hasSize(1);
+        assertThat(export.profile()).containsEntry("goal_weight_kg", 75.0);
+        assertThat(export.aiInsights()).singleElement()
+                .satisfies(row -> assertThat(row).containsEntry("insight_type", "daily"));
+        assertThat(export.aiUsageBudget()).containsExactly(budgetRow);
+        assertThat(export.fatSecretConnected()).isTrue();
+
+        InOrder order = inOrder(aiParticipant, nutritionParticipant);
+        order.verify(aiParticipant).exportData(42L);
+        order.verify(nutritionParticipant).exportData(42L);
     }
 
     @Test
-    @DisplayName("Should delete account using correct table names")
-    void deleteAccount_Success() {
-        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM users"), eq(Integer.class), eq(1L)))
-                .thenReturn(1);
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+    void deleteRunsAllModuleCleanupBeforeDeletingAuthIdentity() {
+        when(userIdentityPort.findById(42L)).thenReturn(Optional.of(user));
+        clearInvocations(aiParticipant, nutritionParticipant, userIdentityPort);
 
-        UserAccountDeletionResult result = service.deleteAccount(1L);
+        UserAccountDeletionResult result = service.deleteAccount(42L);
 
-        assertThat(result.userId()).isEqualTo(1L);
         assertThat(result.success()).isTrue();
-        verify(jdbcTemplate).update("DELETE FROM user_memory WHERE metadata->>'user_id' = ?", "1");
-        verify(jdbcTemplate).update("DELETE FROM users WHERE id = ?", 1L);
+        InOrder order = inOrder(aiParticipant, nutritionParticipant, userIdentityPort);
+        order.verify(aiParticipant).deleteData(42L);
+        order.verify(nutritionParticipant).deleteData(42L);
+        order.verify(userIdentityPort).deleteById(42L);
     }
 
     @Test
-    @DisplayName("Should disconnect FatSecret for user")
-    void disconnectFatSecret_Success() {
-        service.disconnectFatSecret(1L);
+    void disconnectDelegatesToModuleOwnersWithoutDeletingNutritionHistory() {
+        when(userIdentityPort.findById(42L)).thenReturn(Optional.of(user));
 
-        verify(jdbcTemplate).update("DELETE FROM fatsecret_connection WHERE user_id = ?", 1L);
+        service.disconnectFatSecret(42L);
+
+        verify(aiParticipant).disconnectExternalAccount(42L);
+        verify(nutritionParticipant).disconnectExternalAccount(42L);
     }
 }

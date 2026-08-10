@@ -17,6 +17,6 @@ public class TelegramAiResponseListener {
     @EventListener
     public void onAiResponse(TelegramAiResponseEvent event) {
         log.info("Telegram module received AI Response for user {}", event.userId());
-        botService.sendMessage(event.chatId(), event.response());
+        botService.enqueueOwnedMessage(event.userId(), event.chatId(), event.response());
     }
 }

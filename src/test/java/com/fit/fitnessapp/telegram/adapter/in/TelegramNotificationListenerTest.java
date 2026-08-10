@@ -24,13 +24,13 @@ class TelegramNotificationListenerTest {
         TelegramUserEntity user = new TelegramUserEntity();
         user.setUserId(42L);
         user.setChatId(100L);
-        when(users.findByUserId(42L)).thenReturn(Optional.of(user));
+        when(users.findByUserIdForUpdate(42L)).thenReturn(Optional.of(user));
         TelegramNotificationListener listener = new TelegramNotificationListener(botService, users);
 
         listener.onInsightGenerated(new InsightGeneratedEvent(
                 42L, LocalDate.of(2026, 8, 9), InsightType.DAILY,
                 "Daily insight", "Daily summary", "snapshot"));
 
-        verify(botService).enqueueMessage(100L, TelegramMessages.personalizedInsight("Daily summary"));
+        verify(botService).enqueueOwnedMessage(42L, 100L, TelegramMessages.personalizedInsight("Daily summary"));
     }
 }

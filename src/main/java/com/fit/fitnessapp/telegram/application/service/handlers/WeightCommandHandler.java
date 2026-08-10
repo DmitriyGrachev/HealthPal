@@ -87,16 +87,19 @@ public class WeightCommandHandler implements CommandHandler {
             return;
         }
         ConversationState state = stateUseCase.getState(chatId);
+        Long userId = userOpt.get().getUserId();
 
         if (TelegramCommandParser.isCommand(text, "/weight")) {
-            startWeightFlow(chatId);
+            startWeightFlow(userId, chatId);
         } else if (state == ConversationState.WAITING_WEIGHT) {
-            handleWeightInput(chatId, userOpt.get().getUserId(), text);
+            handleWeightInput(chatId, userId, text);
         }
     }
 
-    private void startWeightFlow(Long chatId) {
-        stateUseCase.updateState(chatId, ConversationState.WAITING_WEIGHT);
+    private void startWeightFlow(Long userId, Long chatId) {
+        if (!stateUseCase.updateState(userId, chatId, ConversationState.WAITING_WEIGHT)) {
+            return;
+        }
         botService.sendMessage(chatId, TelegramMessages.WEIGHT_PROMPT);
     }
 
@@ -118,7 +121,7 @@ public class WeightCommandHandler implements CommandHandler {
             ));
 
             String formattedWeight = weight.stripTrailingZeros().toPlainString();
-            botService.sendMessage(chatId, TelegramMessages.weightRecorded(formattedWeight));
+            botService.enqueueOwnedMessage(userId, chatId, TelegramMessages.weightRecorded(formattedWeight));
             stateUseCase.clearState(chatId);
 
         } catch (NumberFormatException e) {

@@ -5,8 +5,8 @@ import java.util.Map;
 
 public interface ConversationStateUseCase {
     ConversationState getState(Long chatId);
-    void updateState(Long chatId, ConversationState state);
-    void updateState(Long chatId, ConversationState state, Map<String, Object> data);
+    boolean updateState(Long userId, Long chatId, ConversationState state);
+    boolean updateState(Long userId, Long chatId, ConversationState state, Map<String, Object> data);
     Map<String, Object> getData(Long chatId);
     void clearState(Long chatId);
 }

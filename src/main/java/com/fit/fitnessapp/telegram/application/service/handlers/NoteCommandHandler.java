@@ -99,18 +99,21 @@ public class NoteCommandHandler implements CommandHandler {
             return;
         }
         ConversationState state = stateUseCase.getState(chatId);
+        Long userId = userOpt.get().getUserId();
 
         if (TelegramCommandParser.isCommand(text, "/note")) {
-            startNoteFlow(chatId);
+            startNoteFlow(userId, chatId);
         } else if (state == ConversationState.WAITING_NOTE_TYPE) {
-            handleNoteType(chatId, text);
+            handleNoteType(userId, chatId, text);
         } else if (state == ConversationState.WAITING_NOTE_CONTENT) {
-            handleNoteContent(chatId, userOpt.get().getUserId(), text);
+            handleNoteContent(chatId, userId, text);
         }
     }
 
-    private void startNoteFlow(Long chatId) {
-        stateUseCase.updateState(chatId, ConversationState.WAITING_NOTE_TYPE);
+    private void startNoteFlow(Long userId, Long chatId) {
+        if (!stateUseCase.updateState(userId, chatId, ConversationState.WAITING_NOTE_TYPE)) {
+            return;
+        }
 
         ReplyKeyboardMarkup keyboard = ReplyKeyboardMarkup.builder()
                 .keyboard(List.of(
@@ -130,13 +133,20 @@ public class NoteCommandHandler implements CommandHandler {
         botService.sendMessage(chatId, TelegramMessages.NOTE_TYPE_PROMPT, keyboard);
     }
 
-    private void handleNoteType(Long chatId, String type) {
+    private void handleNoteType(Long userId, Long chatId, String type) {
         String normalizedType = type.trim().toUpperCase();
         if (!NOTE_TYPES.contains(normalizedType)) {
             botService.sendMessage(chatId, TelegramMessages.NOTE_TYPE_INVALID);
             return;
         }
-        stateUseCase.updateState(chatId, ConversationState.WAITING_NOTE_CONTENT, java.util.Map.of("noteType", normalizedType));
+        boolean updated = stateUseCase.updateState(
+                userId,
+                chatId,
+                ConversationState.WAITING_NOTE_CONTENT,
+                java.util.Map.of("noteType", normalizedType));
+        if (!updated) {
+            return;
+        }
         botService.sendMessage(chatId, TelegramMessages.NOTE_CONTENT_PROMPT);
     }
 
@@ -151,7 +161,7 @@ public class NoteCommandHandler implements CommandHandler {
                 type.toUpperCase()
         ));
 
-        botService.sendMessage(chatId, TelegramMessages.noteSaved(type, content));
+        botService.enqueueOwnedMessage(userId, chatId, TelegramMessages.noteSaved(type, content));
         stateUseCase.clearState(chatId);
     }
 

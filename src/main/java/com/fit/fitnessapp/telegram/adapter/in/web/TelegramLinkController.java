@@ -2,10 +2,10 @@ package com.fit.fitnessapp.telegram.adapter.in.web;
 
 import com.fit.fitnessapp.auth.CurrentUserApi;
 import com.fit.fitnessapp.telegram.application.service.TelegramLinkCodeManager;
+import com.fit.fitnessapp.telegram.application.service.TelegramLinkRevocationService;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,6 +18,7 @@ public class TelegramLinkController {
     private final CurrentUserApi currentUserApi;
     private final TelegramLinkCodeManager codeManager;
     private final TelegramUserRepository telegramUserRepository;
+    private final TelegramLinkRevocationService revocationService;
 
     @PostMapping("/link-code")
     public ResponseEntity<Map<String, Object>> generateLinkCode() {
@@ -48,10 +49,9 @@ public class TelegramLinkController {
     }
 
     @DeleteMapping("/link")
-    @Transactional
     public ResponseEntity<Map<String, Object>> unlinkTelegram() {
         Long userId = currentUserApi.getCurrentUserId();
-        telegramUserRepository.deleteByUserId(userId);
+        revocationService.unlink(userId);
 
         return ResponseEntity.ok(Map.of(
                 "message", "Telegram account unlinked successfully"

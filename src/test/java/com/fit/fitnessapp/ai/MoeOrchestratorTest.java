@@ -38,11 +38,16 @@ class MoeOrchestratorTest {
     @Mock
     private AiExecutionGuard executionGuard;
 
+    @Mock
+    private AiEgressPolicy egressPolicy;
+
     private MoeOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new MoeOrchestrator(openRouterPort, geminiPort, smartAiRouter, aiProperties, executionGuard);
+        orchestrator = new MoeOrchestrator(
+                openRouterPort, geminiPort, smartAiRouter, aiProperties, executionGuard, egressPolicy);
+        lenient().when(egressPolicy.validate(any())).thenReturn(AiDataClass.SENSITIVE);
         lenient().when(aiProperties.executionOrDefaults()).thenReturn(AiProperties.ExecutionProperties.defaults());
         lenient().when(executionGuard.execute(anyLong(), anyString(), anyInt(), any()))
                 .thenAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(3)).get());
@@ -57,6 +62,21 @@ class MoeOrchestratorTest {
                 List.of(), List.of(), List.of(),
                 1.0f, 1.0f
         );
+    }
+
+    private ClassifiedAiPrompt prompt() {
+        return new ClassifiedAiPrompt("prompt", AiDataClass.SENSITIVE);
+    }
+
+    @Test
+    void deniesEgressBeforeBudgetOrProviderSelection() {
+        doThrow(new com.fit.fitnessapp.ai.exception.AiEgressDeniedException("DENIED", "denied"))
+                .when(egressPolicy).validate(any());
+
+        assertThatThrownBy(() -> orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+                .isInstanceOf(com.fit.fitnessapp.ai.exception.AiEgressDeniedException.class);
+
+        verifyNoInteractions(executionGuard, openRouterPort, geminiPort, smartAiRouter);
     }
 
     // ========================
@@ -75,7 +95,7 @@ class MoeOrchestratorTest {
             when(openRouterPort.generate(anyString(), eq(dailyModel)))
                     .thenReturn(mockResponse("Daily insight"));
 
-            NutritionInsightResponse result = orchestrator.route(42L, "prompt", MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
+            NutritionInsightResponse result = orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.DAILY_INSIGHT);
 
             assertThat(result.summary()).isEqualTo("Daily insight");
             verify(openRouterPort).generate(anyString(), eq(dailyModel));
@@ -99,7 +119,7 @@ class MoeOrchestratorTest {
             when(openRouterPort.generate(anyString(), eq(quickModel)))
                     .thenReturn(mockResponse("Quick answer"));
 
-            NutritionInsightResponse result = orchestrator.route(42L, "prompt", MoeOrchestrator.AiTaskType.QUICK_ANALYSIS);
+            NutritionInsightResponse result = orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.QUICK_ANALYSIS);
 
             assertThat(result.summary()).isEqualTo("Quick answer");
             verify(openRouterPort).generate(anyString(), eq(quickModel));
@@ -121,7 +141,7 @@ class MoeOrchestratorTest {
             when(smartAiRouter.callWithFallback(anyString()))
                     .thenReturn(mockResponse("Weekly report"));
 
-            NutritionInsightResponse result = orchestrator.route(42L, "prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
+            NutritionInsightResponse result = orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.WEEKLY_REPORT);
 
             assertThat(result.summary()).isEqualTo("Weekly report");
             verify(smartAiRouter).callWithFallback(anyString());
@@ -134,7 +154,7 @@ class MoeOrchestratorTest {
             when(smartAiRouter.callWithFallback(anyString()))
                     .thenThrow(new AiUnavailableException("All down", new RuntimeException()));
 
-            assertThatThrownBy(() -> orchestrator.route(42L, "prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+            assertThatThrownBy(() -> orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                     .isInstanceOf(AiUnavailableException.class);
 
             verify(smartAiRouter, times(1)).callWithFallback(anyString());
@@ -155,7 +175,7 @@ class MoeOrchestratorTest {
             when(smartAiRouter.callWithFallback(anyString()))
                     .thenReturn(mockResponse("Monthly report"));
 
-            NutritionInsightResponse result = orchestrator.route(42L, "prompt", MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
+            NutritionInsightResponse result = orchestrator.route(42L, prompt(), MoeOrchestrator.AiTaskType.MONTHLY_REPORT);
 
             assertThat(result.summary()).isEqualTo("Monthly report");
             verify(smartAiRouter).callWithFallback(anyString());

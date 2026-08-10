@@ -2,7 +2,10 @@ package com.fit.fitnessapp.memory.application.service;
 
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
+import com.fit.fitnessapp.api.InsightSourceApi;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.SensitiveAiEgressGuard;
+import com.fit.fitnessapp.auth.api.UserDataPresenceApi;
 import com.fit.fitnessapp.auth.api.UserNoteCreatedEvent;
 import com.fit.fitnessapp.auth.api.UserNoteDeletedEvent;
 import com.fit.fitnessapp.memory.domain.MemoryType;
@@ -27,19 +30,39 @@ public class MemoryEventListener {
 
     private final VectorStore vectorStore;
     private final Clock clock;
+    private final UserDataPresenceApi userDataPresenceApi;
+    private final InsightSourceApi insightSourceApi;
+    private final SensitiveAiEgressGuard egressGuard;
 
     @Autowired
-    public MemoryEventListener(VectorStore vectorStore, Clock clock) {
+    public MemoryEventListener(
+            VectorStore vectorStore,
+            Clock clock,
+            UserDataPresenceApi userDataPresenceApi,
+            InsightSourceApi insightSourceApi,
+            SensitiveAiEgressGuard egressGuard) {
         this.vectorStore = vectorStore;
         this.clock = clock;
-    }
-
-    public MemoryEventListener(VectorStore vectorStore) {
-        this(vectorStore, Clock.systemUTC());
+        this.userDataPresenceApi = userDataPresenceApi;
+        this.insightSourceApi = insightSourceApi;
+        this.egressGuard = egressGuard;
     }
 
     @ApplicationModuleListener
     public void onInsightGenerated(InsightGeneratedEvent event) {
+        if (!userDataPresenceApi.userExists(event.userId())) {
+            logSkippedInsight(event.userId(), event.insightType(), event.date(), "INSIGHT_USER_MISSING");
+            return;
+        }
+        if (event.snapshotHash() == null || event.snapshotHash().isBlank()) {
+            logSkippedInsight(event.userId(), event.insightType(), event.date(), "INSIGHT_VERSION_MISSING");
+            return;
+        }
+        if (!insightSourceApi.insightMatchesSnapshot(
+                event.userId(), event.insightType(), event.date(), event.snapshotHash())) {
+            logSkippedInsight(event.userId(), event.insightType(), event.date(), "INSIGHT_VERSION_STALE");
+            return;
+        }
 
         // Daily insights are short-term (14 days).
         // Weekly/monthly insights are medium-term (90 days).
@@ -67,25 +90,38 @@ public class MemoryEventListener {
         metadata.put("insight_memory_id", sourceKey);
         metadata.put("memory_id", sourceKey);
         metadata.put("vector_id", memoryId);
-        if (event.snapshotHash() != null && !event.snapshotHash().isBlank()) {
-            metadata.put("snapshot_hash", event.snapshotHash());
-        }
+        metadata.put("snapshot_hash", event.snapshotHash());
         if (expiresAt != null) {
             metadata.put("expires_at", expiresAt.toString());
         }
 
+        egressGuard.validateSensitiveEgress();
         vectorStore.delete(List.of(memoryId));
         vectorStore.add(List.of(new Document(memoryId, event.content(), metadata)));
     }
 
     @ApplicationModuleListener
     public void onInsightDeleted(InsightDeletedEvent event) {
+        if (!userDataPresenceApi.userExists(event.userId())) {
+            logSkippedInsight(event.userId(), event.insightType(), event.date(), "INSIGHT_USER_MISSING");
+            return;
+        }
+        if (insightSourceApi.insightExists(event.userId(), event.insightType(), event.date())) {
+            logSkippedInsight(event.userId(), event.insightType(), event.date(), "INSIGHT_SOURCE_RECREATED");
+            return;
+        }
         vectorStore.delete(List.of(stableVectorId(
                 insightMemoryId(event.userId(), event.insightType(), event.date()))));
     }
 
     @ApplicationModuleListener
     public void onUserNoteCreated(UserNoteCreatedEvent event) {
+        if (!userDataPresenceApi.userExists(event.userId())
+                || !userDataPresenceApi.userNoteExists(event.userId(), event.noteId())) {
+            log.info("Skipping stale User Note memory event userId={} noteId={}",
+                    event.userId(), event.noteId());
+            return;
+        }
 
         // Temporary notes (illness, event) last 7 days.
         // Permanent notes (allergy, goal) never expire.
@@ -113,13 +149,11 @@ public class MemoryEventListener {
                     clock.instant().plus(7, ChronoUnit.DAYS).toString());
         }
 
-        String sourceKey = event.noteId() == null
-                ? "note:%d:%s:%s:%s".formatted(event.userId(), event.date(), event.type(),
-                Integer.toHexString(event.content().hashCode()))
-                : noteMemoryId(event.userId(), event.noteId());
+        String sourceKey = noteMemoryId(event.userId(), event.noteId());
         String memoryId = stableVectorId(sourceKey);
         metadata.put("memory_id", sourceKey);
         metadata.put("vector_id", memoryId);
+        egressGuard.validateSensitiveEgress();
         vectorStore.delete(List.of(memoryId));
         vectorStore.add(List.of(new Document(memoryId, event.content(), metadata)));
     }
@@ -149,5 +183,14 @@ public class MemoryEventListener {
 
     private String stableVectorId(String sourceKey) {
         return java.util.UUID.nameUUIDFromBytes(sourceKey.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private void logSkippedInsight(
+            Long userId,
+            InsightType insightType,
+            java.time.LocalDate date,
+            String reasonCode) {
+        log.info("Skipping insight memory replay userId={} insightType={} date={} reasonCode={}",
+                userId, insightType, date, reasonCode);
     }
 }

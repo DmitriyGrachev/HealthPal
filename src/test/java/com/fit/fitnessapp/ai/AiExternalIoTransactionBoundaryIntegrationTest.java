@@ -68,7 +68,9 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
         when(aiContextService.getRecentInsightsSummary(userId, com.fit.fitnessapp.api.InsightType.WEEKLY))
                 .thenReturn("recent insights");
         when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
-        when(moeOrchestrator.route(userId, "weekly prompt", MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
+        when(moeOrchestrator.route(userId,
+                new ClassifiedAiPrompt("weekly prompt", AiDataClass.SENSITIVE),
+                MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenAnswer(invocation -> {
                     transactionActiveAtProvider.set(
                             TransactionSynchronizationManager.isActualTransactionActive());

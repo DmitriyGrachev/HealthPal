@@ -51,11 +51,13 @@ class TelegramBotServiceTest {
         when(botSender.execute(any(SendMessage.class)))
                 .thenThrow(new TelegramApiRequestException("Can't parse entities"))
                 .thenReturn(null);
+        lenient().when(jdbcTemplate.update(
+                contains("DELETE FROM telegram_delivery_outbox"), eq(1L))).thenReturn(1);
 
         service.sendMessage(100L, "Hello");
 
         verify(botSender, times(2)).execute(any(SendMessage.class));
-        verify(jdbcTemplate).update(contains("UPDATE telegram_delivery_outbox SET status = 'SENT'"), eq(1L));
+        verify(jdbcTemplate).update(contains("DELETE FROM telegram_delivery_outbox"), eq(1L));
     }
 
     @Test
@@ -64,14 +66,13 @@ class TelegramBotServiceTest {
                 eq(Long.class), eq(100L), eq("Hello"))).thenReturn(1L);
         TelegramApiRequestException error = telegramError(400, "Bad Request: chat not found");
         when(botSender.execute(any(SendMessage.class))).thenThrow(error);
+        lenient().when(jdbcTemplate.update(
+                contains("DELETE FROM telegram_delivery_outbox"), eq(1L))).thenReturn(1);
 
         service.sendMessage(100L, "Hello");
 
         verify(botSender).execute(any(SendMessage.class));
-        verify(jdbcTemplate).update(
-                contains("status = 'FAILED'"),
-                anyString(),
-                eq(1L));
+        verify(jdbcTemplate).update(contains("DELETE FROM telegram_delivery_outbox"), eq(1L));
     }
 
     @Test
@@ -98,13 +99,59 @@ class TelegramBotServiceTest {
                         && sql.contains("UPDATE telegram_delivery_outbox")
                         && sql.contains("status = 'SENDING'")),
                 any(org.springframework.jdbc.core.RowMapper.class)))
-                .thenReturn(List.of(new TelegramBotService.OutboxItem(1L, 100L, "Hello", 2, 5)));
+                .thenReturn(List.of(new TelegramBotService.OutboxItem(1L, null, 100L, "Hello", 2, 5)));
         when(botSender.execute(any(SendMessage.class))).thenReturn(null);
+        lenient().when(jdbcTemplate.update(
+                contains("DELETE FROM telegram_delivery_outbox"), eq(1L))).thenReturn(1);
 
         service.processOutboxRetries();
 
         verify(botSender).execute(any(SendMessage.class));
-        verify(jdbcTemplate).update(contains("status = 'SENT'"), eq(1L));
+        verify(jdbcTemplate).update(contains("DELETE FROM telegram_delivery_outbox"), eq(1L));
+    }
+
+    @Test
+    void enqueueOwnedMessagePersistsOnlyThroughActiveLink() {
+        when(jdbcTemplate.update(
+                contains("INSERT INTO telegram_delivery_outbox"),
+                eq("private"),
+                eq(7L),
+                eq(100L))).thenReturn(1);
+
+        boolean queued = service.enqueueOwnedMessage(7L, 100L, "private");
+
+        assertThat(queued).isTrue();
+    }
+
+    @Test
+    void enqueueOwnedMessageRejectsRevokedLink() {
+        when(jdbcTemplate.update(
+                contains("INSERT INTO telegram_delivery_outbox"),
+                eq("private"),
+                eq(7L),
+                eq(999L))).thenReturn(0);
+
+        boolean queued = service.enqueueOwnedMessage(7L, 999L, "private");
+
+        assertThat(queued).isFalse();
+    }
+
+    @Test
+    void retryWorkerDoesNotSendOwnedItemAfterLinkRevocation() throws Exception {
+        when(jdbcTemplate.query(
+                org.mockito.ArgumentMatchers.<String>argThat(sql -> sql.contains("FOR UPDATE SKIP LOCKED")),
+                any(org.springframework.jdbc.core.RowMapper.class)))
+                .thenReturn(List.of(new TelegramBotService.OutboxItem(9L, 7L, 100L, "private", 1, 5)));
+        when(jdbcTemplate.queryForObject(
+                contains("telegram_users"),
+                eq(Boolean.class),
+                eq(7L),
+                eq(100L))).thenReturn(false);
+
+        service.processOutboxRetries();
+
+        verify(botSender, never()).execute(any(SendMessage.class));
+        verify(jdbcTemplate).update(contains("TELEGRAM_LINK_REVOKED"), eq(9L));
     }
 
     private TelegramApiRequestException telegramError(int code, String message) {

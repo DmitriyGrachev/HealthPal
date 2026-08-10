@@ -50,9 +50,15 @@ FITNESS_APP_AUTH_RATE_LIMIT_CAPACITY=5
 FITNESS_APP_AUTH_RATE_LIMIT_REFILL_PERIOD=PT1M
 MEMORY_CLEANUP_ENABLED=true
 MEMORY_CLEANUP_CRON=0 0 4 * * *
+AI_ALLOW_SENSITIVE_EXTERNAL_EGRESS=false
 SPRINGDOC_API_DOCS_ENABLED=false
 SPRINGDOC_SWAGGER_UI_ENABLED=false
 ```
+
+External AI calls that contain personal fitness data are denied by default. Set
+`AI_ALLOW_SENSITIVE_EXTERNAL_EGRESS=true` only after the deployment has an approved
+privacy basis for sending classified `SENSITIVE` prompts to the configured providers.
+Prompts classified as `SECRET` are always denied.
 
 `.env` is ignored for local convenience and must not be committed. Do not put real Telegram tokens, JWT secrets, FatSecret credentials, AI provider keys, OAuth tokens, or database passwords in tracked files.
 

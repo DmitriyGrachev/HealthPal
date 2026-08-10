@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
-import com.fit.fitnessapp.auth.api.UserPort;
+import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,14 +15,14 @@ public class FatSecretProfileSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(FatSecretProfileSyncService.class);
 
-    private final UserPort userPort;
+    private final NutritionCommandPort nutritionCommandPort;
     private final FatSecretSingleProfileSyncer singleProfileSyncer;
 
     @Scheduled(cron = "0 0 3 * * ?")
     public void syncAllProfiles() {
         log.info("Starting daily FatSecret profile sync for all users");
 
-        List<Long> userIdsWithFatSecret = userPort.getUserIdsWithFatSecretTokens();
+        List<Long> userIdsWithFatSecret = nutritionCommandPort.getAllConnectedUserIds();
         log.info("Found {} users with FatSecret tokens", userIdsWithFatSecret.size());
 
         int successCount = 0;
