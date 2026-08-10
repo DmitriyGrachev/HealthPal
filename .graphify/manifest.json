@@ -16,12 +16,12 @@
     "hash": "d59b5d5bedf28eb6e54538e74fdc2a11"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiInsightRepository.java": {
-    "mtime": 1786291731445.9255,
-    "hash": "7846fd3f2a53e1a289cfc5d5970f30ba"
+    "mtime": 1786363009507.4087,
+    "hash": "e0bd59f216105f7034003236bbe81201"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiProperties.java": {
-    "mtime": 1786285453546.1274,
-    "hash": "0a29c1f00c037a15ffff5430bb039df6"
+    "mtime": 1786351851397.1145,
+    "hash": "3836bf020e84eee73e0fca32d5727537"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiProvider.java": {
     "mtime": 1777316237031.975,
@@ -32,8 +32,8 @@
     "hash": "9fc7f9dfbe8e7c520d2e0d869ecb66f4"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/MoeOrchestrator.java": {
-    "mtime": 1786285526348.1091,
-    "hash": "fda1ae00348f0478a0bf73b33164ed6c"
+    "mtime": 1786352150751.312,
+    "hash": "0ae27fa4116aeab1a06223800951cac5"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/RateLimitInterceptor.java": {
     "mtime": 1786274232763.0823,
@@ -147,10 +147,6 @@
     "mtime": 1786289418700.6997,
     "hash": "4372fbadeae2da32d100480322b9cd01"
   },
-  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/api/UserPort.java": {
-    "mtime": 1783176122214.1316,
-    "hash": "f3f232049569fc9a9bf77e2f5f7d8593"
-  },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/api/package-info.java": {
     "mtime": 1777896743285.4116,
     "hash": "cf771cc65d7cbe8609217ce8197a8b9a"
@@ -240,12 +236,12 @@
     "hash": "9a4d1698be9c997336d74169f8f444bd"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/memory/application/service/MemoryEventListener.java": {
-    "mtime": 1786289804214.6914,
-    "hash": "4bd0aec1b97d07749892cd1362645f4e"
+    "mtime": 1786363009507.4087,
+    "hash": "43ff5b6bcc6a658953593ea55e6a7cd1"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/memory/application/service/MemoryService.java": {
-    "mtime": 1786287274490.9778,
-    "hash": "e17c26b445c86a09d55ffc3f296fdd41"
+    "mtime": 1786352636353.5627,
+    "hash": "d013d2382f9d94d3912a8c9439f2f4e1"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/memory/domain/MemoryType.java": {
     "mtime": 1777382410721.1306,
@@ -364,28 +360,28 @@
     "hash": "95ebb2e15aaa7463a2a5c95935977b44"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/adapter/in/TelegramAiResponseListener.java": {
-    "mtime": 1781113464723.5198,
-    "hash": "4e1ecf0230bdc3cb688fcde5ccee58ab"
+    "mtime": 1786359546434.5278,
+    "hash": "50f78101337ac323c7719285c717cf37"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/adapter/in/TelegramNotificationListener.java": {
-    "mtime": 1786290320048.522,
-    "hash": "2494fd0a2450896237e06fdb1c87100e"
+    "mtime": 1786359478606.359,
+    "hash": "68e3c538cb65fd66dfb607f490cb07eb"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/adapter/in/TelegramUpdateHandler.java": {
     "mtime": 1783789744921.7131,
     "hash": "c9caf684ba31b7526b5522f144a6708c"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/port/in/ConversationStateUseCase.java": {
-    "mtime": 1779025065584.4944,
-    "hash": "50741c8c9e8d5c8db16dd5e6db5999c0"
+    "mtime": 1786359767603.0715,
+    "hash": "d0a07654d317c07c378f4ea78fbc2ebe"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/ConversationStateService.java": {
-    "mtime": 1779025065585.4956,
-    "hash": "e09a2bf55d96b6ffec7b230a1957bdb7"
+    "mtime": 1786359767604.6135,
+    "hash": "c296ea3bc7d55151231686de81b28aa2"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/TelegramBotService.java": {
-    "mtime": 1786290320047.3237,
-    "hash": "6ef2c165eee66ce262b39cb44c129aaf"
+    "mtime": 1786363813096.2468,
+    "hash": "83c37dface83a9629bb536d476be2925"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/TelegramLinkCodeManager.java": {
     "mtime": 1786287431189.5742,
@@ -404,8 +400,8 @@
     "hash": "d234878b8fa1308508fd172a589b8d13"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/NoteCommandHandler.java": {
-    "mtime": 1786290271242.5789,
-    "hash": "1a9a803b7f6544d96e5e243982aa953a"
+    "mtime": 1786360287667.8445,
+    "hash": "a5ab0a2a90e90f55f730093f3a807dc8"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/StartCommandHandler.java": {
     "mtime": 1786288434315.8494,
@@ -420,8 +416,8 @@
     "hash": "62fbe3d07999d7dcec0e4c1327484453"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/WeightCommandHandler.java": {
-    "mtime": 1786290271241.5798,
-    "hash": "09d5aa554a0c51d09554a907a66f018b"
+    "mtime": 1786360287666.8286,
+    "hash": "997ce42e368c81355de8e5aeabc2ecdc"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/domain/ConversationState.java": {
     "mtime": 1779025065597.452,
@@ -440,8 +436,8 @@
     "hash": "cc5b1090cea54d467d49710f7a421af6"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/infrastructure/persistence/entity/ConversationStateEntity.java": {
-    "mtime": 1786287500804.4272,
-    "hash": "ecbd25613fe54496dfae81bded27c429"
+    "mtime": 1786359767605.6184,
+    "hash": "72f8170b0ab587c7962c2e1f38a81388"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/infrastructure/persistence/entity/TelegramUserEntity.java": {
     "mtime": 1779025065603.355,
@@ -452,8 +448,8 @@
     "hash": "38d12474491addb2c945d4a487850a79"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/infrastructure/persistence/repository/TelegramUserRepository.java": {
-    "mtime": 1786275799546.371,
-    "hash": "fbf93ebd8812f59e3b562f65f4608aca"
+    "mtime": 1786359767605.6184,
+    "hash": "72779b0405efc7757a444738289458c0"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/workout/WorkoutMonthlyApi.java": {
     "mtime": 1777291942202.738,
@@ -564,8 +560,8 @@
     "hash": "580d842b6901c38e27f4e7f882dedaeb"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/MoeOrchestratorTest.java": {
-    "mtime": 1786285566679.8997,
-    "hash": "71991715baa46be68dcd6ff6acb19948"
+    "mtime": 1786351916399.5857,
+    "hash": "0e32b064211570f80660c055d2139a27"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/OpenRouterAdapterTest.java": {
     "mtime": 1786285645037.7917,
@@ -612,12 +608,12 @@
     "hash": "0dba73860c6257484f04421bd2b9726e"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/application/service/handlers/NoteCommandHandlerTest.java": {
-    "mtime": 1786275888456.1565,
-    "hash": "33dabcf93dc3ae002f7f254e74ee03d4"
+    "mtime": 1786360257203.6265,
+    "hash": "c95ae9d1fc408b37122828a39f4c46f4"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/application/service/handlers/WeightCommandHandlerTest.java": {
-    "mtime": 1786286952007.458,
-    "hash": "fdeda2172c1a91f9d5fa87e529921670"
+    "mtime": 1786360257202.6292,
+    "hash": "58187c948de9cc729660489749513ef0"
   },
   "C:/JavaFundamentals/FitnessApp/GEMINI.md": {
     "mtime": 1781300983668.8174,
@@ -663,17 +659,13 @@
     "mtime": 1777898585479.9001,
     "hash": "398eebe1cfb9fd838856c9f523c323e9"
   },
-  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserAdapter.java": {
-    "mtime": 1783176122215.3682,
-    "hash": "f159c71b38b02ae38da869140fcc094c"
-  },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserAuthenticationAdapter.java": {
     "mtime": 1781115477443.9106,
     "hash": "ef3c8a6ea0c3169d1b1c61ecf72352f0"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserNoteJpaRepository.java": {
-    "mtime": 1781115728769.7605,
-    "hash": "d0b9826ae4805cab081c5b1caf42a3d7"
+    "mtime": 1786352774293.5225,
+    "hash": "30228690cf2dfaa8f9a7589d83065ef9"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserNotePersistenceAdapter.java": {
     "mtime": 1786274211292.118,
@@ -696,8 +688,8 @@
     "hash": "7546a5d14a64f88081e0537d9f9eefe3"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/repository/UserRepository.java": {
-    "mtime": 1783176122215.8474,
-    "hash": "909a2548f8d7d46e328c61d3158d71ed"
+    "mtime": 1786351256809.201,
+    "hash": "7ef9e7bbe1d3464f718cc857ac0c0a5d"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/application/port/out/UserAuthenticationPort.java": {
     "mtime": 1781115369340.875,
@@ -908,8 +900,8 @@
     "hash": "27b3c8e7689a044a4f8094d800643045"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/support/AbstractPostgresIntegrationTest.java": {
-    "mtime": 1783243933333.026,
-    "hash": "1b944f9d097a7565793c064f2f61c88b"
+    "mtime": 1786352669998.5574,
+    "hash": "ca2f9e7cc83c86978ca4a5b32ea558d1"
   },
   "C:/JavaFundamentals/FitnessApp/.agents/skills/fitness-ai-prompts/SKILL.md": {
     "mtime": 1783091297458.045,
@@ -1580,8 +1572,8 @@
     "hash": "e9bb5b72235d538b06570f5e9ac49f84"
   },
   "C:/JavaFundamentals/FitnessApp/.graphify/GRAPH_REPORT.md": {
-    "mtime": 1786292207531.7903,
-    "hash": "9d9b9d990adcfea61b8fd1816a4b09c4"
+    "mtime": 1786364544035.6982,
+    "hash": "0017f29fca8ce26d4b52d05046a53b1c"
   },
   "C:/JavaFundamentals/FitnessApp/.graphify/graph.html": {
     "mtime": 1781301110544.062,
@@ -1660,8 +1652,8 @@
     "hash": "cc67a344b3e187f5009a106757057b7e"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/memory/MemoryServiceTest.java": {
-    "mtime": 1783363428358.4382,
-    "hash": "5211fa1d366f6ad03750b527328f6974"
+    "mtime": 1786352598272.661,
+    "hash": "ecba41531bf2ff2b91147003317ee6ff"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/api/MonthlyReportRequestedEvent.java": {
     "mtime": 1783376281128.6985,
@@ -1692,8 +1684,8 @@
     "hash": "cada9f313e4e49eddae5fddcf1889940"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/memory/MemoryPgVectorIntegrationTest.java": {
-    "mtime": 1786291991578.2578,
-    "hash": "cbf08326a97e3a172f1e7752af947fbf"
+    "mtime": 1786352691616.343,
+    "hash": "ee12d078e7275441bfa22f9095180933"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V10__add_user_notes_user_fk.sql": {
     "mtime": 1783201321207.9082,
@@ -1748,8 +1740,8 @@
     "hash": "df0eb9af473e49bbd450a825c449f268"
   },
   "C:/JavaFundamentals/FitnessApp/README.md": {
-    "mtime": 1783204256424.5728,
-    "hash": "1607edffca02dcd4392284e50a1fb5b6"
+    "mtime": 1786352023632.8796,
+    "hash": "cd6ed2db704c3b7d2e7d3b56280c8e60"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/workout/WorkoutAnalyticControllerTest.java": {
     "mtime": 1783204324814.7246,
@@ -1932,16 +1924,16 @@
     "hash": "5e7f8359fcc35a0f990f9d84a59639ca"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/AiContextService.java": {
-    "mtime": 1786291731447.4304,
-    "hash": "abe6e98f4f1fe474c4460883e6c584d2"
+    "mtime": 1786353265999.5022,
+    "hash": "cafb50ee28a0c490203a89b66d64bb09"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/DailyInsightService.java": {
-    "mtime": 1786291764137.3723,
-    "hash": "3b0a2af595ec4e457dddbe5a14a7a84a"
+    "mtime": 1786352815703.1062,
+    "hash": "2f779a18b8f87589a618486caa50b665"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/TelegramAskAiService.java": {
-    "mtime": 1786285526350.4238,
-    "hash": "2fa5ee3c4df57151bfc7cf364ab961bf"
+    "mtime": 1786352815707.1768,
+    "hash": "bce4c0a69c1f396cbceb36b68ef4fd0b"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/api/AiRateLimitApi.java": {
     "mtime": 1783358515126.714,
@@ -1956,12 +1948,12 @@
     "hash": "98d3c8e2653466302cbf85c2299676a2"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/application/service/DailyInsightServiceTest.java": {
-    "mtime": 1786285566682.8994,
-    "hash": "1ff738a3c2cd167e4d6d199e80a4a22a"
+    "mtime": 1786364228698.7039,
+    "hash": "1703c27c4cc18c2dcf3913290d0a6c1b"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/application/service/TelegramAskAiServiceTest.java": {
-    "mtime": 1786285566682.8994,
-    "hash": "b2046e5f9fd16f466d882974d0f9f9c0"
+    "mtime": 1786351976979.742,
+    "hash": "e18f8915ff80cdbd0b167d90d2fb6850"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/nutrition/application/service/NutritionSyncSchedulerTest.java": {
     "mtime": 1786288022992.5603,
@@ -2028,8 +2020,8 @@
     "hash": "90f1fa8bff84e68bd796f7c87237c217"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/FitnessAiServiceReportFreshnessTest.java": {
-    "mtime": 1786291634182.3884,
-    "hash": "0615db066f37c06c318a2eaebe514e23"
+    "mtime": 1786364228698.7039,
+    "hash": "1af95d847e66cbafbc26f1e8bbba4515"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/nutrition/WeightHistoryRepositoryTest.java": {
     "mtime": 1786274341840.299,
@@ -2076,8 +2068,8 @@
     "hash": "95d478e5f8dea0467d54a54678558951"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/memory/MemoryEventListenerTest.java": {
-    "mtime": 1786289798422.3528,
-    "hash": "6e6f53b4c16e60529eaaf274d1adba54"
+    "mtime": 1786362963362.3867,
+    "hash": "1819d0405217bdea0b9a3b7c5afd2921"
   },
   "C:/JavaFundamentals/FitnessApp/docs/superpowers/plans/2026-07-07-ai-workflow-stabilization.md": {
     "mtime": 1783372705935.2305,
@@ -2120,8 +2112,8 @@
     "hash": "a5ecdc635c5e4f269aaae5d8e3146d71"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/AiSafetyService.java": {
-    "mtime": 1786284071811.6592,
-    "hash": "f5246aa5802c45da669a51bfb6fcb047"
+    "mtime": 1786352150751.312,
+    "hash": "f68f81662c8addf69807db2704a4115a"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/in/web/UserDataLifecycleController.java": {
     "mtime": 1786278293417.954,
@@ -2136,8 +2128,8 @@
     "hash": "dc66d9efa9f4b63b55979c3f1dd09efc"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/application/service/UserDataLifecycleService.java": {
-    "mtime": 1786281934423.726,
-    "hash": "b1e37cb7b6f99250c0aabcca87463e1c"
+    "mtime": 1786351069426.7693,
+    "hash": "0c36d0dc09d13c4c53c4efb8d8a06cfc"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/application/service/UserTimeService.java": {
     "mtime": 1786287088675.382,
@@ -2148,8 +2140,8 @@
     "hash": "4c5dd921659ad3edf63f0962470d6d79"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/domain/UserDataExportDto.java": {
-    "mtime": 1786281934420.7246,
-    "hash": "8d433200e4acb11e13ff497476cb4e41"
+    "mtime": 1786350770804.4204,
+    "hash": "5e661e352db020bf22ababda9b429027"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/infrastructure/config/AppTimeConfig.java": {
     "mtime": 1786276649263.0642,
@@ -2188,8 +2180,8 @@
     "hash": "2510a75f346761d3cfda274cdb012514"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/adapter/in/web/TelegramLinkController.java": {
-    "mtime": 1786275794612.3477,
-    "hash": "5b477c1fd9fa6aca8eb6aefad069eed3"
+    "mtime": 1786360040299.8774,
+    "hash": "0d89cadb197957a0d2e945d9a0505399"
   },
   "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/TelegramOutboxWorker.java": {
     "mtime": 1786278166717.1985,
@@ -2220,8 +2212,8 @@
     "hash": "eb0f2f2c92f4be728ae2a86d6834bdc1"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/application/service/UserDataLifecycleServiceTest.java": {
-    "mtime": 1786281983695.9182,
-    "hash": "32bff1685d60aa167b91338f4f6921ff"
+    "mtime": 1786351069428.5227,
+    "hash": "c423d1e453d84e858ef33f415b91d6ac"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/application/service/UserTimeServiceTest.java": {
     "mtime": 1786276661953.4136,
@@ -2240,12 +2232,12 @@
     "hash": "8a45edcb53856472e6e64b7080ee4091"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/adapter/in/web/TelegramLinkControllerTest.java": {
-    "mtime": 1786275825019.4182,
-    "hash": "763188591147a5afcc8a5f8c677c6469"
+    "mtime": 1786359521440.146,
+    "hash": "b29ed0dd2c7895782594a5f6caccd2c0"
   },
   "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/application/service/TelegramBotServiceTest.java": {
-    "mtime": 1786283297338.4563,
-    "hash": "00c742a98b5e372d51e4ee7b042831b6"
+    "mtime": 1786363400036.9153,
+    "hash": "5bbf57bfb9414a571cd0a639312f89b9"
   },
   "C:/JavaFundamentals/FitnessApp/.claude/CLAUDE.md": {
     "mtime": 1786277558326.786,
@@ -2274,5 +2266,309 @@
   "C:/JavaFundamentals/FitnessApp/docs/system-workflows.html": {
     "mtime": 1783245728359.4512,
     "hash": "94f7e179ed123739ededdcd26fe287de"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiBudgetService.java": {
+    "mtime": 1786285453548.7163,
+    "hash": "883559ba9a21fb132502342cb3a231ca"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiDurableJobExecutor.java": {
+    "mtime": 1786282434066.949,
+    "hash": "369849e93879c8cf8263ca11a36ef7db"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/AiExecutionGuard.java": {
+    "mtime": 1786289599578.132,
+    "hash": "39434a46638ae597c641d3ecaa1cdcc6"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/DailyInsightJobPayload.java": {
+    "mtime": 1786282434065.9475,
+    "hash": "32892e177d9ff0af96558a42e738e9f5"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/adapter/out/AiProviderExceptionClassifier.java": {
+    "mtime": 1786285645034.5442,
+    "hash": "b54c3ba29f750fcce5c06ea2170ba798"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/port/out/AiInsightPort.java": {
+    "mtime": 1786291764135.135,
+    "hash": "c84099c8d2620cbf9cf2725e38f73441"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/AiInsightPersistenceService.java": {
+    "mtime": 1786364125701.7034,
+    "hash": "4018a2590845a52e8a329683425d9594"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/MonthlyReportService.java": {
+    "mtime": 1786352815705.4756,
+    "hash": "02b93a7b113e11216acaa53097ad8e81"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/ReportSnapshotHasher.java": {
+    "mtime": 1786292235817.4775,
+    "hash": "1eaf08aee847e3851690441e6ce5b2ec"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/application/service/WeeklyReportService.java": {
+    "mtime": 1786352815705.4756,
+    "hash": "6670a951a8525558fc4677bd5895dec2"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/exception/AiBudgetExceededException.java": {
+    "mtime": 1786285453546.1274,
+    "hash": "204e20f31e668a2f3aec19d59b58a99f"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/exception/AiBulkheadFullException.java": {
+    "mtime": 1786285453547.2683,
+    "hash": "b01745d6e3f57257a7f9c34103468cf7"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/exception/AiRateLimitException.java": {
+    "mtime": 1786285645032.0305,
+    "hash": "d8c7b1cc656a254661902d2aade90998"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/ai/exception/AiTimeoutException.java": {
+    "mtime": 1786285453547.2683,
+    "hash": "2adabdaacd47a8b8d13771fb4ebc1361"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/analytics/port/in/ReportBatchResponse.java": {
+    "mtime": 1786289962318.8196,
+    "hash": "b4dab37945d6e8e0117ba128c7cfdc86"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/UserTimeApi.java": {
+    "mtime": 1786286861297.5537,
+    "hash": "d7f28459cf85ad0a0510bbeda006a55a"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/in/web/UserTimeController.java": {
+    "mtime": 1786286903679.6252,
+    "hash": "4d8f157ef2aac98d464be4ba88447933"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/auth/adapter/out/persistence/UserTimeApiAdapter.java": {
+    "mtime": 1786287620756.935,
+    "hash": "c37b61f5d75c2e2560b19e165d8f1abc"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/exception/ResourceNotFoundException.java": {
+    "mtime": 1786288513631.165,
+    "hash": "3382e7338721ceccf5c689235b79f586"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/infrastructure/events/TransactionalEventPublisher.java": {
+    "mtime": 1786290222467.612,
+    "hash": "9ef59f6c26ccf7c0c7b18f8c49fa8fab"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/infrastructure/events/package-info.java": {
+    "mtime": 1786290762842.782,
+    "hash": "38c33cfa290813418d03d7b83414da4d"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/infrastructure/observability/StableBaseMetrics.java": {
+    "mtime": 1786289993362.059,
+    "hash": "8d7dcb9a9bd934bac41a01cfbb730111"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/job/DurableJobExecutor.java": {
+    "mtime": 1786282204690.5334,
+    "hash": "865e2ab1104789b53a0bd25ee3882d31"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/nutrition/application/service/NutritionSyncJobExecutor.java": {
+    "mtime": 1786282204692.3442,
+    "hash": "73ae782702cb838c9a68e869d4d6cb39"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/nutrition/application/service/NutritionSyncJobPayload.java": {
+    "mtime": 1786282204691.351,
+    "hash": "afc0eb9e2d9cf0225d72a577f1a10b2e"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/java/com/fit/fitnessapp/telegram/application/service/handlers/TelegramCommandParser.java": {
+    "mtime": 1786288434315.8494,
+    "hash": "1b375edae14ee2837268d42622eb4c76"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V19__add_outbox_next_retry_at.sql": {
+    "mtime": 1786280144603.7737,
+    "hash": "8a535e028850aaaf58f09404227065ff"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V20__add_telegram_outbox_claims.sql": {
+    "mtime": 1786283260655.679,
+    "hash": "732511b718f3c2fd34c233678f97f5bd"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V21__require_durable_job_idempotency.sql": {
+    "mtime": 1786284003175.2588,
+    "hash": "6169e688b94046be5e5f13272809999a"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V22__create_ai_usage_budget.sql": {
+    "mtime": 1786285453551.4956,
+    "hash": "0a83e3325cd85eca922b373e95ad0aa3"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V23__normalize_absolute_timestamps.sql": {
+    "mtime": 1786286541214.2034,
+    "hash": "0e4124df19e3d6761d7e2ed5e4717f5b"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V24__add_user_time_zone.sql": {
+    "mtime": 1786286861298.0303,
+    "hash": "d486d9e14ccd2f73b6a0b9db455c9301"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/main/resources/db/migration/V25__add_domain_invariant_checks.sql": {
+    "mtime": 1786288211044.2222,
+    "hash": "a0bf788c9a42802db88faccdd7de42e4"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/AiBudgetServiceIntegrationTest.java": {
+    "mtime": 1786285945208.293,
+    "hash": "f76254e20bea43311fab20d6c7c3831c"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/AiDurableJobExecutorTest.java": {
+    "mtime": 1786282493645.6038,
+    "hash": "631ce37737d4a73609831a27ce0cef0f"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/AiExecutionGuardTest.java": {
+    "mtime": 1786289656040.8171,
+    "hash": "cbeb24e69d05fa2d30a9968c2f3085eb"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/AiExternalIoTransactionBoundaryIntegrationTest.java": {
+    "mtime": 1786351942489.9673,
+    "hash": "100e4e28663bb5cd9bad2859b0e2cfe0"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/ai/application/service/AiSafetyServiceTest.java": {
+    "mtime": 1786352150756.776,
+    "hash": "43d27c6d26b7c25635ec2493ba139f87"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/AbsoluteTimestampPostgresIntegrationTest.java": {
+    "mtime": 1786287971504.322,
+    "hash": "081349ce57753249e6fcdfb619324804"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/DomainInvariantPostgresIntegrationTest.java": {
+    "mtime": 1786288211045.3418,
+    "hash": "65fc901c976755551f0c6913f50233a3"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/TelegramNoteListenerTest.java": {
+    "mtime": 1786289418703.9177,
+    "hash": "0fc5a150ec7fb2ae78e848e09833f08a"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/UserDataLifecycleServiceIntegrationTest.java": {
+    "mtime": 1786363229286.9626,
+    "hash": "a8c263cc81f06b95acc4e7d4f33769eb"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/UserTimeControllerTest.java": {
+    "mtime": 1786287974280.796,
+    "hash": "921f3693cbe00ed630bf6a74b484fb8c"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/application/service/UserNoteServiceTest.java": {
+    "mtime": 1786289458590.1782,
+    "hash": "d895b60b5d281a327339128b8868ba9b"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/auth/application/service/UserTimeApiServiceTest.java": {
+    "mtime": 1786287620758.9736,
+    "hash": "0c923dbb713db7193e7a5f9d53d682a2"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/infrastructure/observability/StableBaseMetricsTest.java": {
+    "mtime": 1786289993363.2751,
+    "hash": "72c45e0fa950e37b415269fe52ec77a6"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/job/DurableJobServiceIntegrationTest.java": {
+    "mtime": 1786283853913.624,
+    "hash": "4159e9c5009b7895bda67d02334a11c6"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/job/application/service/DurableJobWorkerTest.java": {
+    "mtime": 1786282170305.9382,
+    "hash": "98edd59ce299d9b4f336cb5cc9b13749"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/nutrition/ExternalIoTransactionBoundaryIntegrationTest.java": {
+    "mtime": 1786282609065.3586,
+    "hash": "4c201f3774d0890c6bb0a759bbc9b1e0"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/nutrition/TelegramWeightEventWorkflowIntegrationTest.java": {
+    "mtime": 1786289418707.3564,
+    "hash": "077bdf3e92fa1a4a11ee3113bba73e06"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/nutrition/application/service/NutritionSyncJobExecutorTest.java": {
+    "mtime": 1786282170305.9382,
+    "hash": "f8cbd64682488c13647c5df0197fdfff"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/support/DevProfileSmokeIntegrationTest.java": {
+    "mtime": 1786288672865.604,
+    "hash": "b81e6eb1bf08fe558eb7e27023a34842"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/support/StableBaseWorkflowIntegrationTest.java": {
+    "mtime": 1786364765894.5513,
+    "hash": "fdd0a2a81dbfb377000436811ce3498c"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/adapter/in/TelegramNotificationListenerTest.java": {
+    "mtime": 1786359431415.9648,
+    "hash": "56a38586eb7929bba5d8e050b7ce096f"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/application/service/TelegramOutboxConcurrencyIntegrationTest.java": {
+    "mtime": 1786364765894.5513,
+    "hash": "3d9785db1f846ebc7d35f9387454e6f3"
+  },
+  "C:/JavaFundamentals/FitnessApp/src/test/java/com/fit/fitnessapp/telegram/application/service/handlers/TelegramCommandParserTest.java": {
+    "mtime": 1786288434322.159,
+    "hash": "ae3f9a125cc4077a3cc117af842da890"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_194129_what_should_be_the_product_core_of_fitnessapp_give.md": {
+    "mtime": 1786304489168.4214,
+    "hash": "69b41a4d396bc8b356fb1e8e0553a361"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/adr/0010-durable-jobs-and-outbox-recovery.md": {
+    "mtime": 1786290070508.4463,
+    "hash": "290166b1533280d7daed986b609e5170"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/adr/0011-ai-execution-bounds.md": {
+    "mtime": 1786290070509.447,
+    "hash": "65bf4b89ef2858bcf1307000c8288c06"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/adr/0012-derived-memory-provenance.md": {
+    "mtime": 1786290070509.447,
+    "hash": "b4227a754305177028a54b45d028c60a"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/adr/0013-stable-base-operations.md": {
+    "mtime": 1786290070510.4695,
+    "hash": "1c1b9364083cc4d1cfc8467583b1dbf3"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/adr/0014-ai-report-workflow-boundaries.md": {
+    "mtime": 1786292235817.4775,
+    "hash": "0cc9cbfecf35326174148eae45bb8bd9"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/benchmarks/vector-search.md": {
+    "mtime": 1786291816074.8586,
+    "hash": "21423f1ab4021154ee3e642f4ad8ce4c"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/evaluations/stable-base-product-quality.md": {
+    "mtime": 1786290686260.4307,
+    "hash": "dd2fe342d809fba77765c1b282908bac"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/runbooks/stable-base-operations.md": {
+    "mtime": 1786289993363.2751,
+    "hash": "0a9c6c08e9ba32973d95f57c916fbf47"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_202612_which_current_boundaries_can_support_an_incrementa.md": {
+    "mtime": 1786307172757.179,
+    "hash": "31dc3cb22ad58b19a11a549397826443"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_203340_what_could_fitnessapp_become_as_an_abstract_person.md": {
+    "mtime": 1786307620866.387,
+    "hash": "ae31df8d488830aeb0556b51f788e41c"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_205047_which_proposed_personal_os_pitfalls_and_extensions.md": {
+    "mtime": 1786308647507.115,
+    "hash": "7e99f304da06460465851cc4b699ff35"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_213337___________________healthpal_____________self_hoste.md": {
+    "mtime": 1786311217453.1729,
+    "hash": "0d6070f1279df374374ad58233c30ad3"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_224325__________________________fitnessapp.md": {
+    "mtime": 1786315405008.8823,
+    "hash": "4a235c37e38a07607fa199c91f71fe0d"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_225657_____________personal_os.md": {
+    "mtime": 1786316217387.669,
+    "hash": "e50725f46ffa3cc3bf58838fc6ae7d52"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260809_230845_where_does_the_project_vision_describe_future_pers.md": {
+    "mtime": 1786316925751.196,
+    "hash": "c680db0efd7a14e3e44c16f5d65a8e6d"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260810_070420_which_existing_code_supports_a_unified_timeline__m.md": {
+    "mtime": 1786345460793.808,
+    "hash": "03b65461fbd2bf7fe9138a3916b4dec1"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260810_071643_what_implementation_order_best_evolves_the_current.md": {
+    "mtime": 1786346203361.625,
+    "hash": "2add258c42e0dbb9e4e4cd8290e5aad2"
+  },
+  "C:/JavaFundamentals/FitnessApp/.graphify/memory/query_20260810_075604_what_exact_scope__acceptance_criteria__and_minimal.md": {
+    "mtime": 1786348564037.2441,
+    "hash": "30a3d47149f7de83892697fcb65d6962"
+  },
+  "C:/JavaFundamentals/FitnessApp/docs/PROJECT_VISION.md": {
+    "mtime": 1786317201990.9639,
+    "hash": "d0394652c0a450ab8e77fcd04024fb38"
   }
 }
