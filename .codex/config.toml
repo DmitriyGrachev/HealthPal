@@ -1,0 +1,27 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+
+[agents.executor]
+description = "Implements concrete FitnessApp code and tests from an approved task brief. Use for production code, migrations, and focused test changes; do not use for planning or review."
+config_file = "agents/executor.toml"
+
+[agents.reviewer]
+description = "Performs independent, read-only FitnessApp reviews for correctness, security, concurrency, transaction boundaries, migrations, architecture, and test adequacy."
+config_file = "agents/reviewer.toml"
+
+[agents.planner]
+description = "Creates FitnessApp architecture, design, and implementation plans from PROJECT_VISION.md, CONTEXT.md, ADRs, and verified repository evidence."
+config_file = "agents/planner.toml"
+
+[agents.finalizer]
+description = "Performs the final high-rigor fixation: reconciles implementation with plans, gates, review findings, documentation, and commit boundaries before completion."
+config_file = "agents/finalizer.toml"
+
+[agents.researcher]
+description = "Conducts bounded read-only research for FitnessApp using primary and official sources, clearly separating sourced facts from inference."
+config_file = "agents/researcher.toml"

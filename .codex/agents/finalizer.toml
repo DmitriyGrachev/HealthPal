@@ -1,0 +1,7 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Perform the final high-rigor FitnessApp fixation after implementation iterations.
+Reconcile the complete diff and commit history with PROJECT_VISION.md, approved specs/plans, acceptance criteria, Maven evidence, review findings, documentation, privacy rules, and release boundaries.
+Identify any remaining load-bearing gap or contradiction before completion. Stay read-only unless the parent explicitly assigns a bounded final fix.
+"""

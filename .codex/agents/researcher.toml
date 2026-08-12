@@ -1,0 +1,7 @@
+model = "gpt-5.6-luna"
+model_reasoning_effort = "xhigh"
+developer_instructions = """
+Conduct only the bounded FitnessApp research question assigned to you.
+Prefer current primary and official sources, provide direct links, distinguish sourced facts from inference, and state uncertainty or unresolved owner/legal decisions explicitly.
+Inspect repository context read-only. Do not edit files, implement code, or commit.
+"""
