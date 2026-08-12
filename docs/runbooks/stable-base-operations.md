@@ -32,6 +32,363 @@
 - Do not run destructive SQL against `durable_jobs`, `telegram_delivery_outbox`, `event_publication`, or `user_memory` during deployment.
 - Flyway migrations are append-only. Roll back by deploying a previous application version only when the new migration is backward compatible; otherwise restore the database backup and follow the incident procedure.
 
+## Historical Upgrade Boundaries
+
+Use these procedures only for a database stopped exactly at the stated
+Flyway version. Stop application traffic and scheduled/worker writers first,
+verify a restorable backup, and record aggregate-only preflight counts. Do not
+log note content, Telegram text, payloads, metadata, prompts, tokens, or user
+identifiers.
+
+The boundary map is:
+
+- V20 → run `db/upgrade/pre-v21-durable-job-idempotency.sql`, then Flyway V21.
+- V22 → run `db/upgrade/pre-v23-absolute-timestamps.sql`, then Flyway V23.
+- V24 → run `db/upgrade/pre-v25-domain-invariants.sql`, then Flyway V25.
+- V25 → run `db/upgrade/pre-v26-memory-owner.sql`, then Flyway V26.
+
+### Fail-closed execution boundary
+
+Select one bridge and use the fixed target schema. The operator must query the
+latest successful Flyway version and abort unless it exactly matches the
+bridge's required boundary. This is read-only verification; never edit or
+fake `flyway_schema_history`.
+
+The following PowerShell blocks are directly executable from the repository
+root. Run the precheck and bridge block first; it validates the fixed schema
+and selected bridge, checks the boundary, and runs the bridge with one
+PostgreSQL transaction. Replace only `$selectedBridge` with one of the four
+allowlisted values, using the same value in both blocks.
+
+```powershell
+if (-not $env:DATABASE_URL) {
+    throw 'DATABASE_URL is required'
+}
+
+$targetSchema = 'fitnessapp'
+$selectedBridge = 'pre-v25-domain-invariants.sql'
+$boundaries = @{
+    'pre-v21-durable-job-idempotency.sql' = @{ Current = '20'; Next = '21' }
+    'pre-v23-absolute-timestamps.sql'     = @{ Current = '22'; Next = '23' }
+    'pre-v25-domain-invariants.sql'       = @{ Current = '24'; Next = '25' }
+    'pre-v26-memory-owner.sql'            = @{ Current = '25'; Next = '26' }
+}
+
+if ($targetSchema -ne 'fitnessapp' -or $targetSchema -notmatch '^[a-z_][a-z0-9_]*$') {
+    throw "Refusing unvalidated schema: $targetSchema"
+}
+if (-not $boundaries.ContainsKey($selectedBridge)) {
+    throw "Refusing unselected bridge: $selectedBridge"
+}
+
+$expectedCurrent = $boundaries[$selectedBridge].Current
+$schemaSql = "SET search_path TO $targetSchema, pg_catalog;"
+$historySql = "$schemaSql SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1;"
+
+$latest = (& psql -v ON_ERROR_STOP=1 -X -A -t "$env:DATABASE_URL" -c $historySql | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not read the latest successful Flyway version; aborting'
+}
+if ($latest -ne $expectedCurrent) {
+    throw "ABORT: latest successful Flyway version is '$latest'; expected exactly '$expectedCurrent' for $selectedBridge"
+}
+
+# Run the matching aggregate-only preflight query below, then execute the bridge.
+& psql -v ON_ERROR_STOP=1 --single-transaction "$env:DATABASE_URL" `
+    -c $schemaSql `
+    -f (Join-Path 'src/main/resources/db/upgrade' $selectedBridge)
+if ($LASTEXITCODE -ne 0) {
+    throw "Bridge failed and was rolled back: $selectedBridge"
+}
+
+$afterBridge = (& psql -v ON_ERROR_STOP=1 -X -A -t "$env:DATABASE_URL" -c $historySql | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $afterBridge -ne $expectedCurrent) {
+    throw "Unexpected Flyway history change after bridge: '$afterBridge'"
+}
+
+```
+
+After the first block completes successfully, run the approved Flyway
+migration through the normal deployment mechanism. Do not `INSERT`, `UPDATE`,
+`DELETE`, or repair `flyway_schema_history`. When that migration completes,
+run this separately executable, self-contained post-migration verification
+block. It is safe to rerun and must use the same `$selectedBridge` value as the
+first block.
+
+```powershell
+if (-not $env:DATABASE_URL) {
+    throw 'DATABASE_URL is required'
+}
+
+$targetSchema = 'fitnessapp'
+$selectedBridge = 'pre-v25-domain-invariants.sql'
+$boundaries = @{
+    'pre-v21-durable-job-idempotency.sql' = @{ Current = '20'; Next = '21' }
+    'pre-v23-absolute-timestamps.sql'     = @{ Current = '22'; Next = '23' }
+    'pre-v25-domain-invariants.sql'       = @{ Current = '24'; Next = '25' }
+    'pre-v26-memory-owner.sql'            = @{ Current = '25'; Next = '26' }
+}
+
+if ($targetSchema -ne 'fitnessapp' -or $targetSchema -notmatch '^[a-z_][a-z0-9_]*$') {
+    throw "Refusing unvalidated schema: $targetSchema"
+}
+if (-not $boundaries.ContainsKey($selectedBridge)) {
+    throw "Refusing unselected bridge: $selectedBridge"
+}
+
+$expectedNext = $boundaries[$selectedBridge].Next
+$schemaSql = "SET search_path TO $targetSchema, pg_catalog;"
+$historySql = "$schemaSql SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1;"
+$afterMigration = (& psql -v ON_ERROR_STOP=1 -X -A -t "$env:DATABASE_URL" -c $historySql | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $afterMigration -ne $expectedNext) {
+    throw "Migration verification failed: latest successful Flyway version must equal exactly '$expectedNext', got '$afterMigration'"
+}
+```
+
+The bridge scripts do not contain `BEGIN` or `COMMIT`; the caller owns the
+transaction. The table locks protect the preflight and normalization from
+concurrent writers. If any statement fails, verify that both DML and DDL are
+unchanged, restore the verified backup if required, and investigate. Never
+use `flyway repair` to conceal or reverse a failed historical migration.
+
+Before and after each operation, retain only operational evidence: UTC start
+and finish time, operator/change identifier, the named aggregate counts below,
+the command exit code, and the latest successful Flyway version/checksum
+output. Do not retain row IDs, row content, or user identifiers.
+
+The checksum evidence is an aggregate deployment record:
+
+```sql
+SELECT version, checksum, installed_rank, installed_on
+  FROM flyway_schema_history
+ WHERE success
+ ORDER BY installed_rank;
+```
+
+### Aggregate-only bridge preflight and postflight
+
+Run the applicable query at the exact boundary after setting
+`search_path` to the target schema. Each query returns one aggregate row and
+does not output row IDs, content, or user identifiers. Run the same query
+after the bridge, except where the postflight query explicitly checks the
+next migration's schema result.
+
+#### V20 → V21: durable-job idempotency
+
+At V20, record these named counts before and after
+`pre-v21-durable-job-idempotency.sql`:
+
+```sql
+SELECT
+    COUNT(*) FILTER (WHERE job.idempotency_key IS NULL) AS null_idempotency_keys,
+    COUNT(*) FILTER (
+        WHERE job.idempotency_key IS NOT NULL
+          AND EXISTS (
+              SELECT 1
+                FROM durable_jobs missing
+               WHERE missing.idempotency_key IS NULL
+                 AND job.idempotency_key = 'legacy:' || missing.id::text
+          )
+    ) AS legacy_base_key_collisions,
+    COUNT(*) FILTER (WHERE job.idempotency_key IS NOT NULL)
+      - COUNT(DISTINCT job.idempotency_key) AS duplicate_non_null_idempotency_keys
+  FROM durable_jobs job;
+```
+
+Because `legacy_base_key_collisions` is defined relative to rows that still
+have NULL keys, all three postflight counts are exactly zero:
+`null_idempotency_keys = 0`, `legacy_base_key_collisions = 0`, and
+`duplicate_non_null_idempotency_keys = 0`. Preservation of an occupied legacy
+base key and assignment of the lowest free suffix to the repaired row are
+covered by integration tests. After Flyway, the PowerShell check above must
+report exactly V21.
+
+#### V22 → V23: absolute note timestamps
+
+At V22, record the following before and after
+`pre-v23-absolute-timestamps.sql`:
+
+```sql
+SELECT
+    COUNT(*) AS note_rows,
+    COUNT(*) FILTER (WHERE created_at IS NULL) AS null_created_at,
+    COUNT(*) FILTER (WHERE updated_at IS NULL) AS null_updated_at
+  FROM user_notes;
+```
+
+The bridge changes no data, so all three post-bridge counts must equal their
+preflight values. After Flyway V23, assert both timestamp columns are
+`timestamp with time zone`:
+
+```sql
+SELECT
+    COUNT(*) FILTER (
+        WHERE column_name = 'created_at'
+          AND data_type = 'timestamp with time zone'
+    ) AS created_at_timestamptz,
+    COUNT(*) FILTER (
+        WHERE column_name = 'updated_at'
+          AND data_type = 'timestamp with time zone'
+    ) AS updated_at_timestamptz
+  FROM information_schema.columns
+ WHERE table_schema = current_schema()
+   AND table_name = 'user_notes'
+   AND column_name IN ('created_at', 'updated_at');
+```
+
+The expected post-migration result is `created_at_timestamptz = 1` and
+`updated_at_timestamptz = 1`. Legacy naive note timestamps are interpreted as
+UTC by the immutable V23 `AT TIME ZONE 'UTC'` conversion.
+
+#### V24 → V25: domain invariants
+
+At V24, record the following named counts before and after
+`pre-v25-domain-invariants.sql`:
+
+```sql
+SELECT
+    (SELECT COUNT(*) FILTER (WHERE username IS NULL OR length(trim(username)) = 0) FROM users)
+        AS blank_usernames,
+    (SELECT COUNT(*) FILTER (WHERE email IS NULL OR length(trim(email)) = 0) FROM users)
+        AS blank_emails,
+    (SELECT COUNT(*) FILTER (
+        WHERE calories < 0 OR protein < 0 OR fat < 0 OR carbohydrate < 0
+     ) FROM fatsecret_day) AS invalid_day_metrics,
+    (SELECT COUNT(*) FILTER (
+        WHERE calories < 0 OR protein < 0 OR fat < 0 OR carbohydrate < 0
+     ) FROM fatsecret_food) AS invalid_food_metrics,
+    (SELECT COUNT(*) FILTER (WHERE external_food_id IS NULL OR external_food_id <= 0)
+       FROM fatsecret_food) AS invalid_food_identity,
+    (SELECT COUNT(*) FILTER (WHERE name IS NULL OR length(trim(name)) = 0)
+       FROM fatsecret_food) AS invalid_food_name,
+    (SELECT COUNT(*) FILTER (WHERE meal_type IS NULL OR length(trim(meal_type)) = 0)
+       FROM fatsecret_food) AS invalid_food_meal,
+    (SELECT COUNT(*) FILTER (
+        WHERE goal_weight_kg <= 0 OR last_weight_kg <= 0 OR height_cm <= 0
+     ) FROM profile) AS invalid_profile,
+    (SELECT COUNT(*) FILTER (WHERE weight_kg IS NULL OR weight_kg <= 0)
+       FROM weight_history) AS invalid_weight_readings,
+    (SELECT COUNT(*) FILTER (WHERE exercise_name IS NULL OR length(trim(exercise_name)) = 0)
+       FROM workout_exercises) AS blank_exercises,
+    (SELECT COUNT(*) FILTER (
+        WHERE set_index IS NULL OR set_index < 0 OR reps IS NULL OR reps < 0
+     ) FROM workout_sets) AS invalid_set_index_or_reps,
+    (SELECT COUNT(*) FILTER (WHERE weight < 0) FROM workout_sets)
+        AS negative_set_weight,
+    (SELECT COUNT(*) FILTER (WHERE content IS NULL OR length(trim(content)) = 0)
+       FROM user_notes) AS blank_notes,
+    (SELECT COUNT(*) FILTER (
+        WHERE type IS NULL OR type NOT IN (
+            'ILLNESS', 'TRAVEL', 'INJURY', 'STRESS', 'ALLERGY', 'GOAL',
+            'PREFERENCE', 'TRAINING', 'NUTRITION', 'GENERAL', 'MOOD', 'OTHER'
+        )
+     ) FROM user_notes) AS unknown_note_types,
+    (SELECT COUNT(*) FILTER (
+        WHERE status NOT IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED')
+           OR attempts < 0 OR max_attempts <= 0 OR attempts > max_attempts
+     ) FROM durable_jobs) AS invalid_durable_states,
+    (SELECT COUNT(*) FILTER (
+        WHERE status IN ('PENDING', 'RUNNING')
+          AND attempts >= max_attempts
+          AND NOT (
+              status NOT IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED')
+              OR attempts < 0 OR max_attempts <= 0 OR attempts > max_attempts
+          )
+     ) FROM durable_jobs) AS exhausted_durable_states,
+    (SELECT COUNT(*) FILTER (
+        WHERE status = 'RUNNING'
+          AND updated_at < CURRENT_TIMESTAMP - INTERVAL '15 minutes'
+     ) FROM durable_jobs) AS stale_durable_running,
+    (SELECT COUNT(*) FILTER (WHERE text IS NULL OR length(trim(text)) = 0)
+       FROM telegram_delivery_outbox) AS blank_telegram_text,
+    (SELECT COUNT(*) FILTER (
+        WHERE status NOT IN ('PENDING', 'SENDING', 'SENT', 'FAILED')
+           OR attempts < 0 OR max_attempts <= 0 OR attempts > max_attempts
+     ) FROM telegram_delivery_outbox) AS invalid_telegram_states,
+    (SELECT COUNT(*) FILTER (
+        WHERE status IN ('PENDING', 'SENDING')
+          AND attempts >= max_attempts
+          AND NOT (
+              status NOT IN ('PENDING', 'SENDING', 'SENT', 'FAILED')
+              OR attempts < 0 OR max_attempts <= 0 OR attempts > max_attempts
+          )
+     ) FROM telegram_delivery_outbox) AS exhausted_telegram_states,
+    (SELECT COUNT(*) FILTER (WHERE status = 'SENDING' AND claimed_at IS NULL)
+       FROM telegram_delivery_outbox) AS unknown_telegram_outcomes;
+```
+
+Every named repair predicate must be zero after the bridge. In particular,
+recent valid `RUNNING` durable work is not stale and recent valid `SENDING`
+delivery is not an unknown outcome, so neither is counted as dirty. After
+Flyway, the PowerShell check above must report exactly V25.
+
+#### V25 → V26: memory owner metadata
+
+At V25, record these counts before and after
+`pre-v26-memory-owner.sql`. The predicates validate the complete signed
+`BIGINT` range lexically and compare owner text to `users.id::text`; they never
+cast untrusted metadata to `BIGINT`.
+
+```sql
+SELECT
+    COUNT(*) FILTER (
+        WHERE memory.metadata IS NULL
+           OR NOT (memory.metadata ? 'user_id')
+           OR jsonb_typeof(memory.metadata -> 'user_id') IS NULL
+           OR jsonb_typeof(memory.metadata -> 'user_id') NOT IN ('string', 'number')
+           OR (memory.metadata ->> 'user_id') !~ '^[1-9][0-9]*$'
+           OR length(memory.metadata ->> 'user_id') > 19
+           OR (
+               length(memory.metadata ->> 'user_id') = 19
+               AND (memory.metadata ->> 'user_id') > '9223372036854775807'
+           )
+    ) AS unsafe_owner_metadata,
+    COUNT(*) FILTER (
+        WHERE memory.metadata IS NOT NULL
+          AND (memory.metadata ? 'user_id')
+          AND jsonb_typeof(memory.metadata -> 'user_id') IN ('string', 'number')
+          AND (memory.metadata ->> 'user_id') ~ '^[1-9][0-9]*$'
+          AND (
+              length(memory.metadata ->> 'user_id') < 19
+              OR (
+                  length(memory.metadata ->> 'user_id') = 19
+                  AND (memory.metadata ->> 'user_id') <= '9223372036854775807'
+              )
+          )
+          AND NOT EXISTS (
+              SELECT 1
+                FROM users app_user
+               WHERE app_user.id::text = memory.metadata ->> 'user_id'
+          )
+    ) AS orphan_owner_metadata
+  FROM user_memory memory;
+```
+
+Both `unsafe_owner_metadata` and `orphan_owner_metadata` must be zero after
+the bridge. After Flyway, the PowerShell check above must report exactly V26.
+
+V23 does not reinterpret or rewrite data in its bridge. Legacy naive note
+timestamps are interpreted as UTC by the immutable V23
+`AT TIME ZONE 'UTC'` conversion, including values around spring and fall DST
+transitions.
+
+The V25 bridge policy is fixed: negative nullable metrics become `NULL`;
+structurally meaningless FatSecret children, weight/workout readings, blank
+notes, and blank Telegram text are deleted; unknown note types become
+`OTHER`; invalid users receive collision-free visibly invalid placeholders;
+invalid or exhausted durable jobs and deliveries become terminal with stable
+non-PII codes; stale `RUNNING` jobs become `PENDING` while recent valid ones
+remain `RUNNING`; and `SENDING` rows with `claimed_at IS NULL` become `FAILED`
+with `LEGACY_DELIVERY_OUTCOME_UNKNOWN_PRE_V25`. V26 removes null, missing,
+noncanonical, nonnumeric, nonpositive, oversized, and orphaned memory owners
+before the generated `BIGINT` owner column is added; valid JSON string and
+number owners remain and cascade with their user.
+
+Do not run a bridge retroactively after its database has passed the matching
+Flyway migration. A database already at or beyond V21, V23, V25, or V26 must
+follow a new forward migration/incident procedure; rerunning an old bridge is
+unsupported even though the scripts are idempotent at their intended boundary.
+
 ## Privacy
 
 - Never log Telegram text, nutrition payloads, AI prompts, tokens, or raw provider responses.
