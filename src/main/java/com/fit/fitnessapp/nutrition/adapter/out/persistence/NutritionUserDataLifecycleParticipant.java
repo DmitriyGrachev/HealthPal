@@ -1,7 +1,8 @@
 package com.fit.fitnessapp.nutrition.adapter.out.persistence;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -43,6 +44,51 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
                 "fatSecretConnected", Boolean.TRUE.equals(jdbc.queryForObject("""
                         SELECT EXISTS(SELECT 1 FROM fatsecret_connection WHERE user_id = ?)
                         """, Boolean.class, userId))));
+    }
+
+    @Override
+    public List<DataRetentionDisclosure> retentionDisclosure() {
+        return List.of(
+                new DataRetentionDisclosure(
+                        "nutrition_profile_and_manual_weight",
+                        DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "fatsecret_connection",
+                        DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "fatsecret_weight",
+                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "fatsecret_day",
+                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "fatsecret_food",
+                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override

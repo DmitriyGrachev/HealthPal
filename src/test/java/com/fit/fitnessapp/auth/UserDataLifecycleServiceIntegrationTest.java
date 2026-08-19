@@ -2,11 +2,15 @@ package com.fit.fitnessapp.auth;
 
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.auth.application.port.in.UserDataExportManifestUseCase;
 import com.fit.fitnessapp.auth.application.port.in.UserDataLifecycleUseCase;
+import com.fit.fitnessapp.auth.domain.UserDataExportManifest;
 import com.fit.fitnessapp.memory.application.service.MemoryEventListener;
 import com.fit.fitnessapp.support.AbstractPostgresIntegrationTest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.telegram.adapter.in.TelegramNotificationListener;
 import com.fit.fitnessapp.telegram.adapter.in.TelegramAiResponseListener;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
@@ -42,6 +46,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     private UserDataLifecycleUseCase lifecycleUseCase;
 
     @Autowired
+    private UserDataExportManifestUseCase manifestUseCase;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -75,7 +85,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     private AbsSender botSender;
 
     @Test
-    void exportsAndDeletesEveryOwnedCategoryWithoutTouchingAnotherUserOrGlobalBudget() {
+    void exportsAndDeletesEveryOwnedCategoryWithoutTouchingAnotherUserOrGlobalBudget() throws Exception {
         long userId = insertUser("lifecycle");
         long otherUserId = insertUser("lifecycle-other");
         long chatId = 4_001L;
@@ -99,7 +109,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
         assertThat(export.userId()).isEqualTo(userId);
         assertThat(export.profile()).containsEntry("goal_weight_kg", 75.0);
-        assertThat(export.weightHistory()).hasSize(1);
+        assertThat(export.weightHistory()).hasSize(2)
+                .extracting(row -> row.get("weight_source"))
+                .containsExactly("MANUAL", "FATSECRET");
         assertThat(export.nutritionDays()).hasSize(1);
         assertThat(export.foodEntries()).hasSize(1);
         assertThat(export.workoutSessions()).hasSize(1);
@@ -121,6 +133,41 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
             assertThat(row).containsEntry("scope_id", userId);
             assertThat(row).containsEntry("used_tokens", 250L);
         });
+
+        var v1Json = objectMapper.valueToTree(export);
+        assertThat(v1Json.fieldNames()).toIterable()
+                .doesNotContain("manifestVersion", "modules");
+        assertThat(v1Json.get("profile")).isNotNull();
+
+        UserDataExportManifest v2 = manifestUseCase.exportUserData(userId);
+        assertThat(v2.manifestVersion()).isEqualTo(2);
+        assertThat(v2.modules()).extracting(module -> module.moduleKey())
+                .isSorted().doesNotHaveDuplicates();
+        v2.modules().stream()
+                .forEach(module -> {
+                    assertThat(module.schemaVersion()).isGreaterThanOrEqualTo(1);
+                    assertThat(module.retentionDisclosure()).isNotEmpty().allSatisfy(disclosure -> {
+                        assertThat(disclosure.storageClass())
+                                .isNotEqualTo(DataRetentionDisclosure.StorageClass.UNSPECIFIED);
+                        assertThat(disclosure.retentionClass())
+                                .isNotEqualTo(DataRetentionDisclosure.RetentionClass.UNSPECIFIED);
+                        assertThat(disclosure.deletionScope())
+                                .isNotEqualTo(DataRetentionDisclosure.DeletionScope.UNSPECIFIED);
+                    });
+                });
+        assertThat(moduleCategories(v2, "ai"))
+                .contains("ai_insights", "ai_usage_budget");
+        assertThat(moduleCategories(v2, "nutrition"))
+                .contains("nutrition_profile_and_manual_weight", "fatsecret_connection", "fatsecret_weight",
+                        "fatsecret_day", "fatsecret_food");
+
+        String v2Json = objectMapper.writeValueAsString(v2);
+        assertThat(v2Json)
+                .doesNotContain("access_token", "access_token_secret")
+                .doesNotContain("oauth-token-canary-" + userId, "oauth-secret-canary-" + userId)
+                .doesNotContain("other memory", "keep me");
+        assertThat(v2Json).contains("\"moduleKey\":\"auth\"");
+        assertThat(v2Json).contains("\"userNotes\"");
 
         lifecycleUseCase.disconnectFatSecret(userId);
         assertThat(count("fatsecret_connection", "user_id", userId)).isZero();
@@ -448,6 +495,18 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         }
 
         @Override
+        public java.util.List<DataRetentionDisclosure> retentionDisclosure() {
+            return java.util.List.of(new DataRetentionDisclosure(
+                    "rollback_probe",
+                    DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                    DataRetentionDisclosure.RetentionClass.UNTIL_TERMINAL,
+                    null,
+                    java.util.List.of(),
+                    DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
+                    DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
+        }
+
+        @Override
         public void deleteData(Long userId) {
             if (userId.equals(failingUserId)) {
                 throw new IllegalStateException("rollback probe");
@@ -463,9 +522,13 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 VALUES (?, 80.5, ?, 'MANUAL')
                 """, userId, LocalDate.of(2026, 8, 8));
         jdbc.update("""
+                INSERT INTO weight_history (user_id, weight_kg, weight_date, weight_source)
+                VALUES (?, 81.25, ?, 'FATSECRET')
+                """, userId, LocalDate.of(2026, 8, 7));
+        jdbc.update("""
                 INSERT INTO fatsecret_connection (user_id, access_token, access_token_secret)
-                VALUES (?, 'encrypted-token', 'encrypted-secret')
-                """, userId);
+                VALUES (?, ?, ?)
+                """, userId, "oauth-token-canary-" + userId, "oauth-secret-canary-" + userId);
         Long dayId = jdbc.queryForObject("""
                 INSERT INTO fatsecret_day (user_id, date, date_int)
                 VALUES (?, ?, 20673)
@@ -624,6 +687,16 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                            THEN serialized_event::jsonb ->> 'userId'
                        END = ?
                 """, Long.class, Long.toString(userId));
+    }
+
+    private java.util.Set<String> moduleCategories(UserDataExportManifest manifest, String moduleKey) {
+        return manifest.modules().stream()
+                .filter(module -> module.moduleKey().equals(moduleKey))
+                .findFirst()
+                .orElseThrow()
+                .retentionDisclosure().stream()
+                .map(DataRetentionDisclosure::category)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     private void await(CountDownLatch latch, String failureMessage) {

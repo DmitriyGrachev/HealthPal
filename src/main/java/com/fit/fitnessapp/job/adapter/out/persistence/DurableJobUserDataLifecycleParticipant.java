@@ -1,12 +1,14 @@
 package com.fit.fitnessapp.job.adapter.out.persistence;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,6 +27,18 @@ public class DurableJobUserDataLifecycleParticipant implements UserDataLifecycle
                 "durableJobs", jdbc.queryForList("""
                         SELECT * FROM durable_jobs WHERE user_id = ? ORDER BY created_at
                         """, userId)));
+    }
+
+    @Override
+    public List<DataRetentionDisclosure> retentionDisclosure() {
+        return List.of(new DataRetentionDisclosure(
+                "durable_jobs",
+                DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                DataRetentionDisclosure.RetentionClass.UNTIL_TERMINAL,
+                null,
+                List.of(),
+                DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
+                DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override

@@ -1,12 +1,14 @@
 package com.fit.fitnessapp.workout.adapter.out.persistence;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -39,6 +41,18 @@ public class WorkoutUserDataLifecycleParticipant implements UserDataLifecyclePar
                         """, userId),
                 "workoutCardio", jdbc.queryForList(
                         "SELECT * FROM workout_cardio WHERE user_id = ?", userId)));
+    }
+
+    @Override
+    public List<DataRetentionDisclosure> retentionDisclosure() {
+        return List.of(new DataRetentionDisclosure(
+                "workout",
+                DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                null,
+                List.of(DataRetentionDisclosure.ExternalProcessor.AI_PROVIDER),
+                DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override

@@ -1,7 +1,7 @@
 package com.fit.fitnessapp.auth.application.service;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import com.fit.fitnessapp.auth.application.port.in.UserDataLifecycleUseCase;
 import com.fit.fitnessapp.auth.application.port.out.UserIdentityLifecyclePort;
 import com.fit.fitnessapp.auth.domain.UserAccountDeletionResult;

@@ -1,12 +1,14 @@
 package com.fit.fitnessapp.ai.adapter.out.persistence;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -30,6 +32,27 @@ public class AiUserDataLifecycleParticipant implements UserDataLifecycleParticip
                          WHERE scope_type = 'USER' AND scope_id = ?
                          ORDER BY window_start
                         """, userId)));
+    }
+
+    @Override
+    public List<DataRetentionDisclosure> retentionDisclosure() {
+        return List.of(
+                new DataRetentionDisclosure(
+                        "ai_insights",
+                        DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.AI_PROVIDER),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "ai_usage_budget",
+                        DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override

@@ -1,7 +1,8 @@
 package com.fit.fitnessapp.telegram.infrastructure.persistence;
 
-import com.fit.fitnessapp.api.UserDataExportFragment;
-import com.fit.fitnessapp.api.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
+import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
+import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -43,6 +44,27 @@ public class TelegramUserDataLifecycleParticipant implements UserDataLifecyclePa
                 "telegramDeliveries", jdbc.queryForList("""
                         SELECT * FROM telegram_delivery_outbox WHERE chat_id = ? ORDER BY created_at
                         """, chatId)));
+    }
+
+    @Override
+    public List<DataRetentionDisclosure> retentionDisclosure() {
+        return List.of(
+                new DataRetentionDisclosure(
+                        "telegram_link_and_history",
+                        DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.TELEGRAM),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "telegram_operational_outbox",
+                        DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.RetentionClass.UNTIL_TERMINAL,
+                        null,
+                        List.of(DataRetentionDisclosure.ExternalProcessor.TELEGRAM),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override

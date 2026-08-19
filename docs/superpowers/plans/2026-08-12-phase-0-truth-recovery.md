@@ -112,15 +112,17 @@ Add:
 
 - `auth/domain/UserDataExportManifest.java`;
 - `auth/domain/UserDataModuleExport.java`;
-- `auth/domain/DataRetentionDisclosure.java`;
+- `api/lifecycle/DataRetentionDisclosure.java` (neutral lifecycle contract; it must not depend on `auth`);
+- `auth/application/port/in/UserDataExportManifestUseCase.java`;
 - `auth/application/service/UserDataExportManifestService.java`;
 - `auth/adapter/in/web/UserDataExportV2Controller.java` at `GET /api/v2/user/me/export`;
 - move the neutral lifecycle SPI records from the broad root to `api/lifecycle/` and add `api/lifecycle/package-info.java` with `@NamedInterface("lifecycle")`;
-- update every existing participant import and architecture assertion to depend on `api::lifecycle`, not broad `api`.
+- update every existing participant import to depend on `api::lifecycle`, not broad `api`;
+- replace the obsolete `allowedDependencies` update instruction with a focused architecture assertion that the named `api::lifecycle` interface exists and contains the lifecycle contracts; do not add broad allow-lists in this iteration.
 
 Extend `UserDataLifecycleParticipant` with default `exportSchemaVersion()` and `retentionDisclosure()` methods. V2 assembles ordered module fragments generically; `auth` no longer enumerates fields for future modules. V1 continues using `UserDataExportDto` for compatibility.
 
-Disclosure distinguishes local canonical data, expiring provider cache, external transfer, backup limitations, and deletion scope without claiming impossible remote erasure.
+Disclosure distinguishes local canonical data, expiring provider cache, external transfer, backup limitations, and deletion scope without claiming impossible remote erasure. The V2 controller depends on `UserDataExportManifestUseCase`, never on the concrete service.
 
 ### Verify and commit
 
