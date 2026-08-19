@@ -1,19 +1,23 @@
 package com.fit.fitnessapp.job.application.service;
 
+import com.fit.fitnessapp.job.DurableJobClaim;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobUseCase;
+import com.fit.fitnessapp.job.JobFailure;
 import com.fit.fitnessapp.job.JobStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,18 +25,15 @@ import java.util.Optional;
 public class DurableJobService implements DurableJobUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(DurableJobService.class);
+    private static final int MAX_OWNER_LENGTH = 128;
+    private static final String FENCE_REJECTED = "FENCE_REJECTED";
+    private static final String RECOVERY_RETRYABLE = "CLAIM_TIMEOUT_RETRYABLE";
 
     private final JdbcTemplate jdbcTemplate;
-    private final java.time.Clock clock;
 
     @Autowired
-    public DurableJobService(JdbcTemplate jdbcTemplate, java.time.Clock clock) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.clock = clock;
-    }
-
     public DurableJobService(JdbcTemplate jdbcTemplate) {
-        this(jdbcTemplate, java.time.Clock.systemUTC());
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     private final RowMapper<DurableJobDto> rowMapper = (rs, rowNum) -> new DurableJobDto(
@@ -42,13 +43,21 @@ public class DurableJobService implements DurableJobUseCase {
             JobStatus.valueOf(rs.getString("status")),
             rs.getInt("attempts"),
             rs.getInt("max_attempts"),
-            rs.getTimestamp("next_retry_at") != null ? rs.getTimestamp("next_retry_at").toInstant() : null,
+            instant(rs, "next_retry_at"),
             rs.getString("error_message"),
             rs.getString("payload_json"),
             rs.getString("idempotency_key"),
-            rs.getTimestamp("created_at").toInstant(),
-            rs.getTimestamp("updated_at").toInstant()
-    );
+            instant(rs, "created_at"),
+            instant(rs, "updated_at"));
+
+    private final RowMapper<DurableJobClaim> claimMapper = (rs, rowNum) -> {
+        DurableJobDto job = rowMapper.mapRow(rs, rowNum);
+        return new DurableJobClaim(
+                job,
+                rs.getString("lease_owner"),
+                rs.getLong("lease_generation"),
+                instant(rs, "lease_expires_at"));
+    };
 
     @Override
     @Transactional
@@ -57,86 +66,110 @@ public class DurableJobService implements DurableJobUseCase {
             throw new IllegalArgumentException("idempotencyKey must not be blank");
         }
         String normalizedKey = idempotencyKey.trim();
-
-        Long id = jdbcTemplate.queryForObject(
-                "INSERT INTO durable_jobs (job_type, user_id, status, attempts, max_attempts, payload_json, idempotency_key, created_at, updated_at) " +
-                        "VALUES (?, ?, 'PENDING', 0, 3, ?, ?, NOW(), NOW()) " +
-                        "ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL " +
-                        "DO UPDATE SET updated_at = durable_jobs.updated_at " +
-                        "RETURNING id",
-                Long.class,
-                jobType, userId, payloadJson, normalizedKey
-        );
-        log.info("Created/deduplicated durable job id={} type={} userId={} idempotencyKey={}",
-                id, jobType, userId, normalizedKey);
-        return id;
+        return jdbcTemplate.queryForObject(
+                "INSERT INTO durable_jobs (job_type, user_id, status, attempts, max_attempts, payload_json, idempotency_key, created_at, updated_at) "
+                        + "VALUES (?, ?, 'PENDING', 0, 3, ?, ?, NOW(), NOW()) "
+                        + "ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL "
+                        + "DO UPDATE SET updated_at = durable_jobs.updated_at "
+                        + "RETURNING id",
+                Long.class, jobType, userId, payloadJson, normalizedKey);
     }
 
     @Override
     @Transactional
-    public boolean startJob(Long jobId) {
+    public Optional<DurableJobClaim> claimJob(Long jobId, String owner, Duration lease) {
+        String normalizedOwner = validateClaimInput(owner, lease);
+        List<DurableJobClaim> claims = jdbcTemplate.query(
+                "UPDATE durable_jobs SET status = 'RUNNING', attempts = attempts + 1, "
+                        + "lease_owner = ?, lease_expires_at = NOW() + (? * INTERVAL '1 millisecond'), "
+                        + "claimed_at = NOW(), lease_generation = lease_generation + 1, next_retry_at = NULL, "
+                        + "error_message = NULL, updated_at = NOW() "
+                        + "WHERE id = ? AND status = 'PENDING' AND attempts < max_attempts "
+                        + "AND (next_retry_at IS NULL OR next_retry_at <= NOW()) RETURNING *",
+                claimMapper, normalizedOwner, lease.toMillis(), jobId);
+        return claims.stream().findFirst();
+    }
+
+    @Override
+    @Transactional
+    public Optional<DurableJobClaim> claimNext(String owner, Duration lease) {
+        String normalizedOwner = validateClaimInput(owner, lease);
+        List<DurableJobClaim> claims = jdbcTemplate.query(
+                "WITH candidate AS ("
+                        + " SELECT id FROM durable_jobs"
+                        + " WHERE status = 'PENDING' AND attempts < max_attempts"
+                        + "   AND (next_retry_at IS NULL OR next_retry_at <= NOW())"
+                        + " ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1"
+                        + ")"
+                        + " UPDATE durable_jobs job SET status = 'RUNNING', attempts = job.attempts + 1,"
+                        + " lease_owner = ?, lease_expires_at = NOW() + (? * INTERVAL '1 millisecond'),"
+                        + " claimed_at = NOW(), lease_generation = job.lease_generation + 1,"
+                        + " next_retry_at = NULL, error_message = NULL, updated_at = NOW()"
+                        + " FROM candidate WHERE job.id = candidate.id RETURNING job.*",
+                claimMapper, normalizedOwner, lease.toMillis());
+        return claims.stream().findFirst();
+    }
+
+    @Override
+    @Transactional
+    public boolean heartbeat(DurableJobClaim claim, Duration extension) {
+        validateClaim(claim);
+        requirePositive(extension, "extension");
         int updated = jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'RUNNING', attempts = attempts + 1, updated_at = NOW() " +
-                        "WHERE id = ? AND status IN ('PENDING', 'FAILED') AND attempts < max_attempts",
-                jobId
-        );
-        return updated > 0;
+                "UPDATE durable_jobs SET lease_expires_at = NOW() + (? * INTERVAL '1 millisecond'), "
+                        + "updated_at = NOW() WHERE id = ? AND status = 'RUNNING' AND lease_owner = ? "
+                        + "AND lease_generation = ? AND lease_expires_at > NOW()",
+                extension.toMillis(), claim.jobId(), claim.leaseOwner(), claim.leaseGeneration());
+        return fencedResult(updated);
     }
 
     @Override
     @Transactional
-    public void completeJob(Long jobId) {
-        jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'SUCCEEDED', error_message = NULL, updated_at = NOW() WHERE id = ?",
-                jobId
-        );
-        log.info("Durable job id={} completed successfully", jobId);
+    public boolean completeJob(DurableJobClaim claim) {
+        validateClaim(claim);
+        int updated = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = 'SUCCEEDED', error_message = NULL, "
+                        + "lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, updated_at = NOW() "
+                        + "WHERE id = ? AND status = 'RUNNING' AND lease_owner = ? AND lease_generation = ? "
+                        + "AND lease_expires_at > NOW()",
+                claim.jobId(), claim.leaseOwner(), claim.leaseGeneration());
+        return fencedResult(updated);
     }
 
     @Override
     @Transactional
-    public void failJob(Long jobId, Exception exception) {
-        String msg = exception != null && exception.getMessage() != null
-                ? exception.getMessage()
-                : (exception != null ? exception.getClass().getSimpleName() : "Unknown error");
-
-        Optional<DurableJobDto> jobOpt = getJob(jobId);
-        if (jobOpt.isEmpty()) return;
-
-        DurableJobDto job = jobOpt.get();
-        if (job.attempts() >= job.maxAttempts()) {
-            jdbcTemplate.update(
-                    "UPDATE durable_jobs SET status = 'FAILED', error_message = ?, updated_at = NOW() WHERE id = ?",
-                    msg, jobId
-            );
-            log.error("Durable job id={} reached terminal failure: {}", jobId, msg);
-        } else {
-            int backoffMinutes = (int) Math.pow(2, job.attempts());
-            Instant nextRetryAt = effectiveClock().instant().plus(backoffMinutes, ChronoUnit.MINUTES);
-            jdbcTemplate.update(
-                    "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = ?, error_message = ?, updated_at = NOW() WHERE id = ?",
-                    Timestamp.from(nextRetryAt), msg, jobId
-            );
-            log.warn("Durable job id={} attempt {}/{} failed. Next retry at {}",
-                    jobId, job.attempts(), job.maxAttempts(), nextRetryAt);
-        }
+    public boolean failJob(DurableJobClaim claim, JobFailure failure) {
+        validateClaim(claim);
+        JobFailure safeFailure = failure == null ? JobFailure.of(JobFailure.UNKNOWN_FAILURE) : failure;
+        int updated = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'FAILED' ELSE 'PENDING' END, "
+                        + "next_retry_at = CASE WHEN attempts >= max_attempts THEN NULL "
+                        + "ELSE NOW() + (POWER(2::numeric, LEAST(GREATEST(attempts, 0), 10)) * INTERVAL '1 minute') END, "
+                        + "error_message = ?, lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, updated_at = NOW() "
+                        + "WHERE id = ? AND status = 'RUNNING' AND lease_owner = ? AND lease_generation = ? "
+                        + "AND lease_expires_at > NOW()",
+                safeFailure.persistedValue(), claim.jobId(), claim.leaseOwner(), claim.leaseGeneration());
+        return fencedResult(updated);
     }
 
     @Override
     @Transactional
-    public void skipJob(Long jobId, String reason) {
-        jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'SKIPPED', error_message = ?, updated_at = NOW() WHERE id = ?",
-                reason, jobId
-        );
-        log.info("Durable job id={} skipped: {}", jobId, reason);
+    public boolean skipJob(DurableJobClaim claim, String reasonCode) {
+        validateClaim(claim);
+        String safeReason = JobFailure.safeCode(reasonCode, JobFailure.NO_EXECUTOR);
+        int updated = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = 'SKIPPED', error_message = ?, "
+                        + "lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, updated_at = NOW() "
+                        + "WHERE id = ? AND status = 'RUNNING' AND lease_owner = ? AND lease_generation = ? "
+                        + "AND lease_expires_at > NOW()",
+                safeReason, claim.jobId(), claim.leaseOwner(), claim.leaseGeneration());
+        return fencedResult(updated);
     }
 
     @Override
     public Optional<DurableJobDto> getJob(Long jobId) {
-        List<DurableJobDto> jobs = jdbcTemplate.query(
-                "SELECT * FROM durable_jobs WHERE id = ?", rowMapper, jobId);
-        return jobs.stream().findFirst();
+        return jdbcTemplate.query("SELECT * FROM durable_jobs WHERE id = ?", rowMapper, jobId)
+                .stream().findFirst();
     }
 
     @Override
@@ -146,40 +179,63 @@ public class DurableJobService implements DurableJobUseCase {
     }
 
     @Override
-    public List<DurableJobDto> getPendingJobsForRetry() {
-        return jdbcTemplate.query(
-                "SELECT * FROM durable_jobs WHERE status = 'PENDING' AND (next_retry_at IS NULL OR next_retry_at <= NOW()) ORDER BY id ASC",
-                rowMapper
-        );
+    @Transactional
+    public int recoverExpiredJobs() {
+        int recovered = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'FAILED' ELSE 'PENDING' END, "
+                        + "next_retry_at = CASE WHEN attempts >= max_attempts THEN NULL ELSE NOW() END, "
+                        + "error_message = CASE WHEN attempts >= max_attempts THEN ? ELSE ? END, "
+                        + "lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, updated_at = NOW() "
+                        + "WHERE status = 'RUNNING' AND lease_expires_at <= NOW()",
+                JobFailure.CLAIM_TIMEOUT_MAX_ATTEMPTS, RECOVERY_RETRYABLE);
+        if (recovered > 0) {
+            log.info("Durable job lease recovery completed count={} reasonCode=CLAIM_TIMEOUT", recovered);
+        }
+        return recovered;
     }
 
     @Override
     @Transactional
-    public void recoverStuckJobs(int timeoutMinutes) {
-        Instant cutoff = effectiveClock().instant().minus(timeoutMinutes, ChronoUnit.MINUTES);
-        int resetCount = jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'PENDING', next_retry_at = NOW(), " +
-                        "error_message = 'Reset stuck RUNNING job', updated_at = NOW() " +
-                        "WHERE status = 'RUNNING' AND updated_at <= ?",
-                Timestamp.from(cutoff)
-        );
-        if (resetCount > 0) {
-            log.warn("Recovered {} stuck RUNNING durable jobs older than {} minutes", resetCount, timeoutMinutes);
+    public boolean retryJob(Long jobId) {
+        int updated = jdbcTemplate.update(
+                "UPDATE durable_jobs SET status = 'PENDING', attempts = 0, next_retry_at = NOW(), "
+                        + "error_message = NULL, lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, "
+                        + "updated_at = NOW() WHERE id = ? AND status IN ('FAILED', 'SKIPPED')",
+                jobId);
+        return updated > 0;
+    }
+
+    private boolean fencedResult(int updated) {
+        if (updated == 0) {
+            log.info("Durable job mutation rejected reasonCode={}", FENCE_REJECTED);
+            return false;
+        }
+        return true;
+    }
+
+    private static String validateClaimInput(String owner, Duration lease) {
+        if (owner == null || owner.isBlank() || owner.trim().length() > MAX_OWNER_LENGTH) {
+            throw new IllegalArgumentException("lease owner must be nonblank and at most 128 characters");
+        }
+        requirePositive(lease, "lease");
+        return owner.trim();
+    }
+
+    private static void validateClaim(DurableJobClaim claim) {
+        if (claim == null) {
+            throw new IllegalArgumentException("claim must not be null");
+        }
+        validateClaimInput(claim.leaseOwner(), Duration.ofMillis(1));
+    }
+
+    private static void requirePositive(Duration duration, String name) {
+        if (duration == null || duration.isZero() || duration.isNegative() || duration.toMillis() <= 0) {
+            throw new IllegalArgumentException(name + " must be positive");
         }
     }
 
-    @Override
-    @Transactional
-    public void retryJob(Long jobId) {
-        jdbcTemplate.update(
-                "UPDATE durable_jobs SET status = 'PENDING', attempts = 0, next_retry_at = NOW(), " +
-                        "error_message = NULL, updated_at = NOW() WHERE id = ?",
-                jobId
-        );
-        log.info("Operator triggered retry for durable job id={}", jobId);
-    }
-
-    private java.time.Clock effectiveClock() {
-        return clock != null ? clock : java.time.Clock.systemUTC();
+    private static Instant instant(ResultSet rs, String column) throws SQLException {
+        Timestamp value = rs.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 }

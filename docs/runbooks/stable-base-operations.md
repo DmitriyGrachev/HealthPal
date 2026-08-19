@@ -12,13 +12,37 @@
 - Nutrition sync runs in UTC and uses `nutrition.sync.today.cron`, `nutrition.sync.window-days`, and `nutrition.sync.batch-size`.
 - Each user sync creates a durable job with an idempotency key. A second scheduler instance may create the same key, but only one job can be claimed.
 - In one JVM an overlapping scheduler invocation is skipped. A failed user does not stop the remaining batch.
-- Durable job and Telegram outbox workers claim rows with bounded retries. `SENDING`/`RUNNING` rows are recovered after their claim timeout.
+- Durable jobs use a PostgreSQL-fenced lease (`lease_owner`, `lease_generation`,
+  `lease_expires_at`, and `claimed_at`). Workers recover expired leases using
+  PostgreSQL `NOW()`, then claim exactly one due row immediately before
+  execution. Heartbeats renew the same generation while provider work runs;
+  every completion, failure, and skip is guarded by the original owner and
+  generation.
+- A retryable expired claim returns to `PENDING`; an expired final attempt is
+  terminal `FAILED` with `CLAIM_TIMEOUT_MAX_ATTEMPTS`. Exhausted `PENDING`
+  rows are not valid state after V29.
+- Telegram outbox workers retain their separate claim/recovery rules. Do not
+  infer exactly-once provider effects from durable-job fencing.
 
 ## Recovery
 
-- Inspect `durable_jobs` for `FAILED` rows and retry them through `POST /api/v1/jobs/{id}/retry` as the owning user/operator.
+- Inspect `durable_jobs` for `FAILED` rows and retry them through
+  `POST /api/v1/jobs/{id}/retry` as the owning user/operator. Manual retry is
+  accepted only from `FAILED` or `SKIPPED`; `RUNNING`, `SUCCEEDED`, and other
+  states return conflict code `DURABLE_JOB_RETRY_NOT_ALLOWED`. Retry clears
+  attempts/backoff and active lease fields but preserves monotonic
+  `lease_generation`.
+- Fenced stale mutations return `false` and emit only the stable reason code
+  `FENCE_REJECTED`. Job failures persist bounded stable codes/details such as
+  `PROVIDER_UNAVAILABLE`, `INVALID_PAYLOAD`, and
+  `CLAIM_TIMEOUT_MAX_ATTEMPTS`; provider exception messages, payloads, user
+  identifiers, idempotency keys, and lease owners are never persisted or
+  logged.
 - Inspect `telegram_delivery_outbox` for `FAILED` rows and provider error codes. `429` and `5xx` remain retryable; malformed requests are terminal.
 - If a deployment stops during a claim, wait for the recovery window before manually changing status. Preserve the original `error_message` when opening an incident.
+- Lease fencing protects the durable ledger, not external side effects. The
+  system remains at-least-once around provider calls; provider idempotency
+  keys are mandatory wherever a provider supports them.
 
 ## Observability
 

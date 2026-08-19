@@ -2,16 +2,18 @@ package com.fit.fitnessapp.job;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Duration;
 
 public interface DurableJobUseCase {
     Long createJob(String jobType, Long userId, String payloadJson, String idempotencyKey);
-    boolean startJob(Long jobId);
-    void completeJob(Long jobId);
-    void failJob(Long jobId, Exception exception);
-    void skipJob(Long jobId, String reason);
+    Optional<DurableJobClaim> claimJob(Long jobId, String owner, Duration lease);
+    Optional<DurableJobClaim> claimNext(String owner, Duration lease);
+    boolean heartbeat(DurableJobClaim claim, Duration extension);
+    boolean completeJob(DurableJobClaim claim);
+    boolean failJob(DurableJobClaim claim, JobFailure failure);
+    boolean skipJob(DurableJobClaim claim, String reasonCode);
     Optional<DurableJobDto> getJob(Long jobId);
     List<DurableJobDto> getJobsByUser(Long userId);
-    List<DurableJobDto> getPendingJobsForRetry();
-    void recoverStuckJobs(int timeoutMinutes);
-    void retryJob(Long jobId);
+    int recoverExpiredJobs();
+    boolean retryJob(Long jobId);
 }

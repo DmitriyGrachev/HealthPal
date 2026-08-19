@@ -18,4 +18,5 @@ public final class ErrorCode {
     public static final String TOKEN_EXPIRED = "TOKEN_EXPIRED";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
     public static final String NOT_FOUND = "NOT_FOUND";
+    public static final String DURABLE_JOB_RETRY_NOT_ALLOWED = "DURABLE_JOB_RETRY_NOT_ALLOWED";
 }

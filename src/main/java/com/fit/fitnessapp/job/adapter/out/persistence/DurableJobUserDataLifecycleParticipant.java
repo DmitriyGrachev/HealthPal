@@ -25,7 +25,12 @@ public class DurableJobUserDataLifecycleParticipant implements UserDataLifecycle
     public UserDataExportFragment exportData(Long userId) {
         return new UserDataExportFragment(key(), Map.of(
                 "durableJobs", jdbc.queryForList("""
-                        SELECT * FROM durable_jobs WHERE user_id = ? ORDER BY created_at
+                        SELECT id, job_type, user_id, status, attempts, max_attempts,
+                               next_retry_at, error_message, payload_json, created_at,
+                               updated_at, idempotency_key
+                          FROM durable_jobs
+                         WHERE user_id = ?
+                         ORDER BY created_at
                         """, userId)));
     }
 

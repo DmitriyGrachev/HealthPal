@@ -240,11 +240,12 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(countById("user_notes", V25.BLANK_NOTE_ID)).isZero();
 
         assertThat(jobStatus(V25.INVALID_JOB_ID)).isEqualTo("FAILED");
-        assertThat(jobError(V25.INVALID_JOB_ID)).isEqualTo("LEGACY_DURABLE_STATE_INVALID_PRE_V25");
+        assertThat(jobError(V25.INVALID_JOB_ID)).isEqualTo("UNKNOWN_FAILURE");
         assertThat(jobStatus(V25.STALE_RUNNING_JOB_ID)).isEqualTo("PENDING");
-        assertThat(jobStatus(V25.RECENT_RUNNING_JOB_ID)).isEqualTo("RUNNING");
+        assertThat(jobStatus(V25.RECENT_RUNNING_JOB_ID)).isEqualTo("PENDING");
+        assertThat(jobError(V25.RECENT_RUNNING_JOB_ID)).isEqualTo("CLAIM_TIMEOUT_RETRYABLE");
         assertThat(jobStatus(V25.EXHAUSTED_JOB_ID)).isEqualTo("FAILED");
-        assertThat(jobError(V25.EXHAUSTED_JOB_ID)).isEqualTo("LEGACY_DURABLE_ATTEMPTS_EXHAUSTED_PRE_V25");
+        assertThat(jobError(V25.EXHAUSTED_JOB_ID)).isEqualTo("UNKNOWN_FAILURE");
         assertThat(attempts("durable_jobs", V25.INVALID_JOB_ID)).isLessThanOrEqualTo(maxAttempts("durable_jobs", V25.INVALID_JOB_ID));
         assertThat(attempts("durable_jobs", V25.INVALID_JOB_ID)).isGreaterThanOrEqualTo(0);
 
@@ -314,6 +315,117 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(countById("event_publication", V27.OWNED_EVENT_ID)).isZero();
         assertThat(countById("event_publication", V27.MALFORMED_EVENT_ID)).isOne();
         assertThat(countById("event_publication", V27.SYSTEM_EVENT_ID)).isOne();
+    }
+
+    @Test
+    void v28ToV29BackfillsLeaseStateAndEnforcesEveryLeaseInvariant() {
+        migrateTo("28");
+        insertUser(2901L, "v29-owner");
+        jdbc.update("INSERT INTO " + table("durable_jobs")
+                        + " (id, job_type, user_id, status, attempts, max_attempts, "
+                        + "next_retry_at, updated_at, idempotency_key) VALUES "
+                        + "(29001, 'SYNC', 2901, 'RUNNING', 1, 3, NULL, CURRENT_TIMESTAMP, 'v29-retryable')");
+        jdbc.update("INSERT INTO " + table("durable_jobs")
+                        + " (id, job_type, user_id, status, attempts, max_attempts, "
+                        + "next_retry_at, updated_at, idempotency_key) VALUES "
+                        + "(29002, 'SYNC', 2901, 'RUNNING', 3, 3, NULL, CURRENT_TIMESTAMP, 'v29-final')");
+        jdbc.update("INSERT INTO " + table("durable_jobs")
+                        + " (id, job_type, user_id, status, attempts, max_attempts, "
+                        + "next_retry_at, updated_at, idempotency_key) VALUES "
+                + "(29003, 'SYNC', 2901, 'PENDING', 3, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'v29-exhausted')");
+        insertLegacyErrorJob(29004L, "FAILED", "legacy provider payload token=secret");
+        insertLegacyErrorJob(29005L, "SKIPPED", "user supplied private reason");
+        insertLegacyErrorJob(29006L, "PENDING", "java.lang.IllegalStateException: raw payload");
+        insertLegacyErrorJob(29007L, "FAILED", "UNKNOWN_FAILURE");
+        insertLegacyErrorJob(29008L, "FAILED", "PROVIDER_UNAVAILABLE:external-service");
+        insertLegacyErrorJob(29009L, "FAILED", "INVALID_PAYLOAD:payload");
+        insertLegacyErrorJob(29010L, "FAILED", "INTERNAL_FAILURE:application");
+        insertLegacyErrorJob(29016L, "FAILED", "CLAIM_TIMEOUT_MAX_ATTEMPTS");
+        insertLegacyErrorJob(29017L, "SKIPPED", "CLAIM_TIMEOUT_RETRYABLE");
+        insertLegacyErrorJob(29018L, "SKIPPED", "NO_EXECUTOR");
+        insertLegacyErrorJob(29019L, "SUCCEEDED", null);
+
+        migrateToLatest();
+
+        assertThat(jobStatus(29001)).isEqualTo("PENDING");
+        assertThat(jobError(29001)).isEqualTo("CLAIM_TIMEOUT_RETRYABLE");
+        assertThat(jobStatus(29002)).isEqualTo("FAILED");
+        assertThat(jobError(29002)).isEqualTo("CLAIM_TIMEOUT_MAX_ATTEMPTS");
+        assertThat(jobStatus(29003)).isEqualTo("FAILED");
+        assertThat(jobError(29003)).isEqualTo("CLAIM_TIMEOUT_MAX_ATTEMPTS");
+        assertThat(jobError(29004)).isEqualTo("UNKNOWN_FAILURE");
+        assertThat(jobError(29005)).isEqualTo("UNKNOWN_FAILURE");
+        assertThat(jobError(29006)).isEqualTo("UNKNOWN_FAILURE");
+        assertThat(jobError(29007)).isEqualTo("UNKNOWN_FAILURE");
+        assertThat(jobError(29008)).isEqualTo("PROVIDER_UNAVAILABLE:external-service");
+        assertThat(jobError(29009)).isEqualTo("INVALID_PAYLOAD:payload");
+        assertThat(jobError(29010)).isEqualTo("INTERNAL_FAILURE:application");
+        assertThat(jobError(29016)).isEqualTo("CLAIM_TIMEOUT_MAX_ATTEMPTS");
+        assertThat(jobError(29017)).isEqualTo("CLAIM_TIMEOUT_RETRYABLE");
+        assertThat(jobError(29018)).isEqualTo("NO_EXECUTOR");
+        assertThat(jobError(29019)).isNull();
+
+        assertThat(columnExists("durable_jobs", "lease_generation")).isTrue();
+        assertThat(columnExists("durable_jobs", "lease_owner")).isTrue();
+        assertThat(columnExists("durable_jobs", "lease_expires_at")).isTrue();
+        assertThat(columnExists("durable_jobs", "claimed_at")).isTrue();
+        assertThat(indexExists("idx_durable_jobs_pending_due")).isTrue();
+        assertThat(indexExists("idx_durable_jobs_running_expiry")).isTrue();
+        assertThat(indexExists("idx_durable_jobs_owner_generation")).isTrue();
+        assertThat(constraintValidated("chk_durable_job_lease_generation_nonnegative")).isTrue();
+        assertThat(constraintValidated("chk_durable_job_running_complete_lease")).isTrue();
+        assertThat(constraintValidated("chk_durable_job_non_running_without_lease")).isTrue();
+        assertThat(constraintValidated("chk_durable_job_pending_not_exhausted")).isTrue();
+        assertThat(constraintValidated("chk_durable_job_error_message_safe")).isTrue();
+
+        assertThatThrownBy(() -> insertInvalidLeaseRow(29011L,
+                "RUNNING", 0, 3, null, null, null, "v29-invalid-running-missing"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> insertInvalidLeaseRow(29012L,
+                "RUNNING", 0, 3, " ", "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP", "v29-invalid-blank-owner"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> insertInvalidLeaseRow(29013L,
+                "PENDING", 0, 3, null, null, null, "v29-invalid-negative-generation", -1L))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> insertInvalidLeaseRow(29014L,
+                "SUCCEEDED", 0, 3, "worker", "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP", "v29-invalid-active-terminal"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> insertInvalidLeaseRow(29015L,
+                "PENDING", 3, 3, null, null, null, "v29-invalid-exhausted-pending"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> insertLegacyErrorJob(29020L, "FAILED", "legacy:raw-pii-token"))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    private void insertLegacyErrorJob(long id, String status, String errorMessage) {
+        jdbc.update("INSERT INTO " + table("durable_jobs")
+                        + " (id, job_type, user_id, status, attempts, max_attempts, error_message, "
+                        + "next_retry_at, updated_at, idempotency_key) VALUES (?, 'SYNC', 2901, ?, 0, 3, ?, NULL, "
+                        + "CURRENT_TIMESTAMP, ?)",
+                id, status, errorMessage, "v29-error-" + id);
+    }
+
+    private void insertInvalidLeaseRow(long id, String status, int attempts, int maxAttempts,
+                                       String leaseOwner, String expiresAt, String claimedAt,
+                                       String idempotencyKey) {
+        insertInvalidLeaseRow(id, status, attempts, maxAttempts, leaseOwner, expiresAt, claimedAt,
+                idempotencyKey, 0L);
+    }
+
+    private void insertInvalidLeaseRow(long id, String status, int attempts, int maxAttempts,
+                                       String leaseOwner, String expiresAt, String claimedAt,
+                                       String idempotencyKey, long generation) {
+        String ownerSql = leaseOwner == null ? "NULL" : "'" + leaseOwner.replace("'", "''") + "'";
+        String expiresSql = expiresAt == null ? "NULL" : expiresAt;
+        String claimedSql = claimedAt == null ? "NULL" : claimedAt;
+        jdbc.execute("INSERT INTO " + table("durable_jobs")
+                + " (id, job_type, user_id, status, attempts, max_attempts, next_retry_at, "
+                + "error_message, payload_json, idempotency_key, lease_generation, lease_owner, "
+                + "lease_expires_at, claimed_at, created_at, updated_at) VALUES ("
+                + id + ", 'SYNC', 2901, '" + status + "', " + attempts + ", " + maxAttempts
+                + ", CURRENT_TIMESTAMP, NULL, '{}', '" + idempotencyKey + "', " + generation
+                + ", " + ownerSql + ", " + expiresSql + ", " + claimedSql
+                + ", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
     }
 
     @Test
@@ -589,6 +701,18 @@ class HistoricalUpgradeIntegrationTest {
         return jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM pg_constraint"
                         + " WHERE connamespace = ?::regnamespace AND conname = ?)",
                 Boolean.class, schema, constraintName);
+    }
+
+    private boolean constraintValidated(String constraintName) {
+        return jdbc.queryForObject("SELECT convalidated FROM pg_constraint"
+                        + " WHERE connamespace = ?::regnamespace AND conname = ?",
+                Boolean.class, schema, constraintName);
+    }
+
+    private boolean indexExists(String indexName) {
+        return jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM pg_indexes"
+                        + " WHERE schemaname = ? AND indexname = ?)",
+                Boolean.class, schema, indexName);
     }
 
     private static Throwable rootCause(Throwable error) {

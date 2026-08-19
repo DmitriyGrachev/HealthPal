@@ -1,65 +1,81 @@
 package com.fit.fitnessapp.job.application.service;
 
-import com.fit.fitnessapp.job.DurableJobDto;
+import com.fit.fitnessapp.job.DurableJobClaim;
 import com.fit.fitnessapp.job.DurableJobExecutor;
 import com.fit.fitnessapp.job.DurableJobUseCase;
-import lombok.RequiredArgsConstructor;
+import com.fit.fitnessapp.job.JobFailure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
-/**
- * Scheduled worker that picks up PENDING durable jobs, dispatches them
- * by jobType, and transitions them through RUNNING to SUCCEEDED or FAILED.
- */
+/** Claims one fresh row immediately before each execution. */
 @Component
-@RequiredArgsConstructor
 public class DurableJobWorker {
 
     private static final Logger log = LoggerFactory.getLogger(DurableJobWorker.class);
-
+    private static final Duration LEASE = Duration.ofMinutes(15);
     private final DurableJobUseCase durableJobUseCase;
     private final List<DurableJobExecutor> executors;
+    private final DurableJobLeaseHeartbeat leaseHeartbeat;
+    private final String owner;
+
+    public DurableJobWorker(DurableJobUseCase durableJobUseCase, List<DurableJobExecutor> executors) {
+        this(durableJobUseCase, executors, DurableJobLeaseHeartbeat.noop());
+    }
+
+    @Autowired
+    public DurableJobWorker(
+            DurableJobUseCase durableJobUseCase,
+            List<DurableJobExecutor> executors,
+            DurableJobLeaseHeartbeat leaseHeartbeat) {
+        this.durableJobUseCase = durableJobUseCase;
+        this.executors = executors;
+        this.leaseHeartbeat = leaseHeartbeat;
+        this.owner = "worker-" + UUID.randomUUID();
+    }
 
     @Scheduled(fixedDelay = 60_000)
     public void processDurableJobs() {
-        durableJobUseCase.recoverStuckJobs(15);
-
-        List<DurableJobDto> pendingJobs = durableJobUseCase.getPendingJobsForRetry();
-        if (pendingJobs.isEmpty()) {
-            return;
-        }
-
-        log.info("DurableJobWorker processing {} pending/retryable jobs", pendingJobs.size());
-        for (DurableJobDto job : pendingJobs) {
-            if (!durableJobUseCase.startJob(job.id())) {
-                continue;
+        durableJobUseCase.recoverExpiredJobs();
+        while (true) {
+            Optional<DurableJobClaim> claim = durableJobUseCase.claimNext(owner, LEASE);
+            if (claim.isEmpty()) {
+                return;
             }
-
-            DurableJobExecutor executor = findExecutor(job.jobType());
-            if (executor == null) {
-                log.warn("No DurableJobExecutor found for jobType={}. Skipping job id={}.", job.jobType(), job.id());
-                durableJobUseCase.skipJob(job.id(), "No executor registered for jobType: " + job.jobType());
-                continue;
-            }
-
-            try {
-                executor.execute(job);
-                durableJobUseCase.completeJob(job.id());
-            } catch (Exception e) {
-                log.error("DurableJobWorker failed job id={} type={}: {}", job.id(), job.jobType(), e.getMessage());
-                durableJobUseCase.failJob(job.id(), e);
-            }
+            executeClaim(claim.get());
         }
     }
 
-    private DurableJobExecutor findExecutor(String jobType) {
-        return executors.stream()
-                .filter(e -> e.supports(jobType))
+    private void executeClaim(DurableJobClaim claim) {
+        DurableJobExecutor executor = executors.stream()
+                .filter(candidate -> candidate.supports(claim.job().jobType()))
                 .findFirst()
                 .orElse(null);
+        if (executor == null) {
+            durableJobUseCase.skipJob(claim, JobFailure.NO_EXECUTOR);
+            return;
+        }
+
+        try (DurableJobLeaseHeartbeat.Registration ignored = leaseHeartbeat.track(claim, LEASE)) {
+            try {
+                executor.execute(claim.job());
+                if (!durableJobUseCase.completeJob(claim)) {
+                    log.warn("Durable job completion rejected reasonCode=FENCE_REJECTED");
+                }
+            } catch (Exception failure) {
+                JobFailure safeFailure = JobFailure.from(failure);
+                log.warn("Durable job execution failed reasonCode={}", safeFailure.code());
+                if (!durableJobUseCase.failJob(claim, safeFailure)) {
+                    log.warn("Durable job failure rejected reasonCode=FENCE_REJECTED");
+                }
+            }
+        }
     }
 }

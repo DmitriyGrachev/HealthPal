@@ -4,6 +4,9 @@ import com.fit.fitnessapp.FitnessAppApplication;
 import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
 import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
 import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
+import com.fit.fitnessapp.job.application.service.DurableJobLeaseHeartbeat;
+import com.fit.fitnessapp.job.application.service.DurableJobService;
+import com.fit.fitnessapp.job.application.service.DurableJobWorker;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModule;
@@ -30,6 +33,17 @@ class ModuleArchitectureTest {
         assertThat(lifecycle.contains(UserDataLifecycleParticipant.class)).isTrue();
         assertThat(lifecycle.contains(UserDataExportFragment.class)).isTrue();
         assertThat(lifecycle.contains(DataRetentionDisclosure.class)).isTrue();
+    }
+
+    @Test
+    void durableJobLeaseNamedInterfaceContainsOnlyHeartbeatType() {
+        ApplicationModule job = modules.getModuleByName("job").orElseThrow();
+        var leases = job.getNamedInterfaces().getByName("durable-job-leases").orElseThrow();
+
+        assertThat(leases.contains(DurableJobLeaseHeartbeat.class)).isTrue();
+        assertThat(leases.contains(DurableJobLeaseHeartbeat.Registration.class)).isTrue();
+        assertThat(leases.contains(DurableJobService.class)).isFalse();
+        assertThat(leases.contains(DurableJobWorker.class)).isFalse();
     }
 
     @Test

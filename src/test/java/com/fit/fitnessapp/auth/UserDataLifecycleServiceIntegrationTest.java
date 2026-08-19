@@ -29,6 +29,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.context.TestConfiguration;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -127,6 +129,8 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(export.conversationHistory()).hasSize(1);
         assertThat(export.telegramDeliveries()).hasSize(1);
         assertThat(export.durableJobs()).hasSize(1);
+        assertThat(export.durableJobs()).allSatisfy(row -> assertThat(row)
+                .doesNotContainKeys("lease_generation", "lease_owner", "lease_expires_at", "claimed_at"));
         assertThat(export.fatSecretConnected()).isTrue();
         assertThat(export.aiUsageBudget()).singleElement().satisfies(row -> {
             assertThat(row).containsEntry("scope_type", "USER");
@@ -160,6 +164,16 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(moduleCategories(v2, "nutrition"))
                 .contains("nutrition_profile_and_manual_weight", "fatsecret_connection", "fatsecret_weight",
                         "fatsecret_day", "fatsecret_food");
+
+        var jobsModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("jobs"))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> v2DurableJob = (Map<String, Object>) ((List<?>) jobsModule.data().get("durableJobs"))
+                .getFirst();
+        assertThat(v2DurableJob)
+                .doesNotContainKeys("lease_generation", "lease_owner", "lease_expires_at", "claimed_at");
 
         String v2Json = objectMapper.writeValueAsString(v2);
         assertThat(v2Json)

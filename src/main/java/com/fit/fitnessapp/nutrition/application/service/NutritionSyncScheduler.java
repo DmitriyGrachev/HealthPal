@@ -3,9 +3,13 @@ package com.fit.fitnessapp.nutrition.application.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.job.DurableJobUseCase;
+import com.fit.fitnessapp.job.DurableJobClaim;
+import com.fit.fitnessapp.job.JobFailure;
+import com.fit.fitnessapp.job.application.service.DurableJobLeaseHeartbeat;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,20 +22,36 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 @Component
-@Slf4j
 public class NutritionSyncScheduler {
 
-    private final SyncNutritionUseCase syncUseCase;
+    private static final Logger log = LoggerFactory.getLogger(NutritionSyncScheduler.class);
+
     private final NutritionCommandPort nutritionCommandPort;
     private final Clock clock;
     private final DurableJobUseCase durableJobUseCase;
     private final ObjectMapper objectMapper;
+    private final NutritionSyncJobExecutor nutritionSyncJobExecutor;
+    private final DurableJobLeaseHeartbeat leaseHeartbeat;
+    private final String owner = "nutrition-scheduler-" + java.util.UUID.randomUUID();
     private final AtomicBoolean running = new AtomicBoolean();
     private int syncWindowDays;
     private int userBatchSize = 100;
 
     @Autowired
     public NutritionSyncScheduler(
+            SyncNutritionUseCase syncUseCase,
+            NutritionCommandPort nutritionCommandPort,
+            Clock clock,
+            DurableJobUseCase durableJobUseCase,
+            ObjectMapper objectMapper,
+            NutritionSyncJobExecutor nutritionSyncJobExecutor,
+            DurableJobLeaseHeartbeat leaseHeartbeat
+    ) {
+        this(syncUseCase, nutritionCommandPort, clock, durableJobUseCase, objectMapper,
+                nutritionSyncJobExecutor, leaseHeartbeat, 1);
+    }
+
+    NutritionSyncScheduler(
             SyncNutritionUseCase syncUseCase,
             NutritionCommandPort nutritionCommandPort,
             Clock clock,
@@ -49,11 +69,27 @@ public class NutritionSyncScheduler {
             ObjectMapper objectMapper,
             int syncWindowDays
     ) {
-        this.syncUseCase = syncUseCase;
+        this(syncUseCase, nutritionCommandPort, clock, durableJobUseCase, objectMapper,
+                new NutritionSyncJobExecutor(syncUseCase, objectMapper),
+                DurableJobLeaseHeartbeat.noop(), syncWindowDays);
+    }
+
+    NutritionSyncScheduler(
+            SyncNutritionUseCase syncUseCase,
+            NutritionCommandPort nutritionCommandPort,
+            Clock clock,
+            DurableJobUseCase durableJobUseCase,
+            ObjectMapper objectMapper,
+            NutritionSyncJobExecutor nutritionSyncJobExecutor,
+            DurableJobLeaseHeartbeat leaseHeartbeat,
+            int syncWindowDays
+    ) {
         this.nutritionCommandPort = nutritionCommandPort;
         this.clock = clock;
         this.durableJobUseCase = durableJobUseCase;
         this.objectMapper = objectMapper;
+        this.nutritionSyncJobExecutor = nutritionSyncJobExecutor;
+        this.leaseHeartbeat = leaseHeartbeat;
         this.syncWindowDays = Math.max(1, syncWindowDays);
     }
 
@@ -108,20 +144,29 @@ public class NutritionSyncScheduler {
                         userId,
                         payload,
                         idempotencyKey);
-                if (!durableJobUseCase.startJob(jobId)) {
+                java.util.Optional<DurableJobClaim> claim = durableJobUseCase.claimJob(
+                        jobId, owner, java.time.Duration.ofMinutes(15));
+                if (claim.isEmpty()) {
                     continue;
                 }
-                try {
-                    for (LocalDate date : dates) {
-                        syncUseCase.syncDay(userId, date);
+                try (DurableJobLeaseHeartbeat.Registration ignored = leaseHeartbeat.track(
+                        claim.get(), java.time.Duration.ofMinutes(15))) {
+                    try {
+                        nutritionSyncJobExecutor.execute(claim.get().job());
+                        if (durableJobUseCase.completeJob(claim.get())) {
+                            success++;
+                        } else {
+                            failed++;
+                            log.warn("Nutrition sync completion rejected reasonCode=FENCE_REJECTED");
+                        }
+                    } catch (Exception e) {
+                        failed++;
+                        JobFailure failure = JobFailure.from(e);
+                        log.warn("Daily nutrition sync failed reasonCode={}", failure.code());
+                        if (!durableJobUseCase.failJob(claim.get(), failure)) {
+                            log.warn("Nutrition sync failure rejected reasonCode=FENCE_REJECTED");
+                        }
                     }
-                    success++;
-                    durableJobUseCase.completeJob(jobId);
-                } catch (Exception e) {
-                    failed++;
-                    log.warn("Daily nutrition sync failed userId={} date={} errorCode={}",
-                            userId, today, e.getClass().getSimpleName());
-                    durableJobUseCase.failJob(jobId, e);
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.job.application.service;
 
+import com.fit.fitnessapp.job.DurableJobClaim;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobExecutor;
 import com.fit.fitnessapp.job.DurableJobUseCase;
@@ -8,7 +9,12 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,40 +24,53 @@ class DurableJobWorkerTest {
 
     private final DurableJobUseCase jobs = mock(DurableJobUseCase.class);
     private final DurableJobExecutor executor = mock(DurableJobExecutor.class);
+    private final DurableJobLeaseHeartbeat heartbeat = mock(DurableJobLeaseHeartbeat.class);
+    private final DurableJobLeaseHeartbeat.Registration registration = mock(DurableJobLeaseHeartbeat.Registration.class);
 
     @Test
-    void executesClaimedJobAndMarksItSucceeded() throws Exception {
-        DurableJobDto job = pendingJob("NUTRITION_SYNC");
-        when(jobs.getPendingJobsForRetry()).thenReturn(List.of(job));
-        when(jobs.startJob(job.id())).thenReturn(true);
-        when(executor.supports(job.jobType())).thenReturn(true);
+    void claimsFreshDtoImmediatelyBeforeExecutionAndMarksItSucceeded() throws Exception {
+        DurableJobClaim claim = claim();
+        when(jobs.claimNext(any(), any())).thenReturn(Optional.of(claim), Optional.empty());
+        when(executor.supports("NUTRITION_SYNC")).thenReturn(true);
+        when(jobs.completeJob(claim)).thenReturn(true);
+        when(heartbeat.track(any(), any())).thenReturn(registration);
 
-        new DurableJobWorker(jobs, List.of(executor)).processDurableJobs();
+        new DurableJobWorker(jobs, List.of(executor), heartbeat).processDurableJobs();
 
-        verify(executor).execute(job);
-        verify(jobs).completeJob(job.id());
-        verify(jobs, never()).failJob(job.id(), null);
+        verify(executor).execute(claim.job());
+        verify(jobs).completeJob(claim);
+        verify(jobs, never()).failJob(any(), any());
+        var order = inOrder(heartbeat, executor, jobs, registration);
+        order.verify(heartbeat).track(claim, java.time.Duration.ofMinutes(15));
+        order.verify(executor).execute(claim.job());
+        order.verify(jobs).completeJob(claim);
+        order.verify(registration).close();
     }
 
     @Test
-    void recordsFailureWhenExecutorThrows() throws Exception {
-        DurableJobDto job = pendingJob("NUTRITION_SYNC");
+    void recordsClassifiedFailureUsingTheSameClaim() throws Exception {
+        DurableJobClaim claim = claim();
         IllegalStateException failure = new IllegalStateException("provider unavailable");
-        when(jobs.getPendingJobsForRetry()).thenReturn(List.of(job));
-        when(jobs.startJob(job.id())).thenReturn(true);
-        when(executor.supports(job.jobType())).thenReturn(true);
-        org.mockito.Mockito.doThrow(failure).when(executor).execute(job);
+        when(jobs.claimNext(any(), any())).thenReturn(Optional.of(claim), Optional.empty());
+        when(executor.supports("NUTRITION_SYNC")).thenReturn(true);
+        doThrow(failure).when(executor).execute(claim.job());
+        when(heartbeat.track(any(), any())).thenReturn(registration);
 
-        new DurableJobWorker(jobs, List.of(executor)).processDurableJobs();
+        new DurableJobWorker(jobs, List.of(executor), heartbeat).processDurableJobs();
 
-        verify(jobs).failJob(job.id(), failure);
-        verify(jobs, never()).completeJob(job.id());
+        verify(jobs).failJob(eq(claim), any());
+        verify(jobs, never()).completeJob(any());
+        var order = inOrder(heartbeat, executor, jobs, registration);
+        order.verify(heartbeat).track(claim, java.time.Duration.ofMinutes(15));
+        order.verify(executor).execute(claim.job());
+        order.verify(jobs).failJob(eq(claim), any());
+        order.verify(registration).close();
     }
 
-    private DurableJobDto pendingJob(String jobType) {
-        Instant now = Instant.parse("2026-08-09T12:00:00Z");
-        return new DurableJobDto(
-                10L, jobType, 42L, JobStatus.PENDING, 0, 3,
-                null, null, "{}", "key", now, now);
+    private DurableJobClaim claim() {
+        Instant now = Instant.parse("2026-08-19T12:00:00Z");
+        DurableJobDto job = new DurableJobDto(10L, "NUTRITION_SYNC", 42L, JobStatus.RUNNING,
+                1, 3, null, null, "{}", "key", now, now);
+        return new DurableJobClaim(job, "worker-a", 2, now.plusSeconds(900));
     }
 }

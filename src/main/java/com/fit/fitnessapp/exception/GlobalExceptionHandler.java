@@ -62,6 +62,14 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(DurableJobRetryConflictException.class)
+    public ResponseEntity<ApiError> durableJobRetryConflict(
+            DurableJobRetryConflictException exception,
+            HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ErrorCode.DURABLE_JOB_RETRY_NOT_ALLOWED,
+                "Durable job is not eligible for retry", request);
+    }
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiError> userAlreadyExists(UserAlreadyExistsException exception, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ErrorCode.USER_ALREADY_EXISTS, exception.getMessage(), request);

@@ -4,17 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobExecutor;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
-@RequiredArgsConstructor
 public class NutritionSyncJobExecutor implements DurableJobExecutor {
 
     public static final String JOB_TYPE = "NUTRITION_SYNC";
 
     private final SyncNutritionUseCase syncNutritionUseCase;
     private final ObjectMapper objectMapper;
+
+    public NutritionSyncJobExecutor(SyncNutritionUseCase syncNutritionUseCase, ObjectMapper objectMapper) {
+        this.syncNutritionUseCase = syncNutritionUseCase;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public boolean supports(String jobType) {
