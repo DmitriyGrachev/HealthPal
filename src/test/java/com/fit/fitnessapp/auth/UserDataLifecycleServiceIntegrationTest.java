@@ -36,10 +36,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.telegram.telegrambots.meta.bots.AbsSender;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @Import(UserDataLifecycleServiceIntegrationTest.RollbackTestConfiguration.class)
 class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegrationTest {
@@ -94,6 +97,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         long otherChatId = 5_001L;
 
         seedOwnedData(userId, chatId);
+        jdbc.update("INSERT INTO telegram_delivery_outbox (chat_id, text) VALUES (?, 'anonymous same chat')", chatId);
         seedControlData(otherUserId, otherChatId);
         UUID completedPublication = insertPublication(userId, true);
         UUID incompletePublication = insertPublication(userId, false);
@@ -127,7 +131,10 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(export.telegramAccount()).containsEntry("chat_id", chatId);
         assertThat(export.conversationState()).containsEntry("state", "AWAITING_NOTE");
         assertThat(export.conversationHistory()).hasSize(1);
-        assertThat(export.telegramDeliveries()).hasSize(1);
+        assertThat(export.telegramDeliveries()).hasSize(1)
+                .allSatisfy(row -> assertThat(row).containsEntry("text", "private response"));
+        assertThat(export.telegramDeliveries()).allSatisfy(row -> assertThat(row)
+                .doesNotContainKeys("lease_owner", "lease_expires_at", "claimed_at", "lease_generation"));
         assertThat(export.durableJobs()).hasSize(1);
         assertThat(export.durableJobs()).allSatisfy(row -> assertThat(row)
                 .doesNotContainKeys("lease_generation", "lease_owner", "lease_expires_at", "claimed_at"));
@@ -441,6 +448,152 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     }
 
     @Test
+    void unlinkDuringLiveClaimDeletesRowAndFencesLateProviderCompletion() throws Exception {
+        long userId = insertUser("telegram-live-unlink");
+        long chatId = 9_450_000L + userId;
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "live unlink message")).isTrue();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        org.mockito.Mockito.when(botSender.execute(org.mockito.ArgumentMatchers.any(
+                        org.telegram.telegrambots.meta.api.methods.send.SendMessage.class)))
+                .thenAnswer(invocation -> {
+                    providerStarted.countDown();
+                    releaseProvider.await(5, TimeUnit.SECONDS);
+                    return null;
+                });
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var processing = executor.submit(() -> telegramBotService.processOutboxRetries());
+            assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            telegramLinkRevocationService.unlink(userId);
+            assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+            releaseProvider.countDown();
+            processing.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseProvider.countDown();
+            jdbc.update("DELETE FROM telegram_delivery_outbox WHERE chat_id = ?", chatId);
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+
+        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+    }
+
+    @Test
+    void accountDeletionDuringLiveClaimDeletesRowAndFencesLateProviderCompletion() throws Exception {
+        long userId = insertUser("telegram-live-delete");
+        long chatId = 9_460_000L + userId;
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "live deletion message")).isTrue();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        org.mockito.Mockito.when(botSender.execute(org.mockito.ArgumentMatchers.any(
+                        org.telegram.telegrambots.meta.api.methods.send.SendMessage.class)))
+                .thenAnswer(invocation -> {
+                    providerStarted.countDown();
+                    releaseProvider.await(5, TimeUnit.SECONDS);
+                    return null;
+                });
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var processing = executor.submit(() -> telegramBotService.processOutboxRetries());
+            assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(lifecycleUseCase.deleteAccount(userId).success()).isTrue();
+            assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+            releaseProvider.countDown();
+            processing.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseProvider.countDown();
+            jdbc.update("DELETE FROM telegram_delivery_outbox WHERE chat_id = ?", chatId);
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+
+        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+    }
+
+    @Test
+    void unlinkDuringLiveClaimFencesLateProviderFailure() throws Exception {
+        long userId = insertUser("telegram-live-unlink-failure");
+        long chatId = 9_470_000L + userId;
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "live unlink failure")).isTrue();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        TelegramApiException lateFailure = org.mockito.Mockito.mock(TelegramApiException.class);
+        when(botSender.execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class)))
+                .thenAnswer(invocation -> {
+                    providerStarted.countDown();
+                    releaseProvider.await(5, TimeUnit.SECONDS);
+                    throw lateFailure;
+                });
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var processing = executor.submit(() -> telegramBotService.processOutboxRetries());
+            assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            telegramLinkRevocationService.unlink(userId);
+            assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+            releaseProvider.countDown();
+            processing.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseProvider.countDown();
+            jdbc.update("DELETE FROM telegram_delivery_outbox WHERE chat_id = ?", chatId);
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+
+        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+    }
+
+    @Test
+    void accountDeletionDuringLiveClaimFencesLateProviderFailure() throws Exception {
+        long userId = insertUser("telegram-live-delete-failure");
+        long chatId = 9_480_000L + userId;
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "live deletion failure")).isTrue();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        TelegramApiException lateFailure = org.mockito.Mockito.mock(TelegramApiException.class);
+        when(botSender.execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class)))
+                .thenAnswer(invocation -> {
+                    providerStarted.countDown();
+                    releaseProvider.await(5, TimeUnit.SECONDS);
+                    throw lateFailure;
+                });
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var processing = executor.submit(() -> telegramBotService.processOutboxRetries());
+            assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(lifecycleUseCase.deleteAccount(userId).success()).isTrue();
+            assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+            releaseProvider.countDown();
+            processing.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseProvider.countDown();
+            jdbc.update("DELETE FROM telegram_delivery_outbox WHERE chat_id = ?", chatId);
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+
+        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
+    }
+
+    @Test
     void accountDeletionWaitsForConcurrentPublicationAndCascadesItAtCommit() throws Exception {
         long userId = insertUser("publication-race");
         UUID publicationId = UUID.randomUUID();
@@ -592,9 +745,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 VALUES (?, ?, 'private message')
                 """, userId, chatId);
         jdbc.update("""
-                INSERT INTO telegram_delivery_outbox (chat_id, text)
-                VALUES (?, 'private response')
-                """, chatId);
+                INSERT INTO telegram_delivery_outbox (user_id, chat_id, text)
+                VALUES (?, ?, 'private response')
+                """, userId, chatId);
         jdbc.update("""
                 INSERT INTO durable_jobs (job_type, user_id, idempotency_key)
                 VALUES ('DAILY_INSIGHT', ?, ?)

@@ -21,8 +21,11 @@
 - A retryable expired claim returns to `PENDING`; an expired final attempt is
   terminal `FAILED` with `CLAIM_TIMEOUT_MAX_ATTEMPTS`. Exhausted `PENDING`
   rows are not valid state after V29.
-- Telegram outbox workers retain their separate claim/recovery rules. Do not
-  infer exactly-once provider effects from durable-job fencing.
+- Telegram outbox workers use one just-in-time fenced claim per provider call.
+  The claim carries a stable worker owner, a monotonically increasing generation,
+  and an expiry. Recovery never reclaims an expired `SENDING` row: owned rows
+  become durable `DELIVERY_UNKNOWN` audit records and anonymous rows are
+  deleted. A late provider result is a fenced no-op.
 
 ## Recovery
 
@@ -38,7 +41,16 @@
   `CLAIM_TIMEOUT_MAX_ATTEMPTS`; provider exception messages, payloads, user
   identifiers, idempotency keys, and lease owners are never persisted or
   logged.
-- Inspect `telegram_delivery_outbox` for `FAILED` rows and provider error codes. `429` and `5xx` remain retryable; malformed requests are terminal.
+- Inspect `telegram_delivery_outbox` for `FAILED` and `DELIVERY_UNKNOWN` rows
+  using only stable error codes. A Telegram `429` is a proven rejection and can
+  return a live claim to `PENDING` while attempts remain; exhaustion is terminal
+  for owned work and anonymous work is deleted. A `400` is permanent except
+  for the existing Markdown parse/entity fallback, which may make one plain
+  text request under the same live fence. Timeouts, network errors, and 5xx
+  outcomes are uncertain and are never automatically resent.
+- `DELIVERY_UNKNOWN` is not an automatic retry path. A user or operator who
+  explicitly wants another delivery creates a new outbox row, preserving the
+  old owner-bound audit row. Never reset its status or lease generation.
 - If a deployment stops during a claim, wait for the recovery window before manually changing status. Preserve the original `error_message` when opening an incident.
 - Lease fencing protects the durable ledger, not external side effects. The
   system remains at-least-once around provider calls; provider idempotency

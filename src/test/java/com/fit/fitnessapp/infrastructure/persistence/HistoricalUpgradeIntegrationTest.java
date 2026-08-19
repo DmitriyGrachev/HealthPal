@@ -256,7 +256,8 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(deliveryError(V25.EXHAUSTED_DELIVERY_ID)).isEqualTo("LEGACY_DELIVERY_ATTEMPTS_EXHAUSTED_PRE_V25");
         assertThat(deliveryStatus(V25.UNKNOWN_OUTCOME_DELIVERY_ID)).isEqualTo("FAILED");
         assertThat(deliveryError(V25.UNKNOWN_OUTCOME_DELIVERY_ID)).isEqualTo("LEGACY_DELIVERY_OUTCOME_UNKNOWN_PRE_V25");
-        assertThat(deliveryStatus(V25.RECENT_SENDING_DELIVERY_ID)).isEqualTo("SENDING");
+        assertThat(deliveryStatus(V25.RECENT_SENDING_DELIVERY_ID)).isEqualTo("DELIVERY_UNKNOWN");
+        assertThat(deliveryError(V25.RECENT_SENDING_DELIVERY_ID)).isEqualTo("TELEGRAM_DELIVERY_UNKNOWN");
     }
 
     @Test
@@ -315,6 +316,73 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(countById("event_publication", V27.OWNED_EVENT_ID)).isZero();
         assertThat(countById("event_publication", V27.MALFORMED_EVENT_ID)).isOne();
         assertThat(countById("event_publication", V27.SYSTEM_EVENT_ID)).isOne();
+    }
+
+    @Test
+    void v30FencesLegacyTelegramClaimsAndAddsValidatedLeaseGrammar() {
+        migrateTo("29");
+        insertUser(30_001L, "v30-owner");
+        jdbc.update("INSERT INTO " + table("telegram_users")
+                        + " (telegram_id, user_id, chat_id) VALUES (30_001, 30_001, 30_002)");
+        jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, user_id, chat_id, text, status, attempts, max_attempts, claimed_at)"
+                        + " VALUES (30_003, 30_001, 30_002, 'owned legacy send', 'SENDING', 1, 5, NULL)");
+        jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, status, attempts, max_attempts, claimed_at)"
+                        + " VALUES (30_004, 30_002, 'anonymous legacy send', 'SENDING', 1, 5, NULL)");
+        jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, user_id, chat_id, text, status, attempts, max_attempts)"
+                        + " VALUES (30_005, 30_001, 30_002, 'owned exhausted pending', 'PENDING', 5, 5)");
+        jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, status, attempts, max_attempts)"
+                        + " VALUES (30_006, 30_006, 'anonymous exhausted pending', 'PENDING', 5, 5)");
+
+        migrateToLatest();
+
+        assertThat(deliveryStatus(30_003)).isEqualTo("DELIVERY_UNKNOWN");
+        assertThat(deliveryError(30_003)).isEqualTo("TELEGRAM_DELIVERY_UNKNOWN");
+        assertThat(countById("telegram_delivery_outbox", 30_004L)).isZero();
+        assertThat(deliveryStatus(30_005)).isEqualTo("FAILED");
+        assertThat(deliveryError(30_005)).isEqualTo("TELEGRAM_RATE_LIMIT_EXHAUSTED");
+        assertThat(countById("telegram_delivery_outbox", 30_006L)).isZero();
+        assertThat(columnExists("telegram_delivery_outbox", "lease_generation")).isTrue();
+        assertThat(columnExists("telegram_delivery_outbox", "lease_owner")).isTrue();
+        assertThat(columnExists("telegram_delivery_outbox", "lease_expires_at")).isTrue();
+        assertThat(List.of(
+                "chk_telegram_outbox_status",
+                "chk_telegram_outbox_lease_generation_nonnegative",
+                "chk_telegram_outbox_sending_complete_lease",
+                "chk_telegram_outbox_non_sending_without_lease",
+                "chk_telegram_outbox_pending_not_exhausted",
+                "chk_telegram_outbox_no_anonymous_terminal"))
+                .allSatisfy(constraint -> {
+                    assertThat(constraintExists(constraint)).isTrue();
+                    assertThat(constraintValidated(constraint)).isTrue();
+                });
+
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, lease_generation) VALUES (30_101, 30_101, 'negative', -1)"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, status, lease_generation)"
+                        + " VALUES (30_102, 30_102, 'incomplete', 'SENDING', 1)"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, lease_owner)"
+                        + " VALUES (30_103, 30_103, 'non-sending lease', 'worker')"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, user_id, chat_id, text, attempts, max_attempts)"
+                        + " VALUES (30_104, 30_001, 30_002, 'exhausted', 5, 5)"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, status)"
+                        + " VALUES (30_105, 30_105, 'anonymous terminal', 'DELIVERY_UNKNOWN')"))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, chat_id, text, status)"
+                        + " VALUES (30_106, 30_106, 'invalid status', 'BROKEN')"))
+                .isInstanceOf(RuntimeException.class);
     }
 
     @Test

@@ -7,8 +7,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegrationTest {
@@ -115,8 +121,10 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
         long chatId = uniqueChatId();
         jdbc.update("""
                 INSERT INTO telegram_delivery_outbox
-                    (chat_id, text, status, attempts, max_attempts, claimed_at)
-                VALUES (?, 'stuck retry', 'SENDING', 5, 5, NOW() - INTERVAL '16 minutes')
+                    (chat_id, text, status, attempts, max_attempts, lease_generation,
+                     lease_owner, lease_expires_at, claimed_at)
+                VALUES (?, 'stuck retry', 'SENDING', 5, 5, 1, 'expired-anonymous',
+                        NOW() - INTERVAL '16 minutes', NOW() - INTERVAL '16 minutes')
                 """, chatId);
 
         try {
@@ -129,6 +137,39 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
     }
 
     @Test
+    void everyExpiredOwnedClaimBecomesDeliveryUnknownRegardlessOfAttempts() {
+        long userId = insertUser("expired-owned");
+        long chatId = uniqueChatId();
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        jdbc.update("""
+                INSERT INTO telegram_delivery_outbox
+                    (user_id, chat_id, text, status, attempts, max_attempts,
+                     lease_generation, lease_owner, lease_expires_at, claimed_at)
+                VALUES (?, ?, 'expired owned delivery', 'SENDING', 1, 5,
+                        7, 'worker-a', NOW() - INTERVAL '1 minute', NOW() - INTERVAL '1 minute')
+                """, userId, chatId);
+
+        try {
+            telegramBotService.processOutboxRetries();
+
+            assertThat(jdbc.queryForMap("""
+                    SELECT status, error_message, lease_owner, lease_expires_at, claimed_at
+                      FROM telegram_delivery_outbox
+                     WHERE chat_id = ?
+                    """, chatId))
+                    .containsEntry("status", "DELIVERY_UNKNOWN")
+                    .containsEntry("error_message", "TELEGRAM_DELIVERY_UNKNOWN")
+                    .containsEntry("lease_owner", null)
+                    .containsEntry("lease_expires_at", null)
+                    .containsEntry("claimed_at", null);
+        } finally {
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+    }
+
+    @Test
     void exhaustedStuckOwnedClaimIsRetainedAsOwnerBoundFailure() {
         long userId = insertUser("stuck-owned");
         long chatId = uniqueChatId();
@@ -136,8 +177,10 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
                 chatId, userId, chatId);
         jdbc.update("""
                 INSERT INTO telegram_delivery_outbox
-                    (user_id, chat_id, text, status, attempts, max_attempts, claimed_at)
-                VALUES (?, ?, 'stuck owned retry', 'SENDING', 5, 5, NOW() - INTERVAL '16 minutes')
+                    (user_id, chat_id, text, status, attempts, max_attempts, lease_generation,
+                     lease_owner, lease_expires_at, claimed_at)
+                VALUES (?, ?, 'stuck owned retry', 'SENDING', 5, 5, 1, 'expired-owned',
+                        NOW() - INTERVAL '16 minutes', NOW() - INTERVAL '16 minutes')
                 """, userId, chatId);
 
         try {
@@ -149,8 +192,8 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
                      WHERE chat_id = ?
                     """, chatId))
                     .containsEntry("user_id", userId)
-                    .containsEntry("status", "FAILED")
-                    .containsEntry("error_message", "CLAIM_TIMEOUT_MAX_ATTEMPTS");
+                    .containsEntry("status", "DELIVERY_UNKNOWN")
+                    .containsEntry("error_message", "TELEGRAM_DELIVERY_UNKNOWN");
         } finally {
             jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
@@ -185,6 +228,127 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
                     .extracting(row -> row.get("status"))
                     .containsExactly("SENT", "FAILED");
         } finally {
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+    }
+
+    @Test
+    void fiveHundredIsUnknownAndNeverAutomaticallySentAgain() throws Exception {
+        long userId = insertUser("uncertain-owned");
+        long chatId = uniqueChatId();
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        TelegramApiRequestException serverError = telegramError(500, "server failure");
+        when(botSender.execute(any(SendMessage.class))).thenThrow(serverError);
+
+        try {
+            assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "uncertain response")).isTrue();
+            telegramBotService.processOutboxRetries();
+            assertThat(jdbc.queryForMap("""
+                    SELECT status, error_message
+                      FROM telegram_delivery_outbox
+                     WHERE chat_id = ?
+                    """, chatId))
+                    .containsEntry("status", "DELIVERY_UNKNOWN")
+                    .containsEntry("error_message", "TELEGRAM_DELIVERY_UNKNOWN");
+            verify(botSender).execute(any(SendMessage.class));
+
+            reset(botSender);
+            telegramBotService.processOutboxRetries();
+            verifyNoInteractions(botSender);
+        } finally {
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+    }
+
+    @Test
+    void genericTelegramFailureIsUnknownAndNotAPermanentRejection() throws Exception {
+        long userId = insertUser("generic-uncertain");
+        long chatId = uniqueChatId();
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        TelegramApiException networkFailure = mock(TelegramApiException.class);
+        when(botSender.execute(any(SendMessage.class))).thenThrow(networkFailure);
+
+        try {
+            assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "network uncertainty")).isTrue();
+            telegramBotService.processOutboxRetries();
+            assertThat(jdbc.queryForObject(
+                    "SELECT error_message FROM telegram_delivery_outbox WHERE chat_id = ?", String.class, chatId))
+                    .isEqualTo("TELEGRAM_DELIVERY_UNKNOWN");
+        } finally {
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+    }
+
+    @Test
+    void explicitNewIntentPreservesUnknownAuditRowAndUsesFreshGeneration() {
+        long userId = insertUser("new-intent");
+        long chatId = uniqueChatId();
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        jdbc.update("""
+                INSERT INTO telegram_delivery_outbox
+                    (user_id, chat_id, text, status, attempts, max_attempts, lease_generation, error_message)
+                VALUES (?, ?, 'old uncertain', 'DELIVERY_UNKNOWN', 1, 5, 9, 'TELEGRAM_DELIVERY_UNKNOWN')
+                """, userId, chatId);
+
+        try {
+            assertThat(telegramBotService.enqueueOwnedMessage(userId, chatId, "new intent")).isTrue();
+            assertThat(jdbc.queryForList("""
+                    SELECT text, status, lease_generation
+                      FROM telegram_delivery_outbox
+                     WHERE user_id = ? AND chat_id = ?
+                     ORDER BY id
+                    """, userId, chatId))
+                    .extracting(row -> row.get("text"), row -> row.get("status"), row -> row.get("lease_generation"))
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple("old uncertain", "DELIVERY_UNKNOWN", 9L),
+                            org.assertj.core.groups.Tuple.tuple("new intent", "PENDING", 0L));
+        } finally {
+            jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+    }
+
+    @Test
+    void providerTimeoutIsShorterThanLeaseAndOwnedDeliveryBecomesUnknown() throws Exception {
+        long userId = insertUser("timeout-owned");
+        long chatId = uniqueChatId();
+        jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
+                chatId, userId, chatId);
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        when(botSender.execute(any(SendMessage.class))).thenAnswer(invocation -> {
+            providerStarted.countDown();
+            releaseProvider.await(5, TimeUnit.SECONDS);
+            return null;
+        });
+        TelegramBotService shortTimeoutService = new TelegramBotService(
+                botSender, jdbc, Clock.systemUTC(), Duration.ofMillis(500), Duration.ofMillis(30), "timeout-worker");
+
+        try {
+            assertThat(shortTimeoutService.enqueueOwnedMessage(userId, chatId, "timeout uncertainty")).isTrue();
+            shortTimeoutService.processOutboxRetries();
+
+            assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(jdbc.queryForMap("""
+                    SELECT status, error_message
+                      FROM telegram_delivery_outbox
+                     WHERE user_id = ? AND chat_id = ?
+                    """, userId, chatId))
+                    .containsEntry("status", "DELIVERY_UNKNOWN")
+                    .containsEntry("error_message", "TELEGRAM_DELIVERY_UNKNOWN");
+            releaseProvider.countDown();
+            reset(botSender);
+            shortTimeoutService.processOutboxRetries();
+            verifyNoInteractions(botSender);
+        } finally {
+            releaseProvider.countDown();
+            shortTimeoutService.shutdownProviderExecutor();
             jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }

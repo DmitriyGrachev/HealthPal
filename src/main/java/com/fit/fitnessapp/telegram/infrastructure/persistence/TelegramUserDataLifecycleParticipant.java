@@ -42,8 +42,12 @@ public class TelegramUserDataLifecycleParticipant implements UserDataLifecyclePa
                         SELECT * FROM conversation_history WHERE chat_id = ? ORDER BY created_at
                         """, chatId),
                 "telegramDeliveries", jdbc.queryForList("""
-                        SELECT * FROM telegram_delivery_outbox WHERE chat_id = ? ORDER BY created_at
-                        """, chatId)));
+                        SELECT id, user_id, chat_id, text, status, attempts, max_attempts,
+                               error_message, created_at, sent_at, next_retry_at
+                          FROM telegram_delivery_outbox
+                         WHERE user_id = ?
+                         ORDER BY created_at, id
+                        """, userId)));
     }
 
     @Override
@@ -58,9 +62,9 @@ public class TelegramUserDataLifecycleParticipant implements UserDataLifecyclePa
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
                 new DataRetentionDisclosure(
-                        "telegram_operational_outbox",
+                        "telegram_delivery_audit",
                         DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
-                        DataRetentionDisclosure.RetentionClass.UNTIL_TERMINAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
                         null,
                         List.of(DataRetentionDisclosure.ExternalProcessor.TELEGRAM),
                         DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
