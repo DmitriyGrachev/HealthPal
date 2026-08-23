@@ -34,6 +34,21 @@ public class ExperimentUserDataLifecycleParticipant implements UserDataLifecycle
                                source, is_primary, aggregate_version, created_at, completed_at, updated_at
                           FROM goals WHERE user_id = ? ORDER BY id
                         """, userId),
+                "experiments", jdbc.queryForList("""
+                        SELECT id, investigation_id, goal_id, hypothesis, baseline_start_date,
+                               baseline_end_date, duration_days, intervention::text AS intervention,
+                               primary_metric, secondary_metrics::text AS secondary_metrics,
+                               stop_conditions::text AS stop_conditions, outcome_direction, meaningful_change,
+                               status, aggregate_version,
+                               accepted_at, started_at, rejected_at, aborted_at, completed_at,
+                               evaluated_at, created_at, updated_at
+                          FROM experiments WHERE user_id = ? ORDER BY id
+                        """, userId),
+                "experimentTransitions", jdbc.queryForList("""
+                        SELECT id, experiment_id, from_status, to_status, expected_version,
+                               result_version, reason, occurred_at
+                          FROM experiment_transitions WHERE user_id = ? ORDER BY id
+                        """, userId),
                 "commandReceipts", jdbc.queryForList("""
                         SELECT id, aggregate_type, aggregate_id, idempotency_key, result_version, created_at
                           FROM experiment_command_receipts WHERE user_id = ? ORDER BY id
@@ -42,7 +57,7 @@ public class ExperimentUserDataLifecycleParticipant implements UserDataLifecycle
 
     @Override
     public int exportSchemaVersion() {
-        return 1;
+        return 2;
     }
 
     @Override
@@ -56,6 +71,14 @@ public class ExperimentUserDataLifecycleParticipant implements UserDataLifecycle
                         DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME, null, List.of(),
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure("experiments", DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME, null, List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure("experiment_transitions", DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME, null, List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
                 new DataRetentionDisclosure("command_receipts", DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
                         DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME, null, List.of(),
                         DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
@@ -65,6 +88,8 @@ public class ExperimentUserDataLifecycleParticipant implements UserDataLifecycle
     @Override
     public void deleteData(Long userId) {
         jdbc.update("DELETE FROM experiment_command_receipts WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM experiment_transitions WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM experiments WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM goals WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM investigations WHERE user_id = ?", userId);
     }

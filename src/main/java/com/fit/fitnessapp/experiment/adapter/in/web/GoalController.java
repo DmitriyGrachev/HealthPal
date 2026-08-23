@@ -24,6 +24,7 @@ import org.springframework.validation.annotation.Validated;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1/goals")
@@ -73,7 +74,7 @@ public class GoalController {
 
     private static <T extends Enum<T>> T enumValue(String value, Class<T> type) {
         try {
-            return Enum.valueOf(type, value.trim().toUpperCase());
+            return Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
         } catch (RuntimeException exception) {
             throw new IllegalArgumentException("Unsupported goal value");
         }

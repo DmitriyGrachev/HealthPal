@@ -1,8 +1,13 @@
 package com.fit.fitnessapp.experiment.adapter.out.persistence;
 
 import com.fit.fitnessapp.experiment.application.port.out.CommandReceiptPort;
+import com.fit.fitnessapp.experiment.application.port.out.ExperimentRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.GoalRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.InvestigationRepositoryPort;
+import com.fit.fitnessapp.experiment.domain.Experiment;
+import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
+import com.fit.fitnessapp.experiment.domain.ExperimentTransition;
+import com.fit.fitnessapp.experiment.domain.OutcomeDirection;
 import com.fit.fitnessapp.experiment.domain.Goal;
 import com.fit.fitnessapp.experiment.domain.GoalMetric;
 import com.fit.fitnessapp.experiment.domain.GoalSource;
@@ -15,6 +20,8 @@ import com.fit.fitnessapp.experiment.domain.TargetRange;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -24,12 +31,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-/** JDBC adapters for the V34 aggregates and generic command receipts. */
+/** JDBC adapters for the V34/V35 aggregates and generic command receipts. */
 @Repository
 public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryPort, GoalRepositoryPort,
-        CommandReceiptPort {
+        ExperimentRepositoryPort, CommandReceiptPort {
 
     private final JdbcTemplate jdbc;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ExperimentJdbcRepositoryAdapter(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -147,6 +155,96 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
     }
 
     @Override
+    public Experiment insertExperiment(Experiment experiment) {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO experiments
+                    (user_id, investigation_id, goal_id, hypothesis, baseline_start_date,
+                     baseline_end_date, duration_days, intervention, primary_metric,
+                     secondary_metrics, stop_conditions, outcome_direction, meaningful_change,
+                     status, aggregate_version,
+                     accepted_at, started_at, rejected_at, aborted_at, completed_at,
+                     evaluated_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """, Long.class, experiment.userId(), experiment.investigationId(), experiment.goalId(),
+                experiment.hypothesis().statement(), experiment.baselineStartDate(), experiment.baselineEndDate(),
+                experiment.durationDays(), json(interventionJson(experiment)), experiment.primaryMetric(),
+                json(experiment.secondaryMetrics()), json(stopConditionsJson(experiment)),
+                experiment.outcomeDirection().name(), experiment.meaningfulChange(), experiment.status().name(),
+                experiment.aggregateVersion(), timestamp(experiment.acceptedAt()), timestamp(experiment.startedAt()),
+                timestamp(experiment.rejectedAt()), timestamp(experiment.abortedAt()), timestamp(experiment.completedAt()),
+                timestamp(experiment.evaluatedAt()), timestamp(experiment.createdAt()), timestamp(experiment.updatedAt()));
+        return findExperimentByUserIdAndId(experiment.userId(), id).orElseThrow();
+    }
+
+    @Override
+    public List<Experiment> findAllExperimentsByUserId(Long userId) {
+        return jdbc.query(experimentSelect() + " WHERE user_id = ? ORDER BY updated_at DESC, id",
+                (rs, rowNum) -> experiment(rs), userId);
+    }
+
+    @Override
+    public Optional<Experiment> findExperimentByUserIdAndId(Long userId, Long experimentId) {
+        return jdbc.query(experimentSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> experiment(rs), userId, experimentId).stream().findFirst();
+    }
+
+    @Override
+    public void deleteAllExperimentsByUserId(Long userId) {
+        jdbc.update("DELETE FROM experiments WHERE user_id = ?", userId);
+    }
+
+    @Override
+    public void deleteExperimentById(Long userId, Long experimentId) {
+        jdbc.update("DELETE FROM experiments WHERE user_id = ? AND id = ?", userId, experimentId);
+    }
+
+    @Override
+    public TransitionWriteResult updateTransition(
+            Long userId, Long experimentId, long expectedVersion, ExperimentStatus target,
+            long nextVersion, Instant acceptedAt, Instant startedAt, Instant rejectedAt,
+            Instant abortedAt, Instant completedAt, Instant evaluatedAt, Instant updatedAt) {
+        try {
+            int updated = jdbc.update("""
+                    UPDATE experiments
+                       SET status = ?, aggregate_version = ?, accepted_at = ?, started_at = ?,
+                           rejected_at = ?, aborted_at = ?, completed_at = ?, evaluated_at = ?, updated_at = ?
+                     WHERE user_id = ? AND id = ? AND aggregate_version = ?
+                    """, target.name(), nextVersion, timestamp(acceptedAt), timestamp(startedAt),
+                    timestamp(rejectedAt), timestamp(abortedAt), timestamp(completedAt), timestamp(evaluatedAt),
+                    timestamp(updatedAt), userId, experimentId, expectedVersion);
+            return updated == 1 ? TransitionWriteResult.UPDATED : TransitionWriteResult.VERSION_CONFLICT;
+        } catch (DataIntegrityViolationException exception) {
+            if (isConstraintViolation(exception, "23505", "uq_experiments_one_in_flight")) {
+                return TransitionWriteResult.IN_FLIGHT_CONFLICT;
+            }
+            throw exception;
+        }
+    }
+
+    @Override
+    public void appendTransition(ExperimentTransition transition) {
+        jdbc.update("""
+                INSERT INTO experiment_transitions
+                    (user_id, experiment_id, from_status, to_status, expected_version,
+                     result_version, reason, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, transition.userId(), transition.experimentId(), transition.fromStatus().name(),
+                transition.toStatus().name(), transition.expectedVersion(), transition.resultVersion(),
+                transition.reason(), timestamp(transition.occurredAt()));
+    }
+
+    @Override
+    public boolean hasPriorNonDraft(Long userId, Long experimentId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM experiments
+                     WHERE user_id = ? AND id < ? AND status <> 'DRAFT'
+                )
+                """, Boolean.class, userId, experimentId));
+    }
+
+    @Override
     public Optional<CommandReceipt> find(Long userId, String aggregateType, String idempotencyKey) {
         return jdbc.query("""
                 SELECT user_id, aggregate_type, aggregate_id, idempotency_key, result_version,
@@ -198,6 +296,85 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
                 rs.getBoolean("is_primary"), rs.getLong("aggregate_version"),
                 instant(rs.getTimestamp("created_at")), instant(rs.getTimestamp("completed_at")),
                 instant(rs.getTimestamp("updated_at")));
+    }
+
+    private Experiment experiment(ResultSet rs) throws java.sql.SQLException {
+        return new Experiment(
+                rs.getLong("id"), rs.getLong("user_id"), rs.getLong("investigation_id"),
+                rs.getLong("goal_id"), new com.fit.fitnessapp.experiment.domain.Hypothesis(rs.getString("hypothesis")),
+                rs.getObject("baseline_start_date", LocalDate.class),
+                rs.getObject("baseline_end_date", LocalDate.class), rs.getInt("duration_days"),
+                intervention(rs.getString("intervention")), rs.getString("primary_metric"),
+                secondaryMetrics(rs.getString("secondary_metrics")),
+                stopConditions(rs.getString("stop_conditions")),
+                OutcomeDirection.valueOf(rs.getString("outcome_direction")), rs.getBigDecimal("meaningful_change"),
+                ExperimentStatus.valueOf(rs.getString("status")), rs.getLong("aggregate_version"),
+                instant(rs.getTimestamp("created_at")), instant(rs.getTimestamp("accepted_at")),
+                instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("rejected_at")),
+                instant(rs.getTimestamp("aborted_at")), instant(rs.getTimestamp("completed_at")),
+                instant(rs.getTimestamp("evaluated_at")), instant(rs.getTimestamp("updated_at")));
+    }
+
+    private static String experimentSelect() {
+        return "SELECT id, user_id, investigation_id, goal_id, hypothesis, baseline_start_date, "
+                + "baseline_end_date, duration_days, intervention, primary_metric, secondary_metrics, "
+                + "stop_conditions, outcome_direction, meaningful_change, status, aggregate_version, "
+                + "accepted_at, started_at, rejected_at, "
+                + "aborted_at, completed_at, evaluated_at, created_at, updated_at FROM experiments";
+    }
+
+    private com.fit.fitnessapp.experiment.domain.Intervention intervention(String value) {
+        JsonNode node = readJson(value);
+        return new com.fit.fitnessapp.experiment.domain.Intervention(
+                node.path("action").asText(), node.path("protocol").asText());
+    }
+
+    private List<String> secondaryMetrics(String value) {
+        JsonNode node = readJson(value);
+        List<String> metrics = new java.util.ArrayList<>();
+        if (node.isArray()) {
+            node.forEach(item -> metrics.add(item.asText()));
+        }
+        return metrics;
+    }
+
+    private List<com.fit.fitnessapp.experiment.domain.StopCondition> stopConditions(String value) {
+        JsonNode node = readJson(value);
+        List<com.fit.fitnessapp.experiment.domain.StopCondition> conditions = new java.util.ArrayList<>();
+        if (node.isArray()) {
+            node.forEach(item -> conditions.add(new com.fit.fitnessapp.experiment.domain.StopCondition(
+                    item.path("code").asText(), item.path("description").asText())));
+        }
+        return conditions;
+    }
+
+    private JsonNode readJson(String value) {
+        try {
+            return objectMapper.readTree(value);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Invalid persisted Experiment JSON", exception);
+        }
+    }
+
+    private static java.util.Map<String, Object> interventionJson(Experiment experiment) {
+        return java.util.Map.of(
+                "primary", true,
+                "action", experiment.intervention().action(),
+                "protocol", experiment.intervention().protocol());
+    }
+
+    private static List<java.util.Map<String, String>> stopConditionsJson(Experiment experiment) {
+        return experiment.stopConditions().stream()
+                .map(condition -> java.util.Map.of("code", condition.code(), "description", condition.description()))
+                .toList();
+    }
+
+    private String json(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Unable to serialize Experiment JSON", exception);
+        }
     }
 
     private static String goalSelect() {

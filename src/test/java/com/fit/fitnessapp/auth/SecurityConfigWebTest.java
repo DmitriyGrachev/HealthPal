@@ -124,9 +124,12 @@ class SecurityConfigWebTest {
     void corsAllowsConfiguredOrigins() throws Exception {
         mockMvc.perform(options("/protected/probe")
                         .header(HttpHeaders.ORIGIN, "http://localhost:3000")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Idempotency-Key"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:3000"));
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:3000"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        org.hamcrest.Matchers.containsString("Idempotency-Key")));
     }
 
     private String tokenFor(String subject, long expiresInMillis) {

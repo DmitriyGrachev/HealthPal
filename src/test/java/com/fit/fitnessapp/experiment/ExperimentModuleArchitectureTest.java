@@ -3,8 +3,11 @@ package com.fit.fitnessapp.experiment;
 import com.fit.fitnessapp.FitnessAppApplication;
 import com.fit.fitnessapp.experiment.api.GoalActivated;
 import com.fit.fitnessapp.experiment.api.InvestigationCreated;
+import com.fit.fitnessapp.experiment.api.ExperimentChangedEvent;
 import com.fit.fitnessapp.experiment.application.port.in.GoalCommandUseCase;
 import com.fit.fitnessapp.experiment.application.port.in.GoalQueryUseCase;
+import com.fit.fitnessapp.experiment.application.port.in.ExperimentCommandUseCase;
+import com.fit.fitnessapp.experiment.application.port.in.ExperimentQueryUseCase;
 import com.fit.fitnessapp.experiment.application.port.in.InvestigationCommandUseCase;
 import com.fit.fitnessapp.experiment.application.port.in.InvestigationQueryUseCase;
 import org.junit.jupiter.api.Test;
@@ -46,14 +49,17 @@ class ExperimentModuleArchitectureTest {
         var api = experiment.getNamedInterfaces().getByName("api").orElseThrow();
         assertThat(api.contains(InvestigationCreated.class)).isTrue();
         assertThat(api.contains(GoalActivated.class)).isTrue();
+        assertThat(api.contains(ExperimentChangedEvent.class)).isTrue();
 
         var commandApi = experiment.getNamedInterfaces().getByName("command-api").orElseThrow();
         assertThat(commandApi.contains(InvestigationCommandUseCase.class)).isTrue();
         assertThat(commandApi.contains(GoalCommandUseCase.class)).isTrue();
+        assertThat(commandApi.contains(ExperimentCommandUseCase.class)).isTrue();
 
         var queryApi = experiment.getNamedInterfaces().getByName("query-api").orElseThrow();
         assertThat(queryApi.contains(InvestigationQueryUseCase.class)).isTrue();
         assertThat(queryApi.contains(GoalQueryUseCase.class)).isTrue();
+        assertThat(queryApi.contains(ExperimentQueryUseCase.class)).isTrue();
     }
 
     @Test

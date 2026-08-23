@@ -2,7 +2,9 @@ package com.fit.fitnessapp.experiment;
 
 import com.fit.fitnessapp.experiment.api.GoalActivated;
 import com.fit.fitnessapp.experiment.api.InvestigationCreated;
+import com.fit.fitnessapp.experiment.api.ExperimentChangedEvent;
 import com.fit.fitnessapp.experiment.application.service.ExperimentMetrics;
+import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.GoalStatus;
 import com.fit.fitnessapp.experiment.domain.GoalType;
 import com.fit.fitnessapp.experiment.domain.InvestigationStatus;
@@ -20,6 +22,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +68,51 @@ class ExperimentEventsAndMetricsTest {
     }
 
     @Test
+    void experimentChangedContainsOnlyStableIdentifiersVersionStatusAndTime() {
+        Instant occurredAt = Instant.parse("2026-08-23T10:15:30Z");
+        ExperimentChangedEvent event = new ExperimentChangedEvent(
+                42L, 23L, 17L, 19L, 5L, ExperimentStatus.ACTIVE, occurredAt);
+
+        assertThat(event.userId()).isEqualTo(42L);
+        assertThat(event.experimentId()).isEqualTo(23L);
+        assertThat(event.investigationId()).isEqualTo(17L);
+        assertThat(event.goalId()).isEqualTo(19L);
+        assertThat(event.aggregateVersion()).isEqualTo(5L);
+        assertThat(event.status()).isEqualTo(ExperimentStatus.ACTIVE);
+        assertThat(event.occurredAt()).isEqualTo(occurredAt);
+        assertThat(recordComponentNames(ExperimentChangedEvent.class))
+                .containsExactly("userId", "experimentId", "investigationId", "goalId",
+                        "aggregateVersion", "status", "occurredAt");
+        assertThat(recordComponentNames(ExperimentChangedEvent.class))
+                .noneMatch(ExperimentEventsAndMetricsTest::isPersonalContentOrOwnerField);
+    }
+
+    @Test
+    void experimentChangedRejectsInvalidIdentifiersVersionStatusAndTime() {
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(0L, 23L, 17L, 19L, 5L,
+                        ExperimentStatus.ACTIVE, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, -1L, 17L, 19L, 5L,
+                        ExperimentStatus.ACTIVE, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, 23L, null, 19L, 5L,
+                        ExperimentStatus.ACTIVE, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, 23L, 17L, 0L, 5L,
+                        ExperimentStatus.ACTIVE, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, 23L, 17L, 19L, -1L,
+                        ExperimentStatus.ACTIVE, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, 23L, 17L, 19L, 5L,
+                        null, Instant.EPOCH));
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new ExperimentChangedEvent(42L, 23L, 17L, 19L, 5L,
+                        ExperimentStatus.ACTIVE, null));
+    }
+
+    @Test
     void experimentCountersExposeOnlyStableStatusAndTypeTags() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         ObjectProvider<io.micrometer.core.instrument.MeterRegistry> provider = meterRegistryProvider(registry);
@@ -74,6 +122,8 @@ class ExperimentEventsAndMetricsTest {
         metrics.investigationTransitioned(InvestigationStatus.COLLECTING_BASELINE);
         metrics.goalTransitioned(GoalStatus.ACTIVE);
         metrics.goalActivated(GoalType.PERFORMANCE);
+        metrics.experimentStarted(ExperimentStatus.ACTIVE);
+        metrics.secondCycleStarted(ExperimentStatus.COMPLETED);
 
         assertThat(registry.getMeters()).isNotEmpty().allSatisfy(meter -> {
             Set<String> tagKeys = meter.getId().getTags().stream()
@@ -82,6 +132,14 @@ class ExperimentEventsAndMetricsTest {
             assertThat(tagKeys).containsAnyOf("status", "type");
             assertThat(tagKeys).doesNotContain("userId", "username", "email", "title", "problemStatement", "freeText");
         });
+        assertThat(registry.get("fitnessapp.experiment.started")
+                .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.second_cycle_started")
+                .tag("status", "COMPLETED").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.started").counter().getId().getTags())
+                .containsExactly(Tag.of("status", "ACTIVE"));
+        assertThat(registry.get("fitnessapp.experiment.second_cycle_started").counter().getId().getTags())
+                .containsExactly(Tag.of("status", "COMPLETED"));
     }
 
     @Test
@@ -114,6 +172,37 @@ class ExperimentEventsAndMetricsTest {
         synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         assertThat(registry.find("fitnessapp.goal.activated").meter()).isNull();
+    }
+
+    @Test
+    void experimentCountersAreDeferredUntilCommitAndNotIncrementedOnRollback() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        ExperimentMetrics metrics = new ExperimentMetrics(meterRegistryProvider(registry));
+        TransactionSynchronizationManager.initSynchronization();
+
+        metrics.experimentStarted(ExperimentStatus.ACTIVE);
+        metrics.secondCycleStarted(ExperimentStatus.ACTIVE);
+
+        assertThat(registry.find("fitnessapp.experiment.started").meter()).isNull();
+        assertThat(registry.find("fitnessapp.experiment.second_cycle_started").meter()).isNull();
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
+
+        TransactionSynchronizationManager.getSynchronizations().forEach(synchronization ->
+                synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+        assertThat(registry.find("fitnessapp.experiment.started").meter()).isNull();
+        assertThat(registry.find("fitnessapp.experiment.second_cycle_started").meter()).isNull();
+
+        TransactionSynchronizationManager.clearSynchronization();
+        TransactionSynchronizationManager.initSynchronization();
+        metrics.experimentStarted(ExperimentStatus.ACTIVE);
+        metrics.secondCycleStarted(ExperimentStatus.ACTIVE);
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+        assertThat(registry.get("fitnessapp.experiment.started")
+                .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.second_cycle_started")
+                .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
     }
 
     private static ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider(

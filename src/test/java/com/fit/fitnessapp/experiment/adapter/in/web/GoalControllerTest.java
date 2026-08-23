@@ -36,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -99,6 +100,31 @@ class GoalControllerTest {
         org.assertj.core.api.Assertions.assertThat(captor.getValue().userId()).isEqualTo(USER_ID);
         org.assertj.core.api.Assertions.assertThat(captor.getValue().priority()).isEqualTo(10);
         org.assertj.core.api.Assertions.assertThat(captor.getValue().primary()).isTrue();
+    }
+
+    @Test
+    void createNormalizesEnumsIndependentlyOfDefaultLocale() throws Exception {
+        when(currentUserApi.getCurrentUserId()).thenReturn(USER_ID);
+        when(commands.create(eq(USER_ID), any(Goal.class), eq("locale-safe")))
+                .thenReturn(goal(8L, USER_ID, GoalStatus.DRAFT, 0L, false));
+
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr"));
+            mockMvc.perform(post(BASE).with(user("me").roles("USER"))
+                            .contentType("application/json")
+                            .content("""
+                                    {"type":"muscle_gain","name":"Build muscle","metric":"weight",
+                                     "idempotencyKey":"locale-safe"}
+                                    """))
+                    .andExpect(status().isCreated());
+        } finally {
+            Locale.setDefault(previous);
+        }
+
+        var captor = org.mockito.ArgumentCaptor.forClass(Goal.class);
+        verify(commands).create(eq(USER_ID), captor.capture(), eq("locale-safe"));
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().type()).isEqualTo(GoalType.MUSCLE_GAIN);
     }
 
     @Test

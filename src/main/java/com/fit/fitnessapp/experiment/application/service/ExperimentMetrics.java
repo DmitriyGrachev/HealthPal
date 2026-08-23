@@ -2,6 +2,7 @@ package com.fit.fitnessapp.experiment.application.service;
 
 import com.fit.fitnessapp.experiment.domain.GoalStatus;
 import com.fit.fitnessapp.experiment.domain.GoalType;
+import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.InvestigationStatus;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -40,6 +41,14 @@ public class ExperimentMetrics {
 
     public void goalActivated(GoalType type) {
         increment("fitnessapp.goal.activated", "type", type.name());
+    }
+
+    public void experimentStarted(ExperimentStatus status) {
+        increment("fitnessapp.experiment.started", "status", status.name());
+    }
+
+    public void secondCycleStarted(ExperimentStatus status) {
+        increment("fitnessapp.experiment.second_cycle_started", "status", status.name());
     }
 
     private void increment(String name, String key, String value) {
