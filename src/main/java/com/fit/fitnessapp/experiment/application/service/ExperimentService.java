@@ -11,6 +11,7 @@ import com.fit.fitnessapp.experiment.domain.ExperimentInFlightConflictException;
 import com.fit.fitnessapp.experiment.domain.ExperimentNotFoundException;
 import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.ExperimentTransition;
+import com.fit.fitnessapp.experiment.domain.EvaluationInsufficientEvidenceException;
 import com.fit.fitnessapp.experiment.domain.IdempotencyConflictException;
 import com.fit.fitnessapp.experiment.domain.InvalidTransitionException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,7 +43,7 @@ public class ExperimentService implements ExperimentCommandUseCase, ExperimentQu
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = IdempotencyConflictException.class)
     public Experiment create(Long userId, Experiment experiment, String idempotencyKey) {
         requireOwner(userId);
         if (experiment == null) {
@@ -60,11 +61,14 @@ public class ExperimentService implements ExperimentCommandUseCase, ExperimentQu
         if (previous.isPresent()) {
             return replay(userId, previous.get(), null, fingerprint);
         }
+        if (!experiments.hasOwnedInvestigationAndGoal(userId, experiment.investigationId(), experiment.goalId())) {
+            throw new ExperimentNotFoundException();
+        }
 
         Experiment inserted = experiments.insertExperiment(experiment);
         if (!receipts.insert(userId, AGGREGATE, inserted.id(), idempotencyKey,
                 inserted.aggregateVersion(), fingerprint, inserted.createdAt())) {
-            // The transaction rolls back this insert before replaying the winner.
+            // noRollbackFor commits this loser cleanup when replaying the winner fails.
             experiments.deleteExperimentById(userId, inserted.id());
             return replay(userId, receipts.find(userId, AGGREGATE, idempotencyKey)
                     .orElseThrow(AggregateVersionConflictException::new), null, fingerprint);
@@ -97,6 +101,11 @@ public class ExperimentService implements ExperimentCommandUseCase, ExperimentQu
                 .orElseThrow(ExperimentNotFoundException::new);
         ExperimentStatus target = parseTarget(canonicalCommand);
         ExperimentStatus from = current.status();
+        if ((from == ExperimentStatus.ACTIVE || from == ExperimentStatus.PAUSED)
+                && target == ExperimentStatus.COMPLETED
+                && !experiments.hasPrimaryOutcome(userId, experimentId)) {
+            throw new EvaluationInsufficientEvidenceException();
+        }
         current.transitionTo(target, expectedVersion);
         long resultVersion = current.aggregateVersion();
         boolean firstActivation = from == ExperimentStatus.ACCEPTED && target == ExperimentStatus.ACTIVE;

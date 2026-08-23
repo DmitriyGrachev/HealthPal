@@ -5,6 +5,7 @@ import com.fit.fitnessapp.experiment.api.InvestigationCreated;
 import com.fit.fitnessapp.experiment.api.ExperimentChangedEvent;
 import com.fit.fitnessapp.experiment.application.service.ExperimentMetrics;
 import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
+import com.fit.fitnessapp.experiment.domain.EvaluationDecision;
 import com.fit.fitnessapp.experiment.domain.GoalStatus;
 import com.fit.fitnessapp.experiment.domain.GoalType;
 import com.fit.fitnessapp.experiment.domain.InvestigationStatus;
@@ -203,6 +204,31 @@ class ExperimentEventsAndMetricsTest {
                 .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
         assertThat(registry.get("fitnessapp.experiment.second_cycle_started")
                 .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void evaluationMetricsUseEnumOnlyTagsAndTimerAfterCommit() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        ExperimentMetrics metrics = new ExperimentMetrics(meterRegistryProvider(registry));
+        TransactionSynchronizationManager.initSynchronization();
+
+        metrics.evaluated(EvaluationDecision.KEEP);
+        metrics.evaluationDecision(EvaluationDecision.KEEP);
+        metrics.timeToEvaluation(Instant.parse("2026-08-23T10:00:00Z"),
+                Instant.parse("2026-08-23T10:05:00Z"));
+
+        assertThat(registry.find("fitnessapp.experiment.evaluated").meter()).isNull();
+        assertThat(registry.find("fitnessapp.experiment.evaluation.decision").meter()).isNull();
+        assertThat(registry.find("fitnessapp.experiment.time_to_evaluation").meter()).isNull();
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+        assertThat(registry.get("fitnessapp.experiment.evaluated").tag("decision", "KEEP")
+                .counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.evaluation.decision").tag("decision", "KEEP")
+                .counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.time_to_evaluation").timer().count()).isEqualTo(1);
+        assertThat(registry.get("fitnessapp.experiment.time_to_evaluation").timer().getId().getTags())
+                .isEmpty();
     }
 
     private static ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider(

@@ -16,9 +16,15 @@ public interface ExperimentRepositoryPort {
 
     Optional<Experiment> findExperimentByUserIdAndId(Long userId, Long experimentId);
 
+    /** Owner-scoped row lock used as the Evaluation expected-version fence. */
+    Optional<Experiment> findExperimentByUserIdAndIdForUpdate(Long userId, Long experimentId);
+
     void deleteAllExperimentsByUserId(Long userId);
 
     void deleteExperimentById(Long userId, Long experimentId);
+
+    /** True only when both parent aggregates belong to the same owner. */
+    boolean hasOwnedInvestigationAndGoal(Long userId, Long investigationId, Long goalId);
 
     TransitionWriteResult updateTransition(Long userId, Long experimentId, long expectedVersion,
                                            ExperimentStatus target, long nextVersion,
@@ -30,6 +36,13 @@ public interface ExperimentRepositoryPort {
     void appendTransition(ExperimentTransition transition);
 
     boolean hasPriorNonDraft(Long userId, Long experimentId);
+
+    /**
+     * Owner-scoped primary-outcome guard used by ACTIVE|PAUSED -> COMPLETED.
+     * The implementation must evaluate this in the same transaction as the
+     * guarded lifecycle update.
+     */
+    boolean hasPrimaryOutcome(Long userId, Long experimentId);
 
     enum TransitionWriteResult {
         UPDATED,

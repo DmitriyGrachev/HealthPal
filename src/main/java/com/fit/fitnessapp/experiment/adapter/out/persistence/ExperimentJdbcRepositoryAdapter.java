@@ -1,12 +1,26 @@
 package com.fit.fitnessapp.experiment.adapter.out.persistence;
 
 import com.fit.fitnessapp.experiment.application.port.out.CommandReceiptPort;
+import com.fit.fitnessapp.experiment.application.port.out.EvidenceRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.ExperimentRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.GoalRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.InvestigationRepositoryPort;
 import com.fit.fitnessapp.experiment.domain.Experiment;
+import com.fit.fitnessapp.experiment.domain.AdherenceStatus;
+import com.fit.fitnessapp.experiment.domain.CheckInSource;
+import com.fit.fitnessapp.experiment.domain.ContextRating;
+import com.fit.fitnessapp.experiment.domain.ConfounderAssessment;
+import com.fit.fitnessapp.experiment.domain.DataQuality;
+import com.fit.fitnessapp.experiment.domain.Evaluation;
+import com.fit.fitnessapp.experiment.domain.EvaluationDecision;
+import com.fit.fitnessapp.experiment.domain.ExperimentCheckIn;
 import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.ExperimentTransition;
+import com.fit.fitnessapp.experiment.domain.ExperimentNotFoundException;
+import com.fit.fitnessapp.experiment.domain.ObservedEffect;
+import com.fit.fitnessapp.experiment.domain.Outcome;
+import com.fit.fitnessapp.experiment.domain.OutcomeSource;
+import com.fit.fitnessapp.experiment.domain.UserDecision;
 import com.fit.fitnessapp.experiment.domain.OutcomeDirection;
 import com.fit.fitnessapp.experiment.domain.Goal;
 import com.fit.fitnessapp.experiment.domain.GoalMetric;
@@ -28,13 +42,17 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.List;
 import java.util.Optional;
 
 /** JDBC adapters for the V34/V35 aggregates and generic command receipts. */
 @Repository
 public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryPort, GoalRepositoryPort,
-        ExperimentRepositoryPort, CommandReceiptPort {
+        ExperimentRepositoryPort, CommandReceiptPort, EvidenceRepositoryPort {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -156,7 +174,8 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
 
     @Override
     public Experiment insertExperiment(Experiment experiment) {
-        Long id = jdbc.queryForObject("""
+        try {
+            Long id = jdbc.queryForObject("""
                 INSERT INTO experiments
                     (user_id, investigation_id, goal_id, hypothesis, baseline_start_date,
                      baseline_end_date, duration_days, intervention, primary_metric,
@@ -174,7 +193,14 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
                 experiment.aggregateVersion(), timestamp(experiment.acceptedAt()), timestamp(experiment.startedAt()),
                 timestamp(experiment.rejectedAt()), timestamp(experiment.abortedAt()), timestamp(experiment.completedAt()),
                 timestamp(experiment.evaluatedAt()), timestamp(experiment.createdAt()), timestamp(experiment.updatedAt()));
-        return findExperimentByUserIdAndId(experiment.userId(), id).orElseThrow();
+            return findExperimentByUserIdAndId(experiment.userId(), id).orElseThrow();
+        } catch (DataIntegrityViolationException exception) {
+            if (isConstraintViolation(exception, "23503", "fk_experiments_investigation")
+                    || isConstraintViolation(exception, "23503", "fk_experiments_goal")) {
+                throw new ExperimentNotFoundException();
+            }
+            throw exception;
+        }
     }
 
     @Override
@@ -186,6 +212,13 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
     @Override
     public Optional<Experiment> findExperimentByUserIdAndId(Long userId, Long experimentId) {
         return jdbc.query(experimentSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> experiment(rs), userId, experimentId).stream().findFirst();
+    }
+
+    /** Locks the owner-scoped Experiment row while the Evaluation fence is checked and written. */
+    @Override
+    public Optional<Experiment> findExperimentByUserIdAndIdForUpdate(Long userId, Long experimentId) {
+        return jdbc.query(experimentSelect() + " WHERE user_id = ? AND id = ? FOR UPDATE",
                 (rs, rowNum) -> experiment(rs), userId, experimentId).stream().findFirst();
     }
 
@@ -245,6 +278,188 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
     }
 
     @Override
+    public boolean hasOwnedInvestigationAndGoal(Long userId, Long investigationId, Long goalId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM investigations WHERE user_id = ? AND id = ?)
+                   AND EXISTS (SELECT 1 FROM goals WHERE user_id = ? AND id = ?)
+                """, Boolean.class, userId, investigationId, userId, goalId));
+    }
+
+    @Override
+    public boolean hasPrimaryOutcome(Long userId, Long experimentId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM experiment_outcomes
+                     WHERE user_id = ? AND experiment_id = ?
+                )
+                """, Boolean.class, userId, experimentId));
+    }
+
+    @Override
+    public Optional<ExperimentCheckIn> findCheckInByUserIdAndId(Long userId, Long checkInId) {
+        return jdbc.query(checkInSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> checkIn(rs), userId, checkInId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ExperimentCheckIn> findCheckInByUserIdAndExperimentIdAndLocalDate(
+            Long userId, Long experimentId, LocalDate localDate) {
+        return jdbc.query(checkInSelect() + " WHERE user_id = ? AND experiment_id = ? AND local_date = ?",
+                (rs, rowNum) -> checkIn(rs), userId, experimentId, localDate).stream().findFirst();
+    }
+
+    @Override
+    public CheckInWriteResult insertCheckIn(ExperimentCheckIn checkIn) {
+        Long id = jdbc.query("""
+                INSERT INTO experiment_check_ins
+                    (user_id, experiment_id, local_date, timezone, scheduled_start_at,
+                     scheduled_end_at, adherence_status, adherence_value, deviation_reason, note,
+                     readiness, sleep, mood, source, recorded_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (experiment_id, local_date) DO NOTHING
+                RETURNING id
+                """, (rs, rowNum) -> rs.getLong(1), checkIn.userId(), checkIn.experimentId(),
+                checkIn.localDate(), checkIn.timezone().getId(), timestamp(checkIn.scheduledStartAt()),
+                timestamp(checkIn.scheduledEndAt()), checkIn.adherence().name(), checkIn.adherenceValue(),
+                checkIn.deviationReason(), checkIn.note(), rating(checkIn.readiness()), rating(checkIn.sleep()),
+                rating(checkIn.mood()), checkIn.source().name(), timestamp(checkIn.recordedAt()),
+                timestamp(checkIn.createdAt())).stream().findFirst().orElse(null);
+        if (id != null) {
+            return new CheckInWriteResult(WriteStatus.INSERTED,
+                    findCheckInByUserIdAndId(checkIn.userId(), id).orElseThrow());
+        }
+        return new CheckInWriteResult(WriteStatus.DUPLICATE,
+                findCheckInByUserIdAndExperimentIdAndLocalDate(
+                        checkIn.userId(), checkIn.experimentId(), checkIn.localDate()).orElseThrow());
+    }
+
+    @Override
+    public CheckInSummary countCheckIns(Long userId, Long experimentId,
+                                        LocalDate fromInclusive, LocalDate toInclusive) {
+        if (fromInclusive == null || toInclusive == null || toInclusive.isBefore(fromInclusive)) {
+            throw new IllegalArgumentException("check-in window is invalid");
+        }
+        Integer[] counts = jdbc.queryForObject("""
+                SELECT COUNT(*) FILTER (WHERE adherence_status = 'YES'),
+                       COUNT(*) FILTER (WHERE adherence_status = 'NO'),
+                       COUNT(*) FILTER (WHERE adherence_status = 'PARTIAL'),
+                       COUNT(*) FILTER (WHERE adherence_status = 'UNKNOWN')
+                  FROM experiment_check_ins
+                 WHERE user_id = ? AND experiment_id = ?
+                   AND local_date BETWEEN ? AND ?
+                """, (rs, rowNum) -> new Integer[]{rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4)},
+                userId, experimentId, fromInclusive, toInclusive);
+        int expectedDays = Math.toIntExact(java.time.temporal.ChronoUnit.DAYS.between(
+                fromInclusive, toInclusive) + 1);
+        int explicitUnknown = counts[3];
+        int knownDays = counts[0] + counts[1] + counts[2];
+        int missingDays = Math.max(0, expectedDays - knownDays - explicitUnknown);
+        return new CheckInSummary(counts[0], counts[1], counts[2], explicitUnknown + missingDays);
+    }
+
+    @Override
+    public Optional<Outcome> findOutcomeByUserIdAndId(Long userId, Long outcomeId) {
+        return jdbc.query(outcomeSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> outcome(rs), userId, outcomeId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<Outcome> findPrimaryOutcomeByUserIdAndExperimentId(Long userId, Long experimentId) {
+        return jdbc.query(outcomeSelect() + " WHERE user_id = ? AND experiment_id = ?",
+                (rs, rowNum) -> outcome(rs), userId, experimentId).stream().findFirst();
+    }
+
+    @Override
+    public OutcomeWriteResult insertOutcome(Outcome outcome) {
+        Long id = jdbc.query("""
+                INSERT INTO experiment_outcomes
+                    (user_id, experiment_id, metric_key, baseline_value, observed_value, unit,
+                     baseline_sample_count, observed_sample_count, observed_at, source, note, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (experiment_id) DO NOTHING
+                RETURNING id
+                """, (rs, rowNum) -> rs.getLong(1), outcome.userId(), outcome.experimentId(),
+                outcome.metricKey(), outcome.baselineValue(), outcome.observedValue(), outcome.unit(),
+                outcome.baselineSampleCount(), outcome.observedSampleCount(), timestamp(outcome.observedAt()),
+                outcome.source().name(), outcome.note(), timestamp(outcome.createdAt())).stream().findFirst().orElse(null);
+        if (id != null) {
+            return new OutcomeWriteResult(WriteStatus.INSERTED,
+                    findOutcomeByUserIdAndId(outcome.userId(), id).orElseThrow());
+        }
+        return new OutcomeWriteResult(WriteStatus.DUPLICATE,
+                findPrimaryOutcomeByUserIdAndExperimentId(outcome.userId(), outcome.experimentId()).orElseThrow());
+    }
+
+    @Override
+    public Optional<Evaluation> findEvaluationByUserIdAndId(Long userId, Long evaluationId) {
+        return jdbc.query(evaluationSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> evaluation(rs), userId, evaluationId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<Evaluation> findEvaluationByUserIdAndExperimentId(Long userId, Long experimentId) {
+        return jdbc.query(evaluationSelect() + " WHERE user_id = ? AND experiment_id = ?",
+                (rs, rowNum) -> evaluation(rs), userId, experimentId).stream().findFirst();
+    }
+
+    @Override
+    public EvaluationWriteResult insertEvaluation(Evaluation evaluation) {
+        Long id = jdbc.query("""
+                INSERT INTO experiment_evaluations
+                    (user_id, experiment_id, formula_version, recommended_decision, data_quality,
+                     observed_effect, confounder_assessment, effect_delta, effect_threshold,
+                     coverage, adherence, freshness_days, calculation_inputs, reason_codes,
+                     evaluated_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::text[], ?, ?)
+                ON CONFLICT (experiment_id) DO NOTHING
+                RETURNING id
+                """, (rs, rowNum) -> rs.getLong(1), evaluation.userId(), evaluation.experimentId(),
+                evaluation.formulaVersion(), evaluation.recommendedDecision().name(), evaluation.dataQuality().name(),
+                evaluation.observedEffect().name(), evaluation.confounderAssessment().name(),
+                evaluation.effectDelta(), evaluation.effectThreshold(), evaluation.coverage(), evaluation.adherence(),
+                evaluation.freshnessDays(), json(evaluation.calculationInputs()),
+                sqlArrayLiteral(evaluation.reasonCodes()), timestamp(evaluation.evaluatedAt()), timestamp(evaluation.evaluatedAt()))
+                .stream().findFirst().orElse(null);
+        if (id != null) {
+            return new EvaluationWriteResult(WriteStatus.INSERTED,
+                    findEvaluationByUserIdAndId(evaluation.userId(), id).orElseThrow());
+        }
+        return new EvaluationWriteResult(WriteStatus.DUPLICATE,
+                findEvaluationByUserIdAndExperimentId(evaluation.userId(), evaluation.experimentId()).orElseThrow());
+    }
+
+    @Override
+    public Optional<UserDecision> findDecisionByUserIdAndId(Long userId, Long decisionId) {
+        return jdbc.query(decisionSelect() + " WHERE user_id = ? AND id = ?",
+                (rs, rowNum) -> decision(rs), userId, decisionId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<UserDecision> findDecisionByUserIdAndExperimentId(Long userId, Long experimentId) {
+        return jdbc.query(decisionSelect() + " WHERE user_id = ? AND experiment_id = ?",
+                (rs, rowNum) -> decision(rs), userId, experimentId).stream().findFirst();
+    }
+
+    @Override
+    public DecisionWriteResult insertDecision(UserDecision decision) {
+        Long id = jdbc.query("""
+                INSERT INTO experiment_decisions
+                    (user_id, experiment_id, evaluation_id, decision, note, decided_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (experiment_id) DO NOTHING
+                RETURNING id
+                """, (rs, rowNum) -> rs.getLong(1), decision.userId(), decision.experimentId(),
+                decision.evaluationId(), decision.decision().name(), decision.note(), timestamp(decision.decidedAt()),
+                timestamp(decision.decidedAt())).stream().findFirst().orElse(null);
+        if (id != null) {
+            return new DecisionWriteResult(WriteStatus.INSERTED,
+                    findDecisionByUserIdAndId(decision.userId(), id).orElseThrow());
+        }
+        return new DecisionWriteResult(WriteStatus.DUPLICATE,
+                findDecisionByUserIdAndExperimentId(decision.userId(), decision.experimentId()).orElseThrow());
+    }
+
+    @Override
     public Optional<CommandReceipt> find(Long userId, String aggregateType, String idempotencyKey) {
         return jdbc.query("""
                 SELECT user_id, aggregate_type, aggregate_id, idempotency_key, result_version,
@@ -271,6 +486,112 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
                 ON CONFLICT (user_id, aggregate_type, idempotency_key) DO NOTHING
                 """, userId, aggregateType, aggregateId, idempotencyKey, resultVersion,
                 requestFingerprint, timestamp(createdAt)) == 1;
+    }
+
+    private static String checkInSelect() {
+        return "SELECT id, user_id, experiment_id, local_date, timezone, scheduled_start_at, "
+                + "scheduled_end_at, adherence_status, adherence_value, deviation_reason, note, "
+                + "readiness, sleep, mood, source, recorded_at, created_at FROM experiment_check_ins";
+    }
+
+    private static String outcomeSelect() {
+        return "SELECT id, user_id, experiment_id, metric_key, baseline_value, observed_value, unit, "
+                + "baseline_sample_count, observed_sample_count, observed_at, source, note, created_at "
+                + "FROM experiment_outcomes";
+    }
+
+    private static String evaluationSelect() {
+        return "SELECT id, user_id, experiment_id, formula_version, recommended_decision, data_quality, "
+                + "observed_effect, confounder_assessment, effect_delta, effect_threshold, coverage, "
+                + "adherence, freshness_days, calculation_inputs::text AS calculation_inputs, reason_codes, "
+                + "evaluated_at, created_at FROM experiment_evaluations";
+    }
+
+    private static String decisionSelect() {
+        return "SELECT id, user_id, experiment_id, evaluation_id, decision, note, decided_at, created_at "
+                + "FROM experiment_decisions";
+    }
+
+    private static ExperimentCheckIn checkIn(ResultSet rs) throws java.sql.SQLException {
+        return new ExperimentCheckIn(
+                rs.getLong("id"), rs.getLong("user_id"), rs.getLong("experiment_id"),
+                rs.getObject("local_date", LocalDate.class), ZoneId.of(rs.getString("timezone")),
+                instant(rs.getTimestamp("scheduled_start_at")), instant(rs.getTimestamp("scheduled_end_at")),
+                AdherenceStatus.valueOf(rs.getString("adherence_status")), rs.getBigDecimal("adherence_value"),
+                rs.getString("deviation_reason"), rs.getString("note"), rating(rs, "readiness"),
+                rating(rs, "sleep"), rating(rs, "mood"), CheckInSource.valueOf(rs.getString("source")),
+                instant(rs.getTimestamp("recorded_at")), instant(rs.getTimestamp("created_at")));
+    }
+
+    private static Outcome outcome(ResultSet rs) throws java.sql.SQLException {
+        return new Outcome(
+                rs.getLong("id"), rs.getLong("user_id"), rs.getLong("experiment_id"),
+                rs.getString("metric_key"), rs.getBigDecimal("baseline_value"),
+                rs.getBigDecimal("observed_value"), rs.getString("unit"), rs.getInt("baseline_sample_count"),
+                rs.getInt("observed_sample_count"), instant(rs.getTimestamp("observed_at")),
+                OutcomeSource.valueOf(rs.getString("source")), rs.getString("note"),
+                instant(rs.getTimestamp("created_at")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Evaluation evaluation(ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> inputs;
+        try {
+            inputs = objectMapper.readValue(rs.getString("calculation_inputs"), Map.class);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Invalid persisted Evaluation calculation inputs", exception);
+        }
+        Set<String> reasonCodes = new LinkedHashSet<>();
+        java.sql.Array sqlArray = rs.getArray("reason_codes");
+        if (sqlArray != null) {
+            Object value = sqlArray.getArray();
+            if (value instanceof String[] values) {
+                java.util.Collections.addAll(reasonCodes, values);
+            } else if (value instanceof Object[] values) {
+                for (Object item : values) {
+                    reasonCodes.add(String.valueOf(item));
+                }
+            }
+        }
+        return new Evaluation(
+                rs.getLong("id"), rs.getLong("user_id"), rs.getLong("experiment_id"),
+                rs.getString("formula_version"), EvaluationDecision.valueOf(rs.getString("recommended_decision")),
+                DataQuality.valueOf(rs.getString("data_quality")),
+                ObservedEffect.valueOf(rs.getString("observed_effect")),
+                ConfounderAssessment.valueOf(rs.getString("confounder_assessment")),
+                rs.getBigDecimal("effect_delta"), rs.getBigDecimal("effect_threshold"),
+                rs.getBigDecimal("coverage"), rs.getBigDecimal("adherence"),
+                nullableInteger(rs, "freshness_days"), inputs, reasonCodes,
+                instant(rs.getTimestamp("evaluated_at")));
+    }
+
+    private static UserDecision decision(ResultSet rs) throws java.sql.SQLException {
+        return new UserDecision(
+                rs.getLong("id"), rs.getLong("user_id"), rs.getLong("experiment_id"),
+                rs.getLong("evaluation_id"), EvaluationDecision.valueOf(rs.getString("decision")),
+                rs.getString("note"), instant(rs.getTimestamp("decided_at")));
+    }
+
+    private static ContextRating rating(ResultSet rs, String column) throws java.sql.SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : new ContextRating(value);
+    }
+
+    private static Object rating(ContextRating rating) {
+        return rating == null ? null : rating.value();
+    }
+
+    private static String sqlArrayLiteral(Set<String> values) {
+        if (values == null) {
+            throw new IllegalArgumentException("reasonCodes must not be null");
+        }
+        return "{" + values.stream().map(value -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                .collect(java.util.stream.Collectors.joining(",")) + "}";
+    }
+
+    private static Integer nullableInteger(ResultSet rs, String column) throws java.sql.SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : value;
     }
 
     private static Investigation investigation(ResultSet rs) throws java.sql.SQLException {

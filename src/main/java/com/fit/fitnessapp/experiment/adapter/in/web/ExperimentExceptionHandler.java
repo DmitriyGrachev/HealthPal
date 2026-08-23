@@ -2,9 +2,15 @@ package com.fit.fitnessapp.experiment.adapter.in.web;
 
 import com.fit.fitnessapp.experiment.domain.AggregateVersionConflictException;
 import com.fit.fitnessapp.experiment.domain.ExperimentNotFoundException;
+import com.fit.fitnessapp.experiment.domain.ExperimentNotCompletedException;
 import com.fit.fitnessapp.experiment.domain.ExperimentInFlightConflictException;
+import com.fit.fitnessapp.experiment.domain.CheckInDateConflictException;
+import com.fit.fitnessapp.experiment.domain.DecisionAlreadyRecordedException;
+import com.fit.fitnessapp.experiment.domain.EvaluationAlreadyExistsException;
+import com.fit.fitnessapp.experiment.domain.EvaluationInsufficientEvidenceException;
 import com.fit.fitnessapp.experiment.domain.IdempotencyConflictException;
 import com.fit.fitnessapp.experiment.domain.InvalidTransitionException;
+import com.fit.fitnessapp.experiment.domain.OutcomeAlreadyRecordedException;
 import com.fit.fitnessapp.experiment.domain.PrimaryGoalConflictException;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +35,8 @@ import java.util.stream.Collectors;
 @RestControllerAdvice(assignableTypes = {
         InvestigationController.class,
         GoalController.class,
-        ExperimentController.class
+        ExperimentController.class,
+        ExperimentEvidenceController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ExperimentExceptionHandler {
@@ -71,6 +78,42 @@ public class ExperimentExceptionHandler {
     ResponseEntity<ExperimentApiError> inFlightConflict(HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, "EXPERIMENT_IN_FLIGHT_CONFLICT",
                 "Another Experiment is already in flight", request);
+    }
+
+    @ExceptionHandler(CheckInDateConflictException.class)
+    ResponseEntity<ExperimentApiError> checkInDateConflict(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "CHECK_IN_DATE_CONFLICT",
+                "A check-in already exists for this local date", request);
+    }
+
+    @ExceptionHandler(OutcomeAlreadyRecordedException.class)
+    ResponseEntity<ExperimentApiError> outcomeAlreadyRecorded(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "OUTCOME_ALREADY_RECORDED",
+                "The primary Outcome has already been recorded", request);
+    }
+
+    @ExceptionHandler(EvaluationAlreadyExistsException.class)
+    ResponseEntity<ExperimentApiError> evaluationAlreadyExists(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "EVALUATION_ALREADY_EXISTS",
+                "The Evaluation already exists", request);
+    }
+
+    @ExceptionHandler(DecisionAlreadyRecordedException.class)
+    ResponseEntity<ExperimentApiError> decisionAlreadyRecorded(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "DECISION_ALREADY_RECORDED",
+                "The Decision has already been recorded", request);
+    }
+
+    @ExceptionHandler(ExperimentNotCompletedException.class)
+    ResponseEntity<ExperimentApiError> experimentNotCompleted(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "EXPERIMENT_NOT_COMPLETED",
+                "The Experiment is not completed", request);
+    }
+
+    @ExceptionHandler(EvaluationInsufficientEvidenceException.class)
+    ResponseEntity<ExperimentApiError> evaluationInsufficientEvidence(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "EVALUATION_INSUFFICIENT_EVIDENCE",
+                "The Experiment does not have sufficient evidence for evaluation", request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

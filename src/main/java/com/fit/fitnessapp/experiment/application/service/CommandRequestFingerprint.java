@@ -1,7 +1,9 @@
 package com.fit.fitnessapp.experiment.application.service;
 
 import com.fit.fitnessapp.experiment.domain.Experiment;
+import com.fit.fitnessapp.experiment.domain.ExperimentCheckIn;
 import com.fit.fitnessapp.experiment.domain.Goal;
+import com.fit.fitnessapp.experiment.domain.Outcome;
 import com.fit.fitnessapp.experiment.domain.StopCondition;
 
 import java.nio.charset.StandardCharsets;
@@ -44,7 +46,7 @@ final class CommandRequestFingerprint {
                 experiment.intervention().action(), experiment.intervention().protocol(),
                 experiment.primaryMetric(), canonicalList(experiment.secondaryMetrics()),
                 canonicalStopConditions(experiment.stopConditions()), experiment.outcomeDirection(),
-                experiment.meaningfulChange());
+                canonicalNumber(experiment.meaningfulChange()));
     }
 
     static String experimentTransition(Long aggregateId, String command,
@@ -52,6 +54,34 @@ final class CommandRequestFingerprint {
         return digest("EXPERIMENT_TRANSITION", aggregateId,
                 command == null ? null : command.trim().toUpperCase(Locale.ROOT),
                 expectedVersion, reason);
+    }
+
+    static String checkIn(ExperimentCheckIn checkIn) {
+        return digest("CHECK_IN", checkIn.experimentId(), checkIn.localDate(),
+                checkIn.timezone(), checkIn.scheduledStartAt(), checkIn.scheduledEndAt(),
+                checkIn.adherence(), canonicalNumber(checkIn.adherenceValue()), canonicalText(checkIn.deviationReason()),
+                canonicalText(checkIn.note()), checkIn.readiness() == null ? null : checkIn.readiness().value(),
+                checkIn.sleep() == null ? null : checkIn.sleep().value(),
+                checkIn.mood() == null ? null : checkIn.mood().value(), checkIn.source());
+    }
+
+    static String outcome(Outcome outcome) {
+        return digest("OUTCOME", outcome.experimentId(), canonicalText(outcome.metricKey()),
+                canonicalNumber(outcome.baselineValue()), canonicalNumber(outcome.observedValue()),
+                canonicalText(outcome.unit()), outcome.baselineSampleCount(),
+                outcome.observedSampleCount(), outcome.observedAt(), outcome.source(),
+                canonicalText(outcome.note()));
+    }
+
+    static String evaluation(Long experimentId, long expectedVersion) {
+        return digest("EVALUATION", experimentId, expectedVersion);
+    }
+
+    static String decision(Long experimentId, Long evaluationId,
+                           com.fit.fitnessapp.experiment.domain.EvaluationDecision decision,
+                           String note) {
+        return digest("DECISION", experimentId, evaluationId, decision,
+                canonicalText(note));
     }
 
     private static String digest(Object... values) {
@@ -66,6 +96,14 @@ final class CommandRequestFingerprint {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
+    }
+
+    private static String canonicalText(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    private static String canonicalNumber(java.math.BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
     private static String canonicalList(List<String> values) {

@@ -196,7 +196,8 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(moduleCategories(v2, "event-publications")).contains("event_publications");
         assertThat(moduleCategories(v2, "experiment"))
                 .containsExactlyInAnyOrder(
-                        "investigations", "goals", "experiments", "experiment_transitions", "command_receipts");
+                        "investigations", "goals", "experiments", "transitions", "checkIns", "outcomes",
+                        "evaluations", "decisions", "evidenceRefs", "command_receipts");
 
         var experimentModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("experiment"))
@@ -214,10 +215,25 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 experimentModule.data().get("experiments");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exportedTransitions = (List<Map<String, Object>>)
-                experimentModule.data().get("experimentTransitions");
+                experimentModule.data().get("transitions");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exportedReceipts = (List<Map<String, Object>>)
                 experimentModule.data().get("commandReceipts");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedCheckIns = (List<Map<String, Object>>)
+                experimentModule.data().get("checkIns");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedOutcomes = (List<Map<String, Object>>)
+                experimentModule.data().get("outcomes");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedEvaluations = (List<Map<String, Object>>)
+                experimentModule.data().get("evaluations");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedDecisions = (List<Map<String, Object>>)
+                experimentModule.data().get("decisions");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedEvidenceRefs = (List<Map<String, Object>>)
+                experimentModule.data().get("evidenceRefs");
         assertThat(exportedInvestigations).hasSize(1);
         assertThat(exportedGoals).hasSize(1);
         assertThat(exportedExperiments).singleElement().satisfies(experiment -> assertThat(experiment)
@@ -230,10 +246,28 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .containsKeys("id", "experiment_id", "from_status", "to_status", "expected_version",
                         "result_version", "reason", "occurred_at")
                 .doesNotContainKeys("user_id", "userId"));
-        assertThat(exportedReceipts).singleElement().satisfies(receipt -> assertThat(receipt)
+        assertThat(exportedReceipts).hasSize(2).allSatisfy(receipt -> assertThat(receipt)
                 .containsKeys("id", "aggregate_type", "aggregate_id", "idempotency_key", "result_version", "created_at")
                 .doesNotContainKeys("command", "reason", "payload", "request_fingerprint", "requestFingerprint",
-                        "user_id", "userId"));
+                "user_id", "userId"));
+        assertThat(exportedCheckIns).singleElement().satisfies(checkIn -> assertThat(checkIn)
+                .containsKeys("id", "experiment_id", "local_date", "adherence_status", "source", "recorded_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedOutcomes).singleElement().satisfies(outcome -> assertThat(outcome)
+                .containsKeys("id", "experiment_id", "metric_key", "baseline_value", "observed_value",
+                        "unit", "baseline_sample_count", "observed_sample_count", "observed_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedEvaluations).singleElement().satisfies(evaluation -> assertThat(evaluation)
+                .containsKeys("id", "experiment_id", "formula_version", "recommended_decision",
+                        "calculation_inputs", "reason_codes", "evaluated_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedDecisions).singleElement().satisfies(decision -> assertThat(decision)
+                .containsKeys("id", "experiment_id", "evaluation_id", "decision", "decided_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedEvidenceRefs).singleElement().satisfies(reference -> assertThat(reference)
+                .containsKeys("id", "experiment_id", "purpose", "source_type", "source_id",
+                        "source_version", "content_hash")
+                .doesNotContainKeys("user_id", "userId"));
 
         var nutritionModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("nutrition"))
@@ -313,7 +347,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("goals", "user_id", userId)).isOne();
         assertThat(count("experiments", "user_id", userId)).isOne();
         assertThat(count("experiment_transitions", "user_id", userId)).isOne();
-        assertThat(count("experiment_command_receipts", "user_id", userId)).isOne();
+        assertThat(count("experiment_command_receipts", "user_id", userId)).isEqualTo(2);
+        assertThat(count("experiment_check_ins", "user_id", userId)).isOne();
+        assertThat(count("experiment_outcomes", "user_id", userId)).isOne();
+        assertThat(count("experiment_evaluations", "user_id", userId)).isOne();
+        assertThat(count("experiment_decisions", "user_id", userId)).isOne();
+        assertThat(count("experiment_evidence_refs", "user_id", userId)).isOne();
         assertThat(count("telegram_delivery_outbox", "user_id", userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -352,6 +391,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiments", "user_id", userId)).isZero();
         assertThat(count("experiment_transitions", "user_id", userId)).isZero();
         assertThat(count("experiment_command_receipts", "user_id", userId)).isZero();
+        assertThat(count("experiment_check_ins", "user_id", userId)).isZero();
+        assertThat(count("experiment_outcomes", "user_id", userId)).isZero();
+        assertThat(count("experiment_evaluations", "user_id", userId)).isZero();
+        assertThat(count("experiment_decisions", "user_id", userId)).isZero();
+        assertThat(count("experiment_evidence_refs", "user_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -366,7 +410,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("goals", "user_id", otherUserId)).isOne();
         assertThat(count("experiments", "user_id", otherUserId)).isOne();
         assertThat(count("experiment_transitions", "user_id", otherUserId)).isOne();
-        assertThat(count("experiment_command_receipts", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_command_receipts", "user_id", otherUserId)).isEqualTo(2);
+        assertThat(count("experiment_check_ins", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_outcomes", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_evaluations", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_decisions", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_evidence_refs", "user_id", otherUserId)).isOne();
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -1012,6 +1061,45 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                     (user_id, experiment_id, from_status, to_status, expected_version, result_version, reason)
                 VALUES (?, ?, 'DRAFT', 'PROPOSED', 0, 1, 'Ready for review')
                 """, userId, experimentId);
+        long checkInId = jdbc.queryForObject("""
+                INSERT INTO experiment_check_ins
+                    (user_id, experiment_id, local_date, timezone, adherence_status, source, recorded_at)
+                VALUES (?, ?, DATE '2026-08-08', 'UTC', 'YES', 'MANUAL', TIMESTAMPTZ '2026-08-08 12:00:00Z')
+                RETURNING id
+                """, Long.class, userId, experimentId);
+        long outcomeId = jdbc.queryForObject("""
+                INSERT INTO experiment_outcomes
+                    (user_id, experiment_id, metric_key, baseline_value, observed_value, unit,
+                     baseline_sample_count, observed_sample_count, observed_at)
+                VALUES (?, ?, 'strength', 100, 110, 'kg', 2, 2, TIMESTAMPTZ '2026-08-08 12:00:00Z')
+                RETURNING id
+                """, Long.class, userId, experimentId);
+        long evaluationId = jdbc.queryForObject("""
+                INSERT INTO experiment_evaluations
+                    (user_id, experiment_id, formula_version, recommended_decision, data_quality,
+                     observed_effect, confounder_assessment, calculation_inputs, reason_codes, evaluated_at)
+                VALUES (?, ?, 'V1', 'INCONCLUSIVE', 'INSUFFICIENT', 'UNKNOWN', 'NONE',
+                        '{}'::jsonb, ARRAY['INSUFFICIENT_SAMPLES'], TIMESTAMPTZ '2026-08-08 12:00:00Z')
+                RETURNING id
+                """, Long.class, userId, experimentId);
+        jdbc.update("""
+                INSERT INTO experiment_decisions
+                    (user_id, experiment_id, evaluation_id, decision, decided_at)
+                VALUES (?, ?, ?, 'INCONCLUSIVE', TIMESTAMPTZ '2026-08-08 12:00:00Z')
+                """, userId, experimentId, evaluationId);
+        jdbc.update("""
+                INSERT INTO experiment_evidence_refs
+                    (user_id, experiment_id, purpose, source_type, source_id, source_version,
+                     content_hash, source_date)
+                VALUES (?, ?, 'OUTCOME', 'MANUAL_OUTCOME', ?, 1,
+                        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', DATE '2026-08-08')
+                """, userId, experimentId, Long.toString(outcomeId));
+        jdbc.update("""
+                INSERT INTO experiment_command_receipts
+                    (user_id, aggregate_type, aggregate_id, idempotency_key, result_version, request_fingerprint)
+                VALUES (?, 'CHECK_IN', ?, 'export-check-in', 0,
+                        'abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd')
+                """, userId, checkInId);
     }
 
     private void seedControlData(long otherUserId, long otherChatId) {

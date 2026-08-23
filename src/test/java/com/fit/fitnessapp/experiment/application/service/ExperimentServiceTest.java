@@ -5,6 +5,8 @@ import com.fit.fitnessapp.experiment.application.port.out.ExperimentRepositoryPo
 import com.fit.fitnessapp.experiment.domain.AggregateVersionConflictException;
 import com.fit.fitnessapp.experiment.domain.Experiment;
 import com.fit.fitnessapp.experiment.domain.ExperimentInFlightConflictException;
+import com.fit.fitnessapp.experiment.domain.ExperimentNotFoundException;
+import com.fit.fitnessapp.experiment.domain.EvaluationInsufficientEvidenceException;
 import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.ExperimentTransition;
 import com.fit.fitnessapp.experiment.domain.Hypothesis;
@@ -116,6 +118,8 @@ class ExperimentServiceTest {
     void createPublishesOnceAndCreateReplayIsSilent() {
         Experiment draft = loaded(3L, ExperimentStatus.DRAFT, 0L);
         String fingerprint = CommandRequestFingerprint.experimentCreate(draft);
+        when(repository.hasOwnedInvestigationAndGoal(42L, draft.investigationId(), draft.goalId()))
+                .thenReturn(true);
         when(repository.insertExperiment(draft)).thenReturn(draft);
         when(receipts.insert(eq(42L), eq("EXPERIMENT"), eq(3L), eq("create-1"),
                 eq(0L), eq(fingerprint), any())).thenReturn(true);
@@ -131,6 +135,24 @@ class ExperimentServiceTest {
         service.create(42L, draft, "create-1");
         verify(events, never()).publishEvent(any(Object.class));
         verify(repository).findExperimentByUserIdAndId(42L, 3L);
+    }
+
+    @Test
+    void cleansUpLoserWhenCreateReceiptWinsWithDifferentFingerprint() {
+        Experiment draft = loaded(3L, ExperimentStatus.DRAFT, 0L);
+        String fingerprint = CommandRequestFingerprint.experimentCreate(draft);
+        when(repository.hasOwnedInvestigationAndGoal(42L, draft.investigationId(), draft.goalId()))
+                .thenReturn(true);
+        when(repository.insertExperiment(draft)).thenReturn(draft);
+        when(receipts.find(42L, "EXPERIMENT", "create-race")).thenReturn(Optional.empty(), Optional.of(
+                new CommandReceiptPort.CommandReceipt(42L, "EXPERIMENT", 3L, "create-race", 0L,
+                        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", Instant.now())));
+        when(receipts.insert(eq(42L), eq("EXPERIMENT"), eq(3L), eq("create-race"),
+                eq(0L), eq(fingerprint), any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(42L, draft, "create-race"))
+                .isInstanceOf(IdempotencyConflictException.class);
+        verify(repository).deleteExperimentById(42L, 3L);
     }
 
     @Test
@@ -168,6 +190,30 @@ class ExperimentServiceTest {
         assertThatThrownBy(() -> service.transition(42L, 3L, " ", 0L, "key", null))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(repository, never()).findExperimentByUserIdAndId(any(), any());
+    }
+
+    @Test
+    void rejectsExperimentCreateWhenInvestigationOrGoalIsNotOwned() {
+        Experiment draft = loaded(3L, ExperimentStatus.DRAFT, 0L);
+        when(repository.hasOwnedInvestigationAndGoal(42L, draft.investigationId(), draft.goalId()))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(42L, draft, "create-parents-missing"))
+                .isInstanceOf(ExperimentNotFoundException.class);
+        verify(repository, never()).insertExperiment(any());
+    }
+
+    @Test
+    void completionRequiresAnOwnerScopedPrimaryOutcomeBeforeMutation() {
+        Experiment active = loaded(3L, ExperimentStatus.ACTIVE, 4L);
+        when(repository.findExperimentByUserIdAndId(42L, 3L)).thenReturn(Optional.of(active));
+        when(repository.hasPrimaryOutcome(42L, 3L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.transition(42L, 3L, "COMPLETED", 4L,
+                "complete-without-outcome", null))
+                .isInstanceOf(EvaluationInsufficientEvidenceException.class);
+        verify(repository, never()).updateTransition(any(), any(), anyLong(), any(), anyLong(),
+                any(), any(), any(), any(), any(), any(), any());
     }
 
     private static Experiment loaded(Long id, ExperimentStatus status, long version) {
