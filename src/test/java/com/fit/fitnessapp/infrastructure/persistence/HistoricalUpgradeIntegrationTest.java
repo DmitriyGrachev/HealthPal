@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -68,6 +69,7 @@ class HistoricalUpgradeIntegrationTest {
         schema = "history_" + UUID.randomUUID().toString().replace("-", "");
         assertThat(SAFE_SCHEMA.matcher(schema).matches()).isTrue();
         jdbc.execute("CREATE SCHEMA " + identifier(schema));
+        jdbc.execute("SET search_path TO " + identifier(schema));
     }
 
     @AfterEach
@@ -386,6 +388,212 @@ class HistoricalUpgradeIntegrationTest {
     }
 
     @Test
+    void v30ToV31BackfillsCanonicalSourceStateAndSafelyCleansExactLegacyEvents() {
+        migrateTo("30");
+        Map<String, Integer> v1ToV30Checksums = migrationChecksums();
+        insertUser(31_001L, "v31-owner-one");
+        insertUser(31_002L, "v31-owner-two");
+        insertUser(31_003L, "v31-empty-owner");
+
+        jdbc.update("INSERT INTO " + table("fatsecret_day") + " " +
+                "(id, user_id, date, calories, protein, fat, carbohydrate, external_hash, summary_hash, entries_hash) " +
+                "VALUES (31001, 31001, DATE '2026-08-01', 1800, 120, 60, 200, 'same-external', 'summary-a', 'entries-a')");
+        jdbc.update("INSERT INTO " + table("fatsecret_day") + " " +
+                "(id, user_id, date, calories, protein, fat, carbohydrate, external_hash, summary_hash, entries_hash) " +
+                "VALUES (31002, 31002, DATE '2026-08-01', 1800, 120, 60, 200, 'same-external', 'summary-b', 'entries-b')");
+        jdbc.update("INSERT INTO " + table("fatsecret_food") + " " +
+                "(id, external_food_id, external_entry_id, name, meal_type, calories, protein, fat, carbohydrate, day_id) " +
+                "VALUES (31003, 9001, 9101, 'private-name-one', 'meal', 500, 30, 10, 40, 31001), " +
+                "(31004, 9001, 9101, 'private-name-two', 'meal', 500, 30, 10, 40, 31002)");
+        jdbc.update("INSERT INTO " + table("workout") + " " +
+                "(id, jefit_id, date, user_id) VALUES " +
+                "(31005, 9201, TIMESTAMPTZ '2026-08-02 08:00:00Z', 31001), " +
+                "(31006, 9202, TIMESTAMPTZ '2026-08-03 08:00:00Z', 31001)");
+        jdbc.update("INSERT INTO " + table("workout_exercises") + " " +
+                "(id, jefit_log_id, exercise_name, workout_id) VALUES " +
+                "(31007, 9301, 'private-exercise', 31005), " +
+                "(31008, 9302, 'private-exercise-2', 31006)");
+        jdbc.update("INSERT INTO " + table("workout_sets") + " " +
+                "(id, set_index, weight, reps, exercise_id) VALUES " +
+                "(31009, 0, 100, 5, 31007), (31010, 0, 110, 5, 31008)");
+        jdbc.update("INSERT INTO " + table("workout_cardio") + " " +
+                "(id, jefit_id, user_id, date, exercise_id, exercise_name, duration_seconds, distance, calories) " +
+                "VALUES (31011, 9401, 31001, TIMESTAMP '2026-08-03 09:00:00', 9402, " +
+                "'private-cardio-name', 1200, 5.0, 350), " +
+                "(31012, 9403, 31001, TIMESTAMP '2026-08-04 09:00:00', 9404, " +
+                "'private-cardio-name-2', 900, 3.0, 210)");
+
+        UUID malformed = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent", "{not-json");
+        UUID incomplete = insertTypedPublication(
+                "com.fit.fitnessapp.api.WorkoutImportedEvent", "{\"metadata\":{\"eventId\":\"bad\"}}");
+        UUID complete = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent", completeMetadataJson("NUTRITION_DAY"));
+        UUID metadataMissing = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                "{\"userId\":31001,\"sourceDate\":\"2026-08-01\",\"entries\":[]}");
+        UUID metadataNull = insertTypedPublication(
+                "com.fit.fitnessapp.api.WorkoutImportedEvent",
+                "{\"userId\":31001,\"metadata\":null}");
+        UUID ownerlessComplete = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY")
+                        .replace("{\"userId\":31001,\"metadata\"", "{\"metadata\""));
+        UUID mismatchedOwner = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY")
+                        .replace("{\"userId\":31001,\"metadata\"", "{\"userId\":31002,\"metadata\""));
+        UUID completeYearOne = insertTypedPublication(
+                "com.fit.fitnessapp.api.WorkoutImportedEvent",
+                completeMetadataJson("WORKOUT_DAY", "0001-01-01", "0001-01-01T00:00:00+00:00"));
+        UUID wrongUserId = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY").replace("\"userId\":31001,\"sourceType\"", "\"userId\":{},\"sourceType\""));
+        UUID wrongSourceVersion = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY").replace("\"sourceVersion\":1", "\"sourceVersion\":\"not-a-number\""));
+        UUID wrongSourceId = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY").replace("\"sourceId\":\"2026-08-01\"", "\"sourceId\":\"2026-02-30\""));
+        UUID wrongOccurredAt = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEvent",
+                completeMetadataJson("NUTRITION_DAY").replace("\"occurredAt\":\"2026-08-19T00:00:00Z\"", "\"occurredAt\":{}"));
+        UUID lookalike = insertTypedPublication(
+                "com.fit.fitnessapp.api.NutritionSyncedEventExtra", "{not-json");
+        UUID unrelated = insertTypedPublication("example.UnrelatedEvent", "{not-json");
+
+        migrateToLatest();
+
+        assertThat(migrationChecksums()).containsExactlyInAnyOrderEntriesOf(v1ToV30Checksums);
+        assertThat(columnIsNotNull("users", "lifecycle_epoch")).isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT lifecycle_epoch) FROM " + table("users"), Long.class))
+                .isEqualTo(jdbc.queryForObject("SELECT COUNT(*) FROM " + table("users"), Long.class));
+        UUID existingEpoch = jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users")
+                + " WHERE id = 31001", UUID.class);
+        long newUser = 31_004L;
+        insertUser(newUser, "v31-new-owner");
+        UUID newEpoch = jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users")
+                + " WHERE id = ?", UUID.class, newUser);
+        assertThat(newEpoch).isNotNull().isNotEqualTo(existingEpoch);
+        assertThatThrownBy(() -> jdbc.update("UPDATE " + table("users") + " SET lifecycle_epoch = ? WHERE id = ?",
+                existingEpoch, newUser)).isInstanceOf(RuntimeException.class);
+
+        assertThat(count("nutrition_source_state", "user_id = 31001")).isOne();
+        assertThat(count("nutrition_source_state", "user_id = 31002")).isOne();
+        assertThat(count("workout_source_state", "user_id = 31001")).isEqualTo(3L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + table("workout_source_state")
+                + " WHERE user_id = 31001 AND source_date = DATE '2026-08-03'", Long.class)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT content_hash) FROM " + table("nutrition_source_state")
+                + " WHERE source_date = DATE '2026-08-01'", Long.class)).isEqualTo(2L);
+        assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT content_hash) FROM " + table("workout_source_state")
+                + " WHERE user_id = 31001", Long.class)).isEqualTo(3L);
+
+        assertThat(countById("event_publication", malformed)).isZero();
+        assertThat(countById("event_publication", incomplete)).isZero();
+        assertThat(countById("event_publication", complete)).isOne();
+        assertThat(publicationOwner(complete)).isEqualTo(31001L);
+        assertThat(countById("event_publication", metadataMissing)).isZero();
+        assertThat(countById("event_publication", metadataNull)).isZero();
+        assertThat(countById("event_publication", ownerlessComplete)).isZero();
+        assertThat(countById("event_publication", mismatchedOwner)).isZero();
+        assertThat(countById("event_publication", completeYearOne)).isOne();
+        assertThat(countById("event_publication", wrongUserId)).isZero();
+        assertThat(countById("event_publication", wrongSourceVersion)).isZero();
+        assertThat(countById("event_publication", wrongSourceId)).isZero();
+        assertThat(countById("event_publication", wrongOccurredAt)).isZero();
+        assertThat(countById("event_publication", lookalike)).isOne();
+        assertThat(countById("event_publication", unrelated)).isOne();
+
+        UUID ownerEpoch = jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users")
+                + " WHERE id = 31001", UUID.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("nutrition_source_state") + " " +
+                "(user_id, source_date, source_version, content_hash, present, lifecycle_epoch) " +
+                "VALUES (31001, DATE '2026-08-10', 1, ?, TRUE, ?)", "not-a-hash", ownerEpoch))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("nutrition_source_state") + " " +
+                "(user_id, source_date, source_version, content_hash, present, lifecycle_epoch) " +
+                "VALUES (31001, DATE '2026-08-10', 1, ?, TRUE, ?)",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                UUID.randomUUID())).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("nutrition_source_state") + " " +
+                "(user_id, source_date, source_version, content_hash, present, lifecycle_epoch) " +
+                "VALUES (999999, DATE '2026-08-10', 1, ?, TRUE, ?)",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ownerEpoch))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void cleanLatestSchemaAllocatesLifecycleEpochAndEmptySourceTables() {
+        migrateToLatest();
+        long userId = 31_101L;
+        insertUser(userId, "v31-clean-owner");
+        assertThat(jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users") + " WHERE id = ?",
+                UUID.class, userId))
+                .isNotNull();
+        assertThat(count("nutrition_source_state", "user_id = ?", userId)).isZero();
+        assertThat(count("workout_source_state", "user_id = ?", userId)).isZero();
+    }
+
+    @Test
+    void canonicalHashesCompareOnlyFieldSensitiveStableContent() {
+        migrateTo("30");
+        insertUser(31_010L, "hash-nutrition-baseline");
+        insertUser(31_011L, "hash-nutrition-same-content");
+        insertUser(31_012L, "hash-nutrition-summary-change");
+        insertUser(31_013L, "hash-nutrition-entries-change");
+        insertUser(31_020L, "hash-workout-baseline");
+        insertUser(31_021L, "hash-workout-stable-identifier-change");
+        insertUser(31_022L, "hash-workout-strength-number-change");
+        insertUser(31_023L, "hash-workout-cardio-number-change");
+        insertUser(31_024L, "hash-workout-excluded-fields-change");
+
+        insertNutritionHashFixture(31_010L, 32001L, "2026-08-10", "summary-base", "entries-base", 32002L,
+                "private-nutrition-name-one");
+        insertNutritionHashFixture(31_011L, 32011L, "2026-08-09", "summary-base", "entries-base", 32012L,
+                "private-nutrition-name-two");
+        insertNutritionHashFixture(31_012L, 32021L, "2026-08-10", "summary-changed", "entries-base", 32022L,
+                "private-nutrition-name-three");
+        insertNutritionHashFixture(31_013L, 32031L, "2026-08-10", "summary-base", "entries-changed", 32032L,
+                "private-nutrition-name-four");
+
+        insertWorkoutHashFixture(31_020L, "2026-08-11", 32101L, 32102L, 32103L, 32104L,
+                9201L, 9301L, 9401L, 9402L, 0, 100, 5, 1200, 5.0d, 350,
+                "private-strength-one", "private-cardio-one");
+        insertWorkoutHashFixture(31_021L, "2026-08-10", 32111L, 32112L, 32113L, 32114L,
+                9202L, 9302L, 9402L, 9403L, 0, 100, 5, 1200, 5.0d, 350,
+                "private-strength-two", "private-cardio-two");
+        insertWorkoutHashFixture(31_022L, "2026-08-09", 32121L, 32122L, 32123L, 32124L,
+                9201L, 9301L, 9401L, 9402L, 0, 101, 5, 1200, 5.0d, 350,
+                "private-strength-three", "private-cardio-three");
+        insertWorkoutHashFixture(31_023L, "2026-08-09", 32131L, 32132L, 32133L, 32134L,
+                9201L, 9301L, 9401L, 9402L, 0, 100, 5, 1300, 5.0d, 350,
+                "private-strength-four", "private-cardio-four");
+        insertWorkoutHashFixture(31_024L, "2026-08-08", 32141L, 32142L, 32143L, 32144L,
+                9201L, 9301L, 9401L, 9402L, 0, 100, 5, 1200, 5.0d, 350,
+                "private-strength-five", "private-cardio-five");
+
+        migrateToLatest();
+
+        String nutritionBaseline = sourceHash("nutrition_source_state", 31_010L, "2026-08-10");
+        String nutritionSameContent = sourceHash("nutrition_source_state", 31_011L, "2026-08-09");
+        String nutritionSummaryChanged = sourceHash("nutrition_source_state", 31_012L, "2026-08-10");
+        String nutritionEntriesChanged = sourceHash("nutrition_source_state", 31_013L, "2026-08-10");
+        assertThat(nutritionSameContent).isEqualTo(nutritionBaseline);
+        assertThat(nutritionSummaryChanged).isNotEqualTo(nutritionBaseline);
+        assertThat(nutritionEntriesChanged).isNotEqualTo(nutritionBaseline);
+
+        String workoutBaseline = sourceHash("workout_source_state", 31_020L, "2026-08-11");
+        String workoutStableIdentifiersChanged = sourceHash("workout_source_state", 31_021L, "2026-08-10");
+        String workoutStrengthNumbersChanged = sourceHash("workout_source_state", 31_022L, "2026-08-09");
+        String workoutCardioNumbersChanged = sourceHash("workout_source_state", 31_023L, "2026-08-09");
+        String workoutExcludedFieldsChanged = sourceHash("workout_source_state", 31_024L, "2026-08-08");
+        assertThat(workoutStableIdentifiersChanged).isNotEqualTo(workoutBaseline);
+        assertThat(workoutStrengthNumbersChanged).isNotEqualTo(workoutBaseline);
+        assertThat(workoutCardioNumbersChanged).isNotEqualTo(workoutBaseline);
+        assertThat(workoutExcludedFieldsChanged).isEqualTo(workoutBaseline);
+    }
+
+    @Test
     void v28ToV29BackfillsLeaseStateAndEnforcesEveryLeaseInvariant() {
         migrateTo("28");
         insertUser(2901L, "v29-owner");
@@ -685,6 +893,103 @@ class HistoricalUpgradeIntegrationTest {
                         + " (id, listener_id, event_type, serialized_event, publication_date)"
                         + " VALUES (?, 'historical-test', 'historical.Event', ?, CURRENT_TIMESTAMP)",
                 id, serializedEvent);
+    }
+
+    private UUID insertTypedPublication(String eventType, String serializedEvent) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO " + table("event_publication")
+                        + " (id, listener_id, event_type, serialized_event, publication_date)"
+                        + " VALUES (?, 'v31-test', ?, ?, CURRENT_TIMESTAMP)",
+                id, eventType, serializedEvent);
+        return id;
+    }
+
+    private String completeMetadataJson(String sourceType) {
+        return completeMetadataJson(sourceType, "2026-08-01", "2026-08-19T00:00:00Z");
+    }
+
+    private String completeMetadataJson(String sourceType, String sourceId, String occurredAt) {
+        return "{\"userId\":31001,\"metadata\":{"
+                + "\"eventId\":\"00000000-0000-4000-8000-000000031001\","
+                + "\"userId\":31001,"
+                + "\"sourceType\":\"" + sourceType + "\","
+                + "\"sourceId\":\"" + sourceId + "\","
+                + "\"sourceVersion\":1,"
+                + "\"changeType\":\"UPSERT\","
+                + "\"contentHash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\","
+                + "\"lifecycleEpoch\":\"00000000-0000-4000-8000-000000031002\","
+                + "\"schemaVersion\":1,"
+                + "\"occurredAt\":\"" + occurredAt + "\"}}";
+    }
+
+    private void insertNutritionHashFixture(
+            long userId,
+            long dayId,
+            String sourceDate,
+            String summaryHash,
+            String entriesHash,
+            long foodId,
+            String privateName) {
+        jdbc.update("INSERT INTO " + table("fatsecret_day") + " "
+                        + "(id, user_id, date, calories, protein, fat, carbohydrate, external_hash, summary_hash, entries_hash) "
+                        + "VALUES (?, ?, CAST(? AS DATE), 1800, 120, 60, 200, 'same-external', ?, ?)",
+                dayId, userId, sourceDate, summaryHash, entriesHash);
+        jdbc.update("INSERT INTO " + table("fatsecret_food") + " "
+                        + "(id, external_food_id, external_entry_id, name, meal_type, calories, protein, fat, carbohydrate, day_id) "
+                        + "VALUES (?, 9901, 9911, ?, 'meal', 500, 30, 10, 40, ?)",
+                foodId, privateName, dayId);
+    }
+
+    private void insertWorkoutHashFixture(
+            long userId,
+            String sourceDate,
+            long workoutId,
+            long exerciseId,
+            long setId,
+            long cardioId,
+            long jefitId,
+            long jefitLogId,
+            long cardioJefitId,
+            long cardioExerciseId,
+            int setIndex,
+            int weight,
+            int reps,
+            int cardioDurationSeconds,
+            double cardioDistance,
+            int cardioCalories,
+            String privateExerciseName,
+            String privateCardioName) {
+        jdbc.update("INSERT INTO " + table("workout") + " "
+                        + "(id, jefit_id, date, user_id) VALUES (?, ?, CAST(? || ' 08:00:00+00:00' AS TIMESTAMPTZ), ?)",
+                workoutId, jefitId, sourceDate, userId);
+        jdbc.update("INSERT INTO " + table("workout_exercises") + " "
+                        + "(id, jefit_log_id, exercise_name, workout_id) VALUES (?, ?, ?, ?)",
+                exerciseId, jefitLogId, privateExerciseName, workoutId);
+        jdbc.update("INSERT INTO " + table("workout_sets") + " "
+                        + "(id, set_index, weight, reps, exercise_id) VALUES (?, ?, ?, ?, ?)",
+                setId, setIndex, weight, reps, exerciseId);
+        jdbc.update("INSERT INTO " + table("workout_cardio") + " "
+                        + "(id, jefit_id, user_id, date, exercise_id, exercise_name, duration_seconds, distance, calories) "
+                        + "VALUES (?, ?, ?, CAST(? || ' 09:00:00' AS TIMESTAMP), ?, ?, ?, ?, ?)",
+                cardioId, cardioJefitId, userId, sourceDate, cardioExerciseId, privateCardioName,
+                cardioDurationSeconds, cardioDistance, cardioCalories);
+    }
+
+    private String sourceHash(String sourceTable, long userId, String sourceDate) {
+        return jdbc.queryForObject("SELECT content_hash FROM " + table(sourceTable)
+                        + " WHERE user_id = ? AND source_date = CAST(? AS DATE)", String.class, userId, sourceDate);
+    }
+
+    private Map<String, Integer> migrationChecksums() {
+        return jdbc.query("SELECT version, checksum FROM " + table("flyway_schema_history")
+                        + " WHERE version IS NOT NULL AND version <> '31'",
+                resultSet -> {
+                    Map<String, Integer> checksums = new java.util.HashMap<>();
+                    while (resultSet.next()) {
+                        checksums.put(resultSet.getString("version"), resultSet.getInt("checksum"));
+                    }
+                    return checksums;
+                });
     }
 
     private String keyForJob(long id) {

@@ -41,6 +41,16 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
                           JOIN fatsecret_day day ON day.id = food.day_id
                          WHERE day.user_id = ?
                         """, userId),
+                "nutritionSourceState", jdbc.queryForList("""
+                        SELECT source_date AS "sourceDate",
+                               source_version AS "sourceVersion",
+                               present,
+                               created_at AS "createdAt",
+                               updated_at AS "updatedAt"
+                          FROM nutrition_source_state
+                         WHERE user_id = ?
+                         ORDER BY source_date
+                        """, userId),
                 "fatSecretConnected", Boolean.TRUE.equals(jdbc.queryForObject("""
                         SELECT EXISTS(SELECT 1 FROM fatsecret_connection WHERE user_id = ?)
                         """, Boolean.class, userId))));
@@ -88,11 +98,21 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
                         null,
                         List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "nutrition_source_state",
+                        DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override
     public void deleteData(Long userId) {
+        jdbc.queryForObject("SELECT id FROM users WHERE id = ? FOR UPDATE", Long.class, userId);
+        jdbc.update("DELETE FROM nutrition_source_state WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM fatsecret_connection WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM weight_history WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM profile WHERE user_id = ?", userId);

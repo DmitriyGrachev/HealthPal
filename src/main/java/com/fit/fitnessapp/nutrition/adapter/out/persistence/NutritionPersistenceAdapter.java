@@ -212,6 +212,7 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
 
         List<FatsecretJpaDay> toSave = new ArrayList<>();
         List<LocalDate> changedDates = new ArrayList<>();
+        List<NutritionDaySaveResult> changedDays = new ArrayList<>();
 
         for (NutritionDaySummary s : nutritionMonth.days()) {
             String hash = computeSummaryHash(userId, s.date(), s.calories(), s.protein(), s.fat(), s.carbohydrate());
@@ -227,13 +228,23 @@ public class NutritionPersistenceAdapter implements NutritionCommandPort {
                 day = buildDayFromSummary(userId, s, hash);
             }
             changedDates.add(s.date());
+            changedDays.add(new NutritionDaySaveResult(
+                    userId,
+                    s.date(),
+                    true,
+                    day.getSummaryHash(),
+                    Optional.ofNullable(day.getEntriesHash()).orElse(day.getExternalHash()),
+                    (int) day.getCalories(),
+                    day.getProtein(),
+                    day.getFat(),
+                    day.getCarbohydrate()));
             toSave.add(day);
         }
 
         if (!toSave.isEmpty()) {
             dayRepository.saveAll(toSave); // Batch INSERT/UPDATE.
         }
-        return new NutritionMonthSaveResult(userId, List.copyOf(changedDates));
+        return new NutritionMonthSaveResult(userId, List.copyOf(changedDates), List.copyOf(changedDays));
     }
 
     @Override

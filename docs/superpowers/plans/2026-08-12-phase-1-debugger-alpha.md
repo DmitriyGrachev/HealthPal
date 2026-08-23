@@ -51,7 +51,7 @@ mvn -Dit.test=ExperimentOwnershipIntegrationTest verify -Pintegration
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V32__create_experiment_core.sql` with:
+Add `src/main/resources/db/migration/V33__create_experiment_core.sql` with:
 
 - `investigations`;
 - `goals`;
@@ -105,7 +105,7 @@ Controllers obtain `userId` only from `CurrentUserApi`. Transition requests cont
 
 Declare `@ApplicationModule(allowedDependencies={"auth", "api::lifecycle"})` for the initial module, using the existing lifecycle SPI through an explicitly named neutral interface. Before Iteration 1.4, extend it only with `api::evidence-source`. Architecture tests forbid `experiment -> ai|knowledge|memory|telegram` and forbid imports from unlisted `api` packages; consumers import named interfaces, never experiment adapters.
 
-Add `ExperimentUserDataLifecycleParticipant` immediately. It exports Investigation, Goal, and non-content command-receipt records and deletes them by owner. Add these collections to the versioned export manifest rather than extending the legacy hard-coded V1 DTO. Extend V2 export tests and `UserDataLifecycleServiceIntegrationTest` for all three V32 tables before committing.
+Add `ExperimentUserDataLifecycleParticipant` immediately. It exports Investigation, Goal, and non-content command-receipt records and deletes them by owner. Add these collections to the versioned export manifest rather than extending the legacy hard-coded V1 DTO. Extend V2 export tests and `UserDataLifecycleServiceIntegrationTest` for all three V33 tables before committing.
 
 Publish identifiers-only `InvestigationCreated` and `GoalActivated` product events and add counters with stable status/type labels only. Tests assert no username, email, free text, or user ID metric tag.
 
@@ -135,7 +135,7 @@ Prove the full state graph, exactly one intervention, required baseline/duration
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V33__create_experiment_lifecycle.sql` with:
+Add `src/main/resources/db/migration/V34__create_experiment_lifecycle.sql` with:
 
 - `experiments`;
 - `experiment_transitions`;
@@ -151,7 +151,7 @@ Add:
 - `ExperimentService` and JDBC persistence adapter;
 - `ExperimentController` and stable error mapping for invalid transition, version conflict, and in-flight conflict.
 
-Every state change locks or conditionally updates the aggregate with `WHERE user_id=? AND id=? AND aggregate_version=?`, appends one transition audit row, increments the version, and records the idempotency receipt in one transaction. Experiment transitions reuse the generic `experiment_command_receipts` table created solely by V32; V33 does not recreate or alter its ownership contract.
+Every state change locks or conditionally updates the aggregate with `WHERE user_id=? AND id=? AND aggregate_version=?`, appends one transition audit row, increments the version, and records the idempotency receipt in one transaction. Experiment transitions reuse the generic `experiment_command_receipts` table created solely by V33; V34 does not recreate or alter its ownership contract.
 
 Add `ExperimentChangedEvent` carrying only versioned metadata and identifiers, no hypothesis/intervention text.
 
@@ -195,7 +195,7 @@ Required cases:
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V34__create_experiment_evidence.sql`. Create:
+Add `src/main/resources/db/migration/V35__create_experiment_evidence.sql`. Create:
 
 - `experiment_check_ins`;
 - `experiment_outcomes`;
@@ -205,7 +205,7 @@ Add `src/main/resources/db/migration/V34__create_experiment_evidence.sql`. Creat
 - unique `(experiment_id, local_date)` and command-idempotency constraints;
 - owner/composite FKs and cascade behavior.
 
-`experiment_evidence_refs` is created here in V34 and exported/deleted in this iteration, even though the context assembler that reads it arrives in 1.4. V34 is complete and immutable after this commit.
+`experiment_evidence_refs` is created here in V35 and exported/deleted in this iteration, even though the context assembler that reads it arrives in 1.4. V35 is complete and immutable after this commit.
 
 Add domain types:
 

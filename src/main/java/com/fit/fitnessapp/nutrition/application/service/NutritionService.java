@@ -4,17 +4,14 @@ import com.fit.fitnessapp.nutrition.application.port.in.ConnectFatSecretUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
-import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.domain.*;
-import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -29,21 +26,22 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
 
     private final FatSecretApiPort apiPort;
     private final NutritionCommandPort nutritionCommandPort;
-    private final TransactionalEventPublisher eventPublisher;
+    private final NutritionSyncCommitService commitService;
     private final Clock clock;
 
     @Autowired
     public NutritionService(FatSecretApiPort apiPort, NutritionCommandPort nutritionCommandPort,
-                            TransactionalEventPublisher eventPublisher, Clock clock) {
+                            NutritionSyncCommitService commitService, Clock clock) {
         this.apiPort = apiPort;
         this.nutritionCommandPort = nutritionCommandPort;
-        this.eventPublisher = eventPublisher;
+        this.commitService = commitService;
         this.clock = clock;
     }
 
     public NutritionService(FatSecretApiPort apiPort, NutritionCommandPort nutritionCommandPort,
                             ApplicationEventPublisher eventPublisher) {
-        this(apiPort, nutritionCommandPort, new TransactionalEventPublisher(eventPublisher), Clock.systemUTC());
+        this(apiPort, nutritionCommandPort,
+                new NutritionSyncCommitService(nutritionCommandPort, eventPublisher), Clock.systemUTC());
     }
 
     @Value("${nutrition.sync.detail-window-days:3}")
@@ -69,10 +67,7 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         long daysSinceEpoch = date.toEpochDay();
         NutritionDay nutritionDay = apiPort.fetchAndParseFoodEntries(token, userId, daysSinceEpoch);
 
-        NutritionDaySaveResult result = nutritionCommandPort.saveNutritionDay(nutritionDay);
-        if (result.changed()) {
-            publishNutritionSyncedEvent(result);
-        }
+        commitService.commitDay(nutritionDay);
 
         log.info(
                 "Nutrition sync completed userId={} date={} status={} errorCode={}",
@@ -98,16 +93,12 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
                     throw new ExternalApiException("FatSecret monthly response was " + fetchResult.status(), null);
         };
 
-        NutritionMonthSaveResult monthResult = nutritionCommandPort.saveNutritionMonth(nutritionMonth);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        NutritionSyncCommitResult monthResult = commitService.commitMonth(nutritionMonth, monthStart, monthEnd);
         Set<LocalDate> monthDates = nutritionMonth.days().stream()
                 .map(NutritionDaySummary::date)
                 .collect(Collectors.toSet());
-        LocalDate monthStart = today.withDayOfMonth(1);
-        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-        nutritionCommandPort.deleteNutritionDaysMissingFromMonth(userId, monthStart, monthEnd, monthDates)
-                .stream()
-                .filter(NutritionDaySaveResult::changed)
-                .forEach(this::publishNutritionSyncedEvent);
 
         Set<LocalDate> detailDates = new LinkedHashSet<>();
         monthResult.changedDates().stream()
@@ -121,12 +112,9 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
         }
 
         for (LocalDate detailDate : detailDates) {
+            NutritionDay fullDay;
             try {
-                NutritionDay fullDay = apiPort.fetchAndParseFoodEntries(token, userId, detailDate.toEpochDay());
-                NutritionDaySaveResult result = nutritionCommandPort.saveNutritionDay(fullDay);
-                if (result.changed()) {
-                    publishNutritionSyncedEvent(result);
-                }
+                fullDay = apiPort.fetchAndParseFoodEntries(token, userId, detailDate.toEpochDay());
             } catch (Exception ex) {
                 log.warn(
                         "Nutrition daily backfill failed userId={} date={} status={} errorCode={}",
@@ -135,22 +123,10 @@ public class NutritionService implements ConnectFatSecretUseCase, SyncNutritionU
                         "error",
                         ex.getClass().getSimpleName()
                 );
+                continue;
             }
+            commitService.commitDay(fullDay);
         }
 
-    }
-
-    private void publishNutritionSyncedEvent(NutritionDaySaveResult result) {
-        eventPublisher.publish(new NutritionSyncedEvent(
-                result.userId(),
-                result.date(),
-                result.totalCalories(),
-                result.protein(),
-                result.fat(),
-                result.carbohydrate(),
-                true,
-                result.summaryHash(),
-                result.entriesHash()
-        ));
     }
 }

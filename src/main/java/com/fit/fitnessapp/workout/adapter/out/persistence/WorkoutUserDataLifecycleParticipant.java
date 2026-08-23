@@ -40,7 +40,17 @@ public class WorkoutUserDataLifecycleParticipant implements UserDataLifecyclePar
                          WHERE session.user_id = ?
                         """, userId),
                 "workoutCardio", jdbc.queryForList(
-                        "SELECT * FROM workout_cardio WHERE user_id = ?", userId)));
+                        "SELECT * FROM workout_cardio WHERE user_id = ?", userId),
+                "workoutSourceState", jdbc.queryForList("""
+                        SELECT source_date AS "sourceDate",
+                               source_version AS "sourceVersion",
+                               present,
+                               created_at AS "createdAt",
+                               updated_at AS "updatedAt"
+                          FROM workout_source_state
+                         WHERE user_id = ?
+                         ORDER BY source_date
+                        """, userId)));
     }
 
     @Override
@@ -52,11 +62,21 @@ public class WorkoutUserDataLifecycleParticipant implements UserDataLifecyclePar
                 null,
                 List.of(DataRetentionDisclosure.ExternalProcessor.AI_PROVIDER),
                 DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
-                DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
+                DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
+                new DataRetentionDisclosure(
+                        "workout_source_state",
+                        DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
+                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        null,
+                        List.of(),
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
     }
 
     @Override
     public void deleteData(Long userId) {
+        jdbc.queryForObject("SELECT id FROM users WHERE id = ? FOR UPDATE", Long.class, userId);
+        jdbc.update("DELETE FROM workout_source_state WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM workout_cardio WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM workout WHERE user_id = ?", userId);
     }

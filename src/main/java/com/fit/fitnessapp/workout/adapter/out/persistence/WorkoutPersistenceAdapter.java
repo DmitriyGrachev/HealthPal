@@ -14,6 +14,8 @@ import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
 import com.fit.fitnessapp.workout.domain.WorkoutPersistenceResult;
 import com.fit.fitnessapp.workout.domain.WorkoutSession;
+import com.fit.fitnessapp.workout.domain.WorkoutCanonicalDay;
+import org.apache.commons.codec.digest.DigestUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Component
@@ -54,7 +57,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
 
         if (strengthSessions.isEmpty()) {
             changedDates.addAll(syncCardio(sessions, userId));
-            return new WorkoutPersistenceResult(distinctDates(changedDates));
+            return resultWithCanonicalDays(userId, changedDates);
         }
 
         List<Long> incomingJefitIds = strengthSessions.stream()
@@ -91,6 +94,10 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             WorkoutJpaEntity workout = existingWorkouts.get(session.externalId());
             if (workout != null && !workoutChanged(workout, session)) {
                 continue;
+            }
+            if (workout != null && workout.getDate() != null && session.date() != null
+                    && !workout.getDate().equals(session.date())) {
+                changedDates.add(workout.getDate().toLocalDate());
             }
             if (workout == null) {
                 workout = new WorkoutJpaEntity();
@@ -141,7 +148,7 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             workoutJpaRepository.saveAll(toSave);
         }
         changedDates.addAll(syncCardio(sessions, userId));
-        return new WorkoutPersistenceResult(distinctDates(changedDates));
+        return resultWithCanonicalDays(userId, changedDates);
     }
 
     private List<LocalDate> distinctDates(List<LocalDate> dates) {
@@ -205,6 +212,9 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             }
             if (cardioEntity == null) {
                 cardioEntity = new WorkoutCardioJpaEntity();
+            } else if (cardioEntity.getDate() != null && imported.date() != null
+                    && !cardioEntity.getDate().equals(imported.date())) {
+                changedDates.add(cardioEntity.getDate().toLocalDate());
             }
 
             cardioEntity.setJefitId(domainCardio.jefitId());
@@ -223,6 +233,87 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
             cardioJpaRepository.saveAll(toSave);
         }
         return changedDates;
+    }
+
+    private WorkoutPersistenceResult resultWithCanonicalDays(Long userId, List<LocalDate> changedDates) {
+        List<LocalDate> distinctChangedDates = distinctDates(changedDates);
+        if (distinctChangedDates.isEmpty()) {
+            return new WorkoutPersistenceResult(List.of(), List.of());
+        }
+        workoutJpaRepository.flush();
+        cardioJpaRepository.flush();
+        List<WorkoutCanonicalDay> canonicalDays = distinctChangedDates.stream()
+                .map(date -> canonicalDay(userId, date))
+                .toList();
+        return new WorkoutPersistenceResult(distinctChangedDates, canonicalDays);
+    }
+
+    private WorkoutCanonicalDay canonicalDay(Long userId, LocalDate date) {
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.plusDays(1).atStartOfDay();
+        List<WorkoutJpaEntity> workouts = workoutJpaRepository
+                .findWithExercisesByUserIdAndDateRange(userId, from, to);
+        List<Long> workoutIds = workouts.stream()
+                .map(WorkoutJpaEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (!workoutIds.isEmpty()) {
+            exerciseJpaRepository.findExercisesWithSetsByWorkoutIdIn(workoutIds);
+        }
+        List<WorkoutCardioJpaEntity> cardio = cardioJpaRepository
+                .findByUserIdAndDateGreaterThanEqualAndDateLessThan(userId, from, to);
+        return new WorkoutCanonicalDay(date, !workouts.isEmpty() || !cardio.isEmpty(),
+                canonicalHash(workouts, cardio));
+    }
+
+    private String canonicalHash(
+            List<WorkoutJpaEntity> workouts,
+            List<WorkoutCardioJpaEntity> cardio) {
+        StringBuilder canonical = new StringBuilder("WORKOUT_DAY|");
+        workouts.stream()
+                .sorted(Comparator.comparing(WorkoutJpaEntity::getJefitId,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .forEach(workout -> {
+                    canonical.append("S:").append(value(workout.getJefitId())).append('|');
+                    workout.getExercises().stream()
+                            .sorted(Comparator.comparing(WorkoutExerciseJpaEntity::getJefitLogId,
+                                    Comparator.nullsFirst(Comparator.naturalOrder())))
+                            .forEach(exercise -> {
+                                canonical.append("E:").append(value(exercise.getJefitLogId())).append(':')
+                                        .append(nameDigest(exercise.getExerciseName())).append('|');
+                                exercise.getSets().stream()
+                                        .sorted(Comparator.comparingInt(WorkoutSetJpaEntity::getSetIndex)
+                                                .thenComparingInt(WorkoutSetJpaEntity::getReps)
+                                                .thenComparing(set -> value(set.getWeight())))
+                                        .forEach(set -> canonical.append("T:")
+                                                .append(set.getSetIndex()).append(':')
+                                                .append(set.getReps()).append(':')
+                                                .append(value(set.getWeight())).append('|'));
+                            });
+                });
+        cardio.stream()
+                .sorted(Comparator.comparing(WorkoutCardioJpaEntity::getJefitId)
+                        .thenComparing(WorkoutCardioJpaEntity::getExerciseId,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparingInt(WorkoutCardioJpaEntity::getDurationSeconds)
+                        .thenComparingDouble(WorkoutCardioJpaEntity::getDistance)
+                        .thenComparingDouble(WorkoutCardioJpaEntity::getCalories))
+                .forEach(entry -> canonical.append("C:")
+                        .append(value(entry.getJefitId())).append(':')
+                        .append(value(entry.getExerciseId())).append(':')
+                        .append(nameDigest(entry.getExerciseName())).append(':')
+                        .append(entry.getDurationSeconds()).append(':')
+                        .append(entry.getDistance()).append(':')
+                        .append(entry.getCalories()).append('|'));
+        return DigestUtils.sha256Hex(canonical.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String nameDigest(String name) {
+        return DigestUtils.sha256Hex(value(name).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String value(Object value) {
+        return value == null ? "null" : value.toString();
     }
 
     private boolean cardioChanged(

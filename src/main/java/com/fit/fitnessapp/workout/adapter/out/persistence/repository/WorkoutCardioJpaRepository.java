@@ -14,4 +14,7 @@ public interface WorkoutCardioJpaRepository extends JpaRepository<WorkoutCardioJ
     List<WorkoutCardioJpaEntity> findByJefitIdInAndUserId(Collection<Long> jefitIds, Long userId);
 
     List<WorkoutCardioJpaEntity> findByUserIdAndDateIn(Long userId, Collection<LocalDateTime> dates);
+
+    List<WorkoutCardioJpaEntity> findByUserIdAndDateGreaterThanEqualAndDateLessThan(
+            Long userId, LocalDateTime fromDate, LocalDateTime toDate);
 }

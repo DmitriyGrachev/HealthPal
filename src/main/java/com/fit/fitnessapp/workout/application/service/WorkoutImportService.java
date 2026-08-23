@@ -1,18 +1,15 @@
 package com.fit.fitnessapp.workout.application.service;
 
-import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.workout.application.port.in.ImportWorkoutUseCase;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutParserPort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
+import com.fit.fitnessapp.workout.domain.WorkoutImportCommitResult;
 import com.fit.fitnessapp.workout.domain.WorkoutImportResult;
-import com.fit.fitnessapp.workout.domain.WorkoutPersistenceResult;
-import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -20,22 +17,20 @@ import java.util.List;
 public class WorkoutImportService implements ImportWorkoutUseCase {
 
     private final List<WorkoutParserPort> parsers;
-    private final WorkoutPersistencePort persistencePort;
-    private final TransactionalEventPublisher eventPublisher;
+    private final WorkoutImportCommitService commitService;
 
     @Autowired
     public WorkoutImportService(List<WorkoutParserPort> parsers,
                                 WorkoutPersistencePort persistencePort,
-                                TransactionalEventPublisher eventPublisher) {
+                                WorkoutImportCommitService commitService) {
         this.parsers = parsers;
-        this.persistencePort = persistencePort;
-        this.eventPublisher = eventPublisher;
+        this.commitService = commitService;
     }
 
     public WorkoutImportService(List<WorkoutParserPort> parsers,
                                 WorkoutPersistencePort persistencePort,
                                 org.springframework.context.ApplicationEventPublisher eventPublisher) {
-        this(parsers, persistencePort, new TransactionalEventPublisher(eventPublisher));
+        this(parsers, persistencePort, new WorkoutImportCommitService(persistencePort, eventPublisher));
     }
 
     @Override
@@ -48,31 +43,7 @@ public class WorkoutImportService implements ImportWorkoutUseCase {
 
         WorkoutImportResult result = parser.parse(fileStream);
 
-        WorkoutPersistenceResult persistenceResult = persistencePort.saveAll(result.sessions(), userId);
-        publishImportedEvent(userId, result, persistenceResult.changedDates());
-
-        return result.withChangedCount(persistenceResult.changedDates().size());
-    }
-
-    private void publishImportedEvent(Long userId, WorkoutImportResult result, List<LocalDate> changedDates) {
-        if (changedDates.isEmpty()) {
-            return;
-        }
-
-        List<LocalDate> affectedDates = changedDates.stream()
-                .distinct()
-                .sorted()
-                .toList();
-        LocalDate fromDate = affectedDates.getFirst();
-        LocalDate toDate = affectedDates.getLast();
-
-        eventPublisher.publish(new WorkoutImportedEvent(
-                userId,
-                fromDate,
-                toDate,
-                result.importedCount(),
-                result.warnings().size(),
-                affectedDates
-        ));
+        WorkoutImportCommitResult commitResult = commitService.commit(result, userId);
+        return result.withChangedCount(commitResult.changedCount());
     }
 }

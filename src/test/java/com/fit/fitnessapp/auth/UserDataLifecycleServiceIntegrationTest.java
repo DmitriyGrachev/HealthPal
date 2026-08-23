@@ -2,6 +2,8 @@ package com.fit.fitnessapp.auth;
 
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.ChangeType;
+import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
 import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
 import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
@@ -18,6 +20,8 @@ import com.fit.fitnessapp.telegram.application.service.TelegramLinkRevocationSer
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
 import com.fit.fitnessapp.telegram.domain.ConversationState;
 import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
+import com.fit.fitnessapp.nutrition.application.port.out.NutritionSourceStatePort;
+import com.fit.fitnessapp.workout.application.port.out.WorkoutSourceStatePort;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +33,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.context.TestConfiguration;
 
 import java.time.LocalDate;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -60,6 +67,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     private JdbcTemplate jdbc;
 
     @Autowired
+    private DataSource dataSource;
+
+    @Autowired
     private MemoryEventListener memoryEventListener;
 
     @Autowired
@@ -70,6 +80,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private NutritionSourceStatePort nutritionSourceState;
+
+    @Autowired
+    private WorkoutSourceStatePort workoutSourceState;
 
     @Autowired
     private TelegramUserRepository telegramUserRepository;
@@ -170,7 +186,30 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .contains("ai_insights", "ai_usage_budget");
         assertThat(moduleCategories(v2, "nutrition"))
                 .contains("nutrition_profile_and_manual_weight", "fatsecret_connection", "fatsecret_weight",
-                        "fatsecret_day", "fatsecret_food");
+                        "fatsecret_day", "fatsecret_food", "nutrition_source_state");
+        assertThat(moduleCategories(v2, "workout")).contains("workout_source_state");
+
+        var nutritionModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("nutrition"))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nutritionSourceState = ((List<Map<String, Object>>)
+                nutritionModule.data().get("nutritionSourceState")).getFirst();
+        assertThat(nutritionSourceState)
+                .containsKeys("sourceDate", "sourceVersion", "present", "createdAt", "updatedAt")
+                .doesNotContainKeys("content_hash", "lifecycle_epoch", "contentHash", "lifecycleEpoch");
+
+        var workoutModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("workout"))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> workoutSourceState = ((List<Map<String, Object>>)
+                workoutModule.data().get("workoutSourceState")).getFirst();
+        assertThat(workoutSourceState)
+                .containsKeys("sourceDate", "sourceVersion", "present", "createdAt", "updatedAt")
+                .doesNotContainKeys("content_hash", "lifecycle_epoch", "contentHash", "lifecycleEpoch");
 
         var jobsModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("jobs"))
@@ -215,8 +254,10 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("weight_history", "user_id", userId)).isZero();
         assertThat(count("fatsecret_connection", "user_id", userId)).isZero();
         assertThat(count("fatsecret_day", "user_id", userId)).isZero();
+        assertThat(count("nutrition_source_state", "user_id", userId)).isZero();
         assertThat(count("workout", "user_id", userId)).isZero();
         assertThat(count("workout_cardio", "user_id", userId)).isZero();
+        assertThat(count("workout_source_state", "user_id", userId)).isZero();
         assertThat(count("ai_insights", "user_id", userId)).isZero();
         assertThat(count("telegram_users", "user_id", userId)).isZero();
         assertThat(count("conversation_state", "chat_id", chatId)).isZero();
@@ -253,6 +294,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     void participantFailureRollsBackEarlierModuleCleanupAndPreservesIdentity() {
         long userId = insertUser("rollback");
         jdbc.update("INSERT INTO profile (user_id, age) VALUES (?, 30)", userId);
+        seedSourceStateRows(userId);
         rollbackProbe.failFor(userId);
 
         try {
@@ -262,6 +304,8 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
             assertThat(count("users", "id", userId)).isOne();
             assertThat(count("profile", "user_id", userId)).isOne();
+            assertThat(count("nutrition_source_state", "user_id", userId)).isOne();
+            assertThat(count("workout_source_state", "user_id", userId)).isOne();
         } finally {
             rollbackProbe.clear();
         }
@@ -630,6 +674,87 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(serializedPublicationCount(userId)).isZero();
     }
 
+    @Test
+    void nutritionAccountDeletionAndAdvanceUseTheSameOwnerLockOrder() throws Exception {
+        assertDeletionAndAdvanceRaceIsDeadlockFree(
+                "nutrition_source_state",
+                userId -> nutritionSourceState.advance(
+                        userId,
+                        LocalDate.of(2026, 8, 8),
+                        ChangeType.UPSERT,
+                        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
+    }
+
+    @Test
+    void workoutAccountDeletionAndAdvanceUseTheSameOwnerLockOrder() throws Exception {
+        assertDeletionAndAdvanceRaceIsDeadlockFree(
+                "workout_source_state",
+                userId -> workoutSourceState.advance(
+                        userId,
+                        LocalDate.of(2026, 8, 8),
+                        ChangeType.UPSERT,
+                        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"));
+    }
+
+    private void assertDeletionAndAdvanceRaceIsDeadlockFree(
+            String sourceTable,
+            java.util.function.Function<Long, java.util.Optional<DomainSourceState>> advance) throws Exception {
+        long userId = insertUser("source-delete-race");
+        seedSourceStateRows(userId);
+        try (Connection external = dataSource.getConnection()) {
+            external.setAutoCommit(false);
+            lockSourceRow(external, sourceTable, userId);
+
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                var deletion = executor.submit(() -> lifecycleUseCase.deleteAccount(userId));
+                awaitBlockedSourceDelete(sourceTable);
+                var competingAdvance = executor.submit(() -> advance.apply(userId));
+
+                external.commit();
+
+                assertThat(deletion.get(10, TimeUnit.SECONDS).success()).isTrue();
+                assertThat(competingAdvance.get(10, TimeUnit.SECONDS)).isEmpty();
+            } finally {
+                if (!external.getAutoCommit()) {
+                    external.rollback();
+                }
+            }
+        } finally {
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+
+        assertThat(count("users", "id", userId)).isZero();
+        assertThat(count(sourceTable, "user_id", userId)).isZero();
+    }
+
+    private void lockSourceRow(Connection connection, String sourceTable, long userId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT user_id FROM " + sourceTable + " WHERE user_id = ? FOR UPDATE")) {
+            statement.setLong(1, userId);
+            statement.executeQuery().close();
+        }
+    }
+
+    private void awaitBlockedSourceDelete(String sourceTable) {
+        String queryPattern = "%DELETE FROM " + sourceTable + "%";
+        for (int attempt = 0; attempt < 2_000; attempt++) {
+            boolean blocked = Boolean.TRUE.equals(jdbc.queryForObject("""
+                    SELECT EXISTS (
+                        SELECT 1
+                          FROM pg_stat_activity activity
+                          JOIN pg_locks waiting ON waiting.pid = activity.pid
+                         WHERE NOT waiting.granted
+                           AND activity.query ILIKE ?
+                    )
+                    """, Boolean.class, queryPattern));
+            if (blocked) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+        throw new AssertionError("account deletion did not reach blocked " + sourceTable + " delete");
+    }
+
     @TestConfiguration
     static class RollbackTestConfiguration {
 
@@ -683,6 +808,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
     private void seedOwnedData(long userId, long chatId) {
         jdbc.update("INSERT INTO user_roles (user_id, role_name) VALUES (?, 'USER')", userId);
+        seedSourceStateRows(userId);
         jdbc.update("INSERT INTO profile (user_id, goal_weight_kg) VALUES (?, 75)", userId);
         jdbc.update("""
                 INSERT INTO weight_history (user_id, weight_kg, weight_date, weight_source)
@@ -763,6 +889,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     }
 
     private void seedControlData(long otherUserId, long otherChatId) {
+        seedSourceStateRows(otherUserId);
         jdbc.update("INSERT INTO profile (user_id, goal_weight_kg) VALUES (?, 70)", otherUserId);
         jdbc.update("""
                 INSERT INTO telegram_users (telegram_id, user_id, chat_id)
@@ -854,6 +981,23 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                            THEN serialized_event::jsonb ->> 'userId'
                        END = ?
                 """, Long.class, Long.toString(userId));
+    }
+
+    private void seedSourceStateRows(long userId) {
+        UUID lifecycleEpoch = jdbc.queryForObject(
+                "SELECT lifecycle_epoch FROM users WHERE id = ?", UUID.class, userId);
+        jdbc.update("""
+                INSERT INTO nutrition_source_state
+                    (user_id, source_date, source_version, content_hash, present, lifecycle_epoch)
+                VALUES (?, DATE '2026-08-08', 1,
+                        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', TRUE, ?)
+                """, userId, lifecycleEpoch);
+        jdbc.update("""
+                INSERT INTO workout_source_state
+                    (user_id, source_date, source_version, content_hash, present, lifecycle_epoch)
+                VALUES (?, DATE '2026-08-08', 1,
+                        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', TRUE, ?)
+                """, userId, lifecycleEpoch);
     }
 
     private java.util.Set<String> moduleCategories(UserDataExportManifest manifest, String moduleKey) {

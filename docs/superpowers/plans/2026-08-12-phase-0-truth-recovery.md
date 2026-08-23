@@ -268,6 +268,7 @@ record DomainEventMetadata(
     long sourceVersion,
     ChangeType changeType,
     String contentHash,
+    UUID lifecycleEpoch,
     int schemaVersion,
     Instant occurredAt
 ) {}
@@ -279,9 +280,31 @@ Add short transaction coordinators:
 - `workout/application/service/WorkoutImportCommitService.java`;
 - corresponding `CommitResult` records.
 
-Network fetch and CSV parsing stay outside transactions. Inside one `@Transactional` boundary, save canonical state and call normal `ApplicationEventPublisher.publishEvent`; Spring Modulith records durable publication in that transaction. Remove `REQUIRES_NEW` semantics from `TransactionalEventPublisher` or remove the wrapper after all callers migrate.
+Network fetch and CSV parsing stay outside transactions. Inside one `@Transactional` boundary, save canonical state and call normal `ApplicationEventPublisher.publishEvent`; Spring Modulith records durable publication in that transaction. The coordinators inject `ApplicationEventPublisher` directly. Keep the existing `TransactionalEventPublisher` temporarily for the Telegram note/weight callers that have not yet migrated; nutrition and workout must no longer use it. Removing or changing that legacy wrapper is a later atomic-source iteration, not a prerequisite for this commit.
 
-Consumers reread the exact current source version through module-owned ports. Missing source/owner is a successful no-op; stale version deletes or preserves the newer projection according to source truth.
+Use one source per user and calendar date:
+
+- nutrition source type `NUTRITION_DAY`, source ID ISO date;
+- workout source type `WORKOUT_DAY`, source ID ISO date.
+
+A monthly nutrition commit or multi-date workout import publishes one metadata-bearing identifiers/hash-only event per changed or deleted date, all inside the same transaction as the corresponding canonical writes. Provider values, macros, exercise text, and other raw content never enter the event. Existing top-level `userId` remains for durable publication ownership; the same value is present in metadata and must match.
+
+Keep the existing event FQCNs and their legacy JSON fields deserializable because incomplete Spring Modulith rows persist the class name and serialized JSON. Add metadata without renaming/removing old record components. New constructors populate legacy numeric/count fields only with neutral defaults and hashes/identifiers; consumers ignore them and require complete metadata. Old rows with absent metadata deserialize successfully and converge as a no-op. V31 removes pre-metadata nutrition/workout publication rows after source-state backfill so legacy raw macros/counts are not retained in the global publication ledger.
+
+Add `src/main/resources/db/migration/V31__version_domain_sources.sql`:
+
+- add a non-null UUID `lifecycle_epoch` to `users`, generated once per account lifetime;
+- add module-owned `nutrition_source_state` and `workout_source_state` tables keyed by `(user_id, source_date)` with monotonic positive `source_version`, current `content_hash`, `present` tombstone state, lifecycle epoch, timestamps, owner FK/cascade, epoch consistency, and shape constraints;
+- backfill one current version for every existing nutrition/workout date without exposing raw content;
+- delete legacy `NutritionSyncedEvent` / `WorkoutImportedEvent` publication rows that have no complete metadata after the backfill;
+- keep tombstones across source delete/recreate while the owning account exists;
+- extend nutrition/workout lifecycle export and deletion coverage for the new rows.
+
+Consumers reject legacy events without complete metadata, lifecycle-epoch mismatches, future versions, and missing owners as successful no-ops. They reread the current source state before enqueueing work. Duplicate delivery is idempotent by stable source identity, event ID, and source version. A stale event may only converge from current source truth; it cannot serialize or restore the old payload. Before an AI projection is committed, the source versions/hash used by its snapshot are revalidated inside the projection transaction so older work cannot overwrite a newer or deleted source. Current tombstones converge the projection to the result implied by all remaining sources.
+
+Consumers reread the exact current source version through module-owned ports. Missing source/owner is a successful no-op; stale version deletes or preserves the newer projection according to source truth. Account deletion cascades source state and outstanding publications, and a removed lifecycle epoch can never be recreated from replay.
+
+Completed publication rows contain only identifiers, hashes, versions, and timing metadata. Export only safe receipt columns, disclose account-lifetime retention, and continue deleting rows through the enforced owner FK; never export or log serialized raw event content.
 
 Record the design in `docs/adr/0016-atomic-state-and-durable-intent.md`.
 
@@ -289,7 +312,7 @@ Record the design in `docs/adr/0016-atomic-state-and-durable-intent.md`.
 
 ```powershell
 mvn -Dtest='*Event*Test,*Replay*Test' test
-mvn -Dit.test=NutritionAtomicPublicationIntegrationTest,WorkoutAtomicPublicationIntegrationTest verify -Pintegration
+mvn -Dit.test=NutritionAtomicPublicationIntegrationTest,WorkoutAtomicPublicationIntegrationTest,UserDataLifecycleServiceIntegrationTest,HistoricalUpgradeIntegrationTest verify -Pintegration
 mvn test -Parchitecture
 ```
 
@@ -317,7 +340,7 @@ Add provider-mocked unit and PostgreSQL tests proving:
 
 Add `docs/adr/0015-fatsecret-import-and-storage-policy.md` with the fixed policy and official links.
 
-Add `src/main/resources/db/migration/V31__enforce_fatsecret_data_retention.sql`:
+Add `src/main/resources/db/migration/V32__enforce_fatsecret_data_retention.sql`:
 
 - `fatsecret_provider_identifiers` for only allowed identifier fields, owner FK, and receipt timestamps;
 - delete existing `fatsecret_day` and `fatsecret_food` restricted content after the documented preflight/backup step;
@@ -352,7 +375,7 @@ Commit: `fix: enforce fatsecret provider data retention`
 
 ### RED/GREEN
 
-Extend `HistoricalUpgradeIntegrationTest` through V31 and add current-version fixtures for:
+Extend `HistoricalUpgradeIntegrationTest` through V32 and add current-version fixtures for:
 
 - legacy job/outbox lease state;
 - terminal owned/anonymous Telegram retention;
@@ -362,7 +385,7 @@ Extend `HistoricalUpgradeIntegrationTest` through V31 and add current-version fi
 - repeat application of every bridge script;
 - clean-schema migration and every supported historical checkpoint to latest.
 
-Fix only with append-only migrations or the already documented pre-version bridge. Do not edit V1–V28. If a new defect is found after V31 has been committed, add V32 and shift later reserved migration numbers before their first commit.
+Fix only with append-only migrations or the already documented pre-version bridge. Do not edit V1–V30. If a new defect is found after V32 has been committed, add V33 and shift later reserved migration numbers before their first commit.
 
 ### Verify and commit
 
