@@ -1,5 +1,7 @@
 package com.fit.fitnessapp.workout;
 
+import com.fit.fitnessapp.api.ChangeType;
+import com.fit.fitnessapp.api.WorkoutImportedEvent;
 import com.fit.fitnessapp.workout.application.service.WorkoutImportCommitService;
 import com.fit.fitnessapp.workout.domain.Exercise;
 import com.fit.fitnessapp.workout.domain.Set;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,6 +33,8 @@ class WorkoutAtomicPublicationIntegrationTest extends AbstractPostgresIntegratio
     private WorkoutImportCommitService commitService;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private final List<Long> users = new ArrayList<>();
 
@@ -110,7 +115,7 @@ class WorkoutAtomicPublicationIntegrationTest extends AbstractPostgresIntegratio
     }
 
     @Test
-    void movingWorkoutPublishesOldDateDeleteAndNewDateUpsert() {
+    void movingWorkoutPublishesOldDateDeleteAndNewDateUpsert() throws Exception {
         long userId = insertUser("workout-move");
         LocalDate oldDate = LocalDate.of(2026, 8, 18);
         LocalDate newDate = LocalDate.of(2026, 8, 19);
@@ -124,14 +129,26 @@ class WorkoutAtomicPublicationIntegrationTest extends AbstractPostgresIntegratio
                 + "WHERE user_id = ? AND source_date = ?", Long.class, userId, oldDate)).isEqualTo(2L);
         assertThat(jdbc.queryForObject("SELECT present FROM workout_source_state "
                 + "WHERE user_id = ? AND source_date = ?", Boolean.class, userId, newDate)).isTrue();
-        assertThat(publicationPayloads(userId)).hasSize(3)
-                .anySatisfy(payload -> assertThat(payload)
-                        .contains("\"sourceId\":\"2026-08-18\"")
-                        .contains("\"changeType\":\"DELETE\""))
-                .anySatisfy(payload -> assertThat(payload)
-                        .contains("\"sourceId\":\"2026-08-19\"")
-                        .contains("\"changeType\":\"UPSERT\""))
-                .allSatisfy(payload -> assertThat(payload).doesNotContain("\"fromDate\":\"2026-08-18\""));
+        List<WorkoutImportedEvent> events = new ArrayList<>();
+        for (String payload : publicationPayloads(userId)) {
+            events.add(objectMapper.readValue(payload, WorkoutImportedEvent.class));
+        }
+
+        assertThat(events).hasSize(3)
+                .anySatisfy(event -> {
+                    assertThat(event.metadata().sourceId()).isEqualTo(oldDate.toString());
+                    assertThat(event.metadata().changeType()).isEqualTo(ChangeType.DELETE);
+                })
+                .anySatisfy(event -> {
+                    assertThat(event.metadata().sourceId()).isEqualTo(newDate.toString());
+                    assertThat(event.metadata().changeType()).isEqualTo(ChangeType.UPSERT);
+                })
+                .allSatisfy(event -> {
+                    LocalDate sourceDate = LocalDate.parse(event.metadata().sourceId());
+                    assertThat(event.fromDate()).isEqualTo(sourceDate);
+                    assertThat(event.toDate()).isEqualTo(sourceDate);
+                    assertThat(event.affectedDates()).containsExactly(sourceDate);
+                });
     }
 
     private WorkoutSession session(long externalId, LocalDate date) {

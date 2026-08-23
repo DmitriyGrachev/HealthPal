@@ -15,12 +15,13 @@ import com.fit.fitnessapp.auth.infrastructure.config.SecurityProperties;
 import com.fit.fitnessapp.auth.infrastructure.utils.JwtCore;
 import com.fit.fitnessapp.auth.infrastructure.utils.TokenFilter;
 import com.fit.fitnessapp.exception.ApiErrorResponseWriter;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -41,6 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = {UserDataExportV2Controller.class, UserDataLifecycleController.class})
+@AutoConfigureMockMvc
 @Import({SecurityConfig.class, TokenFilter.class, JwtCore.class, ApiErrorResponseWriter.class})
 @EnableConfigurationProperties(SecurityProperties.class)
 @TestPropertySource(properties = {
@@ -108,7 +110,7 @@ class UserDataExportV2ControllerTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(response.getResponse().getContentAsByteArray());
-        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+        assertThat(body.propertyNames()).containsExactlyInAnyOrder(
                 "manifestVersion", "userId", "email", "username", "exportedAt", "modules");
 
         verify(currentUserApi).getCurrentUserId();

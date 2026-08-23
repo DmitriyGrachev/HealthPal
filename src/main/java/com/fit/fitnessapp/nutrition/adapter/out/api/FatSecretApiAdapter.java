@@ -1,7 +1,7 @@
 package com.fit.fitnessapp.nutrition.adapter.out.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.api.FatSecretLegacyApi;
 import com.fit.fitnessapp.exception.ExternalApiException;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;

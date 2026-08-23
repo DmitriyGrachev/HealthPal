@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.DurableJobExecutor;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;

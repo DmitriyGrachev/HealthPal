@@ -1,7 +1,5 @@
 package com.fit.fitnessapp.ai;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.ai.application.service.DailyInsightService;
 import com.fit.fitnessapp.ai.application.service.MonthlyReportService;
@@ -23,6 +21,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -215,7 +215,7 @@ public class FitnessAiService {
     private String serializeJobPayload(Object payload) {
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Cannot serialize AI durable job payload", e);
         }
     }

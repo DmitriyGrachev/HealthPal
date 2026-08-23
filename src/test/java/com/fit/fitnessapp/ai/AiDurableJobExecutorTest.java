@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.DomainEventMetadata;
 import com.fit.fitnessapp.api.DomainSourceState;
@@ -21,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 class AiDurableJobExecutorTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final FitnessAiService fitnessAiService = mock(FitnessAiService.class);
     private final AiDurableJobExecutor executor = new AiDurableJobExecutor(fitnessAiService, objectMapper);
 

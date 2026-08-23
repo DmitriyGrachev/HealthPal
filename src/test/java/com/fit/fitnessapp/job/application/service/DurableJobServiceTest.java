@@ -70,6 +70,12 @@ class DurableJobServiceTest {
     }
 
     @Test
+    void jacksonThreeFailureMapsToStableInvalidPayloadCode() {
+        assertThat(JobFailure.from(new JacksonFailure("private payload")))
+                .isEqualTo(new JobFailure(JobFailure.INVALID_PAYLOAD, "payload"));
+    }
+
+    @Test
     void unknownFailureAndSkipReasonCollapseToStableSafeCodes() {
         when(jdbcTemplate.update(anyString(), eq("NO_EXECUTOR"), eq(10L), eq("worker-a"), eq(1L)))
                 .thenReturn(1);
@@ -130,5 +136,11 @@ class DurableJobServiceTest {
         DurableJobDto job = new DurableJobDto(10L, "TEST_JOB", 42L, JobStatus.RUNNING,
                 1, 3, null, null, "{}", "key", now, now);
         return new DurableJobClaim(job, owner, generation, now.plusSeconds(300));
+    }
+
+    private static final class JacksonFailure extends RuntimeException {
+        private JacksonFailure(String message) {
+            super(message);
+        }
     }
 }

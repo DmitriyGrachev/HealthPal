@@ -9,9 +9,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard;
-import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -81,7 +81,7 @@ public class TelegramBotService {
                       outbox.lease_generation, outbox.lease_expires_at
             """;
 
-    private final AbsSender botSender;
+    private final TelegramClient botSender;
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
     private final Duration leaseDuration;
@@ -90,16 +90,16 @@ public class TelegramBotService {
     private final ExecutorService providerExecutor;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public TelegramBotService(@Lazy AbsSender botSender, JdbcTemplate jdbcTemplate, Clock clock) {
+    public TelegramBotService(@Lazy TelegramClient botSender, JdbcTemplate jdbcTemplate, Clock clock) {
         this(botSender, jdbcTemplate, clock, DEFAULT_LEASE_DURATION, DEFAULT_PROVIDER_TIMEOUT);
     }
 
-    public TelegramBotService(@Lazy AbsSender botSender, JdbcTemplate jdbcTemplate) {
+    public TelegramBotService(@Lazy TelegramClient botSender, JdbcTemplate jdbcTemplate) {
         this(botSender, jdbcTemplate, Clock.systemUTC());
     }
 
     public TelegramBotService(
-            @Lazy AbsSender botSender,
+            @Lazy TelegramClient botSender,
             JdbcTemplate jdbcTemplate,
             Clock clock,
             Duration leaseDuration,
@@ -108,7 +108,7 @@ public class TelegramBotService {
     }
 
     TelegramBotService(
-            @Lazy AbsSender botSender,
+            @Lazy TelegramClient botSender,
             JdbcTemplate jdbcTemplate,
             Clock clock,
             Duration leaseDuration,

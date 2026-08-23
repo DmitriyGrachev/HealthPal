@@ -46,8 +46,7 @@ public record JobFailure(String code, String detail) {
                 || className.contains("connect") || className.contains("socket")) {
             return new JobFailure(PROVIDER_UNAVAILABLE, "external-service");
         }
-        if (failure instanceof com.fasterxml.jackson.core.JsonProcessingException
-                || className.contains("json")) {
+        if (className.contains("json") || className.contains("jackson")) {
             return new JobFailure(INVALID_PAYLOAD, "payload");
         }
         return new JobFailure(INTERNAL_FAILURE, "application");

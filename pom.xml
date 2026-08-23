@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.16</version>
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -18,8 +18,9 @@
 
     <properties>
         <java.version>21</java.version>
-        <spring-ai.version>1.1.8</spring-ai.version>
-        <spring-modulith.version>1.4.12</spring-modulith.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
+        <spring-modulith.version>2.1.0</spring-modulith.version>
+        <telegrambots.version>10.2.0</telegrambots.version>
         <lombok.version>1.18.36</lombok.version>
         <test.jvm.argline>-Xshare:off -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</test.jvm.argline>
     </properties>
@@ -58,7 +59,24 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-events-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-docs</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -69,17 +87,56 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.swagger.core.v3</groupId>
+                    <artifactId>swagger-annotations</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-google-genai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.swagger.core.v3</groupId>
+                    <artifactId>swagger-annotations</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-pgvector-store</artifactId>
-            <version>${spring-ai.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-vector-store</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -88,12 +145,48 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.8.17</version>
+            <version>3.1.0</version>
         </dependency>
         <dependency>
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-annotations-jakarta</artifactId>
-            <version>2.2.47</version>
+            <version>2.2.52</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-beans</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -114,17 +207,37 @@
         </dependency>
 
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-web</artifactId>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -151,13 +264,70 @@
         </dependency>
         <dependency>
             <groupId>com.github.scribejava</groupId>
-            <artifactId>scribejava-apis</artifactId>
+            <artifactId>scribejava-core</artifactId>
             <version>8.3.3</version>
         </dependency>
         <dependency>
-            <groupId>com.github.scribejava</groupId>
-            <artifactId>scribejava-httpclient-apache</artifactId>
-            <version>8.3.3</version>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-core</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.tomcat</groupId>
+                    <artifactId>tomcat-annotations-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.transaction</groupId>
+            <artifactId>jakarta.transaction-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -174,20 +344,19 @@
             <version>8.9.0</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.module</groupId>
-            <artifactId>jackson-module-parameter-names</artifactId>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-longpolling</artifactId>
+            <version>${telegrambots.version}</version>
         </dependency>
-
         <dependency>
             <groupId>org.telegram</groupId>
-            <artifactId>telegrambots-spring-boot-starter</artifactId>
-            <version>6.8.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.junit.jupiter</groupId>
-                    <artifactId>junit-jupiter-engine</artifactId>
-                </exclusion>
-            </exclusions>
+            <artifactId>telegrambots-client</artifactId>
+            <version>${telegrambots.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-meta</artifactId>
+            <version>${telegrambots.version}</version>
         </dependency>
 
         <dependency>
@@ -196,8 +365,53 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -207,7 +421,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
+            <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -257,30 +471,11 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <configuration>
-                    <ignoredUsedUndeclaredDependencies>
-                        <ignoredUsedUndeclaredDependency>org.springframework:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.springframework.boot:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.springframework.security:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.springframework.data:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.springframework.ai:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.springframework.modulith:*:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.hibernate.orm:hibernate-core:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>jakarta.persistence:jakarta.persistence-api:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>jakarta.transaction:jakarta.transaction-api:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>jakarta.validation:jakarta.validation-api:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.apache.tomcat.embed:tomcat-embed-core:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.mockito:mockito-core:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.mockito:mockito-junit-jupiter:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.assertj:assertj-core:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.core:jackson-annotations:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.core:jackson-databind:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.slf4j:slf4j-api:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>commons-codec:commons-codec:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>com.github.scribejava:scribejava-core:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.telegram:telegrambots:jar:*</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.telegram:telegrambots-meta:jar:*</ignoredUsedUndeclaredDependency>
-                    </ignoredUsedUndeclaredDependencies>
+                    <failOnWarning>true</failOnWarning>
+                    <ignoredNonTestScopedDependencies>
+                        <ignoredNonTestScopedDependency>org.flywaydb:flyway-core:jar:*</ignoredNonTestScopedDependency>
+                        <ignoredNonTestScopedDependency>org.springframework.modulith:spring-modulith-core:jar:*</ignoredNonTestScopedDependency>
+                    </ignoredNonTestScopedDependencies>
                     <ignoredUnusedDeclaredDependencies>
                         <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-starter-core:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-events-jdbc:jar:*</ignoredUnusedDeclaredDependency>
@@ -288,26 +483,23 @@
                         <ignoredUnusedDeclaredDependency>org.springframework.modulith:spring-modulith-starter-test:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-starter-model-google-genai:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-starter-model-openai:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-web:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-starter-vector-store-pgvector:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-webmvc:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-actuator:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springdoc:springdoc-openapi-starter-webmvc-ui:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-validation:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-data-jpa:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-data-jdbc:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-flyway:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-security:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-cache:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-test:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.springframework.security:spring-security-test:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-webmvc-test:jar:*</ignoredUnusedDeclaredDependency>
+                        <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter-security-test:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.postgresql:postgresql:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.flywaydb:flyway-core:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>org.flywaydb:flyway-database-postgresql:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>io.jsonwebtoken:jjwt-impl:jar:*</ignoredUnusedDeclaredDependency>
                         <ignoredUnusedDeclaredDependency>io.jsonwebtoken:jjwt-jackson:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>com.github.scribejava:scribejava-apis:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>com.github.scribejava:scribejava-httpclient-apache:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.springframework.ai:spring-ai-pgvector-store:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.module:jackson-module-parameter-names:jar:*</ignoredUnusedDeclaredDependency>
-                        <ignoredUnusedDeclaredDependency>org.telegram:telegrambots-spring-boot-starter:jar:*</ignoredUnusedDeclaredDependency>
                     </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>

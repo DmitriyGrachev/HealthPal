@@ -9,7 +9,6 @@ import com.fit.fitnessapp.nutrition.domain.FatSecretConnectionSnapshot;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
 import com.fit.fitnessapp.nutrition.domain.ProviderDataRetentionPolicy;
-import com.fit.fitnessapp.telegram.adapter.in.TelegramUpdateHandler;
 import com.fit.fitnessapp.telegram.application.service.handlers.WeightCommandHandler;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,10 +27,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,7 +74,7 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
     @MockitoBean(name = "openAiEmbeddingModel")
     private EmbeddingModel embeddingModel;
     @MockitoBean
-    private TelegramUpdateHandler telegramUpdateHandler;
+    private TelegramClient telegramClient;
 
     @BeforeEach
     void setUp() {
@@ -139,7 +139,7 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM telegram_delivery_outbox WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
                 String.class, 8102L)).isEqualTo("SENT");
-        verify(telegramUpdateHandler).execute(any(SendMessage.class));
+        verify(telegramClient).execute(any(SendMessage.class));
         assertThat(jdbc.queryForObject(
                 "SELECT metadata->>'snapshot_hash' FROM user_memory WHERE metadata->>'user_id' = ?",
                 String.class, Long.toString(userId))).isEqualTo("summary-hash");

@@ -12,7 +12,7 @@ import com.fit.fitnessapp.auth.application.port.in.UserDataLifecycleUseCase;
 import com.fit.fitnessapp.auth.domain.UserDataExportManifest;
 import com.fit.fitnessapp.memory.application.service.MemoryEventListener;
 import com.fit.fitnessapp.support.AbstractPostgresIntegrationTest;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.telegram.adapter.in.TelegramNotificationListener;
 import com.fit.fitnessapp.telegram.adapter.in.TelegramAiResponseListener;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
@@ -42,8 +42,8 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -103,7 +103,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
     private ConversationStateUseCase conversationStateUseCase;
 
     @MockitoBean
-    private AbsSender botSender;
+    private TelegramClient botSender;
 
     @Test
     void exportsAndDeletesEveryOwnedCategoryWithoutTouchingAnotherUserOrGlobalBudget() throws Exception {
@@ -162,7 +162,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         });
 
         var v1Json = objectMapper.valueToTree(export);
-        assertThat(v1Json.fieldNames()).toIterable()
+        assertThat(v1Json.propertyNames())
                 .doesNotContain("manifestVersion", "modules");
         assertThat(v1Json.get("profile")).isNotNull();
 

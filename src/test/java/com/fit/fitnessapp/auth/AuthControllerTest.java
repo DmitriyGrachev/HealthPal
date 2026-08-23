@@ -11,9 +11,9 @@ import com.fit.fitnessapp.ai.RateLimitInterceptor;
 import com.fit.fitnessapp.exception.UserAlreadyExistsException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -32,12 +32,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
-    @MockBean private RegisterUserPort registerUserPort;
-    @MockBean private LoginService loginService;
-    @MockBean private RateLimitInterceptor rateLimitInterceptor;
-    @MockBean private TokenFilter tokenFilter;
-    @MockBean private AuthRateLimitFilter authRateLimitFilter;
-    @MockBean private UserDetailsService userDetailsService;
+    @MockitoBean private RegisterUserPort registerUserPort;
+    @MockitoBean private LoginService loginService;
+    @MockitoBean private RateLimitInterceptor rateLimitInterceptor;
+    @MockitoBean private TokenFilter tokenFilter;
+    @MockitoBean private AuthRateLimitFilter authRateLimitFilter;
+    @MockitoBean private UserDetailsService userDetailsService;
 
     @Autowired private MockMvc mockMvc;
 

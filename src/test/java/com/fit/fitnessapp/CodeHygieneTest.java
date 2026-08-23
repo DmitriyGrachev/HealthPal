@@ -409,6 +409,114 @@ class CodeHygieneTest {
     }
 
     @Test
+    void springAiTwoConfigurationUsesTopLevelModelProperties() throws IOException {
+        Properties production = loadProperties("src/main/resources/application.properties");
+        Properties test = loadProperties("src/test/resources/application-test.properties");
+        String postgresSupport = Files.readString(Path.of(
+                "src/test/java/com/fit/fitnessapp/support/AbstractPostgresIntegrationTest.java"));
+
+        assertThat(production)
+                .containsEntry("spring.ai.openai.chat.temperature", "0.7")
+                .containsEntry("spring.ai.openai.chat.max-tokens", "8192")
+                .containsEntry("spring.ai.google.genai.chat.model", "gemini-2.5-flash")
+                .containsEntry("spring.ai.google.genai.chat.temperature", "0.7")
+                .containsEntry("spring.ai.google.genai.chat.max-output-tokens", "8192")
+                .containsEntry("spring.ai.model.embedding.text", "none")
+                .containsEntry(
+                        "spring.ai.openai.embedding.model",
+                        "nvidia/llama-nemotron-embed-vl-1b-v2:free")
+                .doesNotContainKeys(
+                        "spring.ai.openai.chat.options.temperature",
+                        "spring.ai.openai.chat.options.max-tokens",
+                        "spring.ai.google.genai.chat.options.model",
+                        "spring.ai.google.genai.chat.options.temperature",
+                        "spring.ai.google.genai.chat.options.max-output-tokens",
+                        "spring.ai.google.genai.embedding.enabled",
+                        "spring.ai.google.genai.embedding.options.model",
+                        "spring.ai.openai.embedding.options.model");
+        assertThat(test)
+                .containsEntry("spring.ai.model.embedding.text", "none")
+                .containsEntry("spring.ai.openai.embedding.model", "test-embedding-model")
+                .doesNotContainKeys(
+                        "spring.ai.google.genai.embedding.enabled",
+                        "spring.ai.openai.embedding.options.model");
+        assertThat(postgresSupport)
+                .contains("\"spring.ai.model.embedding.text\"")
+                .contains("\"spring.ai.openai.embedding.model\"")
+                .doesNotContain("spring.ai.google.genai.embedding.enabled")
+                .doesNotContain("spring.ai.openai.embedding.options.model");
+    }
+
+    @Test
+    void springFourBaselineDoesNotReintroduceLegacyDependencyBoundaries() throws IOException {
+        String pom = Files.readString(Path.of("pom.xml"));
+        List<String> legacyJacksonImports;
+        try (var files = Files.walk(Path.of("src"))) {
+            legacyJacksonImports = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(this::importsLegacyJacksonRuntime)
+                    .map(Path::toString)
+                    .toList();
+        }
+
+        assertThat(pom)
+                .doesNotContain("<ignoredUsedUndeclaredDependencies>")
+                .doesNotContain("<ignoredUsedUndeclaredDependency>")
+                .doesNotContain("spring-ai-pgvector-store-spring-boot-starter");
+        assertThat(legacyJacksonImports).isEmpty();
+    }
+
+    @Test
+    void telegramIntegrationUsesBootFourCompatibleLibraryBoundary() throws IOException {
+        String pom = Files.readString(Path.of("pom.xml"));
+        String updateHandler = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/telegram/adapter/in/TelegramUpdateHandler.java"));
+        String botService = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/telegram/application/service/TelegramBotService.java"));
+        String botConfig = Files.readString(Path.of(
+                "src/main/java/com/fit/fitnessapp/telegram/infrastructure/config/TelegramBotConfig.java"));
+
+        assertThat(pom)
+                .contains("<artifactId>telegrambots-longpolling</artifactId>")
+                .contains("<artifactId>telegrambots-client</artifactId>")
+                .contains("<artifactId>telegrambots-meta</artifactId>")
+                .doesNotContain("<artifactId>telegrambots-spring-boot-starter</artifactId>");
+        assertThat(updateHandler)
+                .contains("LongPollingSingleThreadUpdateConsumer")
+                .doesNotContain("TelegramLongPollingBot");
+        assertThat(botService)
+                .contains("TelegramClient")
+                .doesNotContain("AbsSender");
+        assertThat(botConfig)
+                .contains("TelegramBotsLongPollingApplication")
+                .contains("OkHttpTelegramClient")
+                .doesNotContain("TelegramBotsApi")
+                .doesNotContain("DefaultBotSession");
+    }
+
+    @Test
+    void modulithTwoUsesFlywayOwnedCurrentPublicationSchema() throws IOException {
+        Properties properties = loadProperties("src/main/resources/application.properties");
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V33__upgrade_event_publication_lifecycle.sql"))
+                .toLowerCase();
+
+        assertThat(properties)
+                .containsEntry("spring.modulith.events.republish-outstanding-events-on-restart", "true")
+                .containsEntry("spring.modulith.events.jdbc.schema-initialization.enabled", "false")
+                .containsEntry("spring.modulith.events.jdbc.use-legacy-structure", "false")
+                .doesNotContainKey("spring.modulith.republish-outstanding-events-on-restart");
+        assertThat(migration)
+                .contains("add column status text")
+                .contains("add column completion_attempts int")
+                .contains("add column last_resubmission_date timestamp with time zone")
+                .contains("when completion_date is null then 'failed'")
+                .contains("else 'completed'")
+                .contains("event_publication_serialized_event_hash_idx");
+    }
+
+    @Test
     void devPgvectorConfigurationMatchesRuntimeUserMemoryTable() throws IOException {
         Properties properties = loadProperties("src/main/resources/application-dev.properties");
         String devProfile = Files.readString(Path.of("src/main/resources/application-dev.properties"));
@@ -452,6 +560,19 @@ class CodeHygieneTest {
         try {
             String source = Files.readString(path);
             return source.contains("System.out.println") || source.contains("System.err.println");
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
+    }
+
+    private boolean importsLegacyJacksonRuntime(Path path) {
+        try {
+            String source = Files.readString(path);
+            String importPrefix = "import com.fasterxml.jackson.";
+            return source.contains(importPrefix + "core.")
+                    || source.contains(importPrefix + "databind.")
+                    || source.contains(importPrefix + "datatype.")
+                    || source.contains(importPrefix + "module.");
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + path, e);
         }

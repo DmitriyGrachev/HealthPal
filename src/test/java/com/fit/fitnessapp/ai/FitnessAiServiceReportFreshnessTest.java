@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
 import com.fit.fitnessapp.ai.application.service.AiInsightPersistenceService;
 import com.fit.fitnessapp.ai.application.service.InsightSourceLock;
@@ -99,7 +98,7 @@ class FitnessAiServiceReportFreshnessTest {
                 telegramAskAiService,
                 eventPublisher,
                 durableJobUseCase,
-                new ObjectMapper().registerModule(new JavaTimeModule()),
+                new ObjectMapper(),
                 new WeeklyReportService(
                         aiContextService,
                         moeOrchestrator,

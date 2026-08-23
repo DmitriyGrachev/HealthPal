@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
 import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;

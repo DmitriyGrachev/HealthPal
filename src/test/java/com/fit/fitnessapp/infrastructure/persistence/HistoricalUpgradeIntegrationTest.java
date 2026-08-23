@@ -648,6 +648,33 @@ class HistoricalUpgradeIntegrationTest {
     }
 
     @Test
+    void v32ToV33BackfillsModulithPublicationLifecycleWithoutLosingRows() {
+        migrateTo("32");
+        UUID incomplete = UUID.randomUUID();
+        UUID completed = UUID.randomUUID();
+        insertEvent(incomplete, "{\"legacy\":\"incomplete\"}");
+        insertEvent(completed, "{\"legacy\":\"completed\"}");
+        jdbc.update("UPDATE " + table("event_publication")
+                + " SET completion_date = CURRENT_TIMESTAMP WHERE id = ?", completed);
+
+        migrateToLatest();
+
+        assertThat(columnExists("event_publication", "status")).isTrue();
+        assertThat(columnExists("event_publication", "completion_attempts")).isTrue();
+        assertThat(columnExists("event_publication", "last_resubmission_date")).isTrue();
+        assertThat(indexExists("event_publication_serialized_event_hash_idx")).isTrue();
+        assertThat(jdbc.queryForObject("SELECT status FROM " + table("event_publication")
+                + " WHERE id = ?", String.class, incomplete)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("SELECT status FROM " + table("event_publication")
+                + " WHERE id = ?", String.class, completed)).isEqualTo("COMPLETED");
+        assertThat(jdbc.queryForList("SELECT completion_attempts FROM " + table("event_publication")
+                        + " WHERE id IN (?, ?)", Integer.class, incomplete, completed))
+                .containsExactlyInAnyOrder(1, 1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM " + table("event_publication")
+                + " WHERE id IN (?, ?)", Long.class, incomplete, completed)).isEqualTo(2L);
+    }
+
+    @Test
     void cleanLatestSchemaAllocatesLifecycleAndConnectionEpochsWithEmptyRetentionTables() {
         migrateToLatest();
         long userId = 31_101L;
@@ -669,7 +696,7 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(count("fatsecret_day", "TRUE")).isZero();
         assertThat(count("fatsecret_food", "TRUE")).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
-                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("32");
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("33");
     }
 
     @Test

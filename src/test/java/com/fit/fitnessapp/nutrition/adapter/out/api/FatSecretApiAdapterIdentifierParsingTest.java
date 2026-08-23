@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.nutrition.adapter.out.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
 import com.github.benmanes.caffeine.cache.Cache;
 import org.junit.jupiter.api.Test;

@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.IncompleteEventPublications;
 import org.springframework.modulith.events.ApplicationModuleListener;
+import org.springframework.modulith.events.ResubmissionOptions;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
@@ -66,19 +67,33 @@ class DomainEventReplayIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(replayProbe.awaitFailure()).isTrue();
         assertThat(publicationCount(userId, false)).isOne();
         assertThat(publicationCount(userId, true)).isZero();
+        assertThat(awaitPublicationStatus(userId, "FAILED")).isTrue();
+        assertThat(publicationAttempts(userId)).isOne();
 
         replayProbe.allowDeliveries();
         incompleteEventPublications.resubmitIncompletePublications(
-                publication -> event.equals(publication.getEvent()));
+                ResubmissionOptions.defaults()
+                        .withMaxInFlight(1)
+                        .withBatchSize(10)
+                        .withFilter(publication -> event.equals(publication.getEvent())));
 
         assertThat(replayProbe.awaitSuccess()).isTrue();
         assertThat(replayProbe.successfulDeliveries()).isOne();
         assertThat(awaitPublicationCompletion(userId)).isTrue();
         assertThat(publicationCount(userId, false)).isZero();
         assertThat(publicationCount(userId, true)).isOne();
+        assertThat(publicationStatus(userId)).isEqualTo("COMPLETED");
+        assertThat(publicationAttempts(userId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT last_resubmission_date IS NOT NULL FROM event_publication WHERE user_id = ?",
+                Boolean.class,
+                userId)).isTrue();
 
         incompleteEventPublications.resubmitIncompletePublications(
-                publication -> event.equals(publication.getEvent()));
+                ResubmissionOptions.defaults()
+                        .withMaxInFlight(1)
+                        .withBatchSize(10)
+                        .withFilter(publication -> event.equals(publication.getEvent())));
 
         assertThat(replayProbe.successfulDeliveries()).isOne();
         assertThat(jdbc.queryForObject(
@@ -140,6 +155,31 @@ class DomainEventReplayIntegrationTest extends AbstractPostgresIntegrationTest {
             Thread.onSpinWait();
         } while (System.nanoTime() < deadline);
         return false;
+    }
+
+    private boolean awaitPublicationStatus(long userId, String expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        do {
+            if (expected.equals(publicationStatus(userId))) {
+                return true;
+            }
+            Thread.onSpinWait();
+        } while (System.nanoTime() < deadline);
+        return false;
+    }
+
+    private String publicationStatus(long userId) {
+        return jdbc.queryForObject(
+                "SELECT status FROM event_publication WHERE user_id = ?",
+                String.class,
+                userId);
+    }
+
+    private int publicationAttempts(long userId) {
+        return jdbc.queryForObject(
+                "SELECT completion_attempts FROM event_publication WHERE user_id = ?",
+                Integer.class,
+                userId);
     }
 
     public record ReplayProbeEvent(UUID eventId, Long userId) {

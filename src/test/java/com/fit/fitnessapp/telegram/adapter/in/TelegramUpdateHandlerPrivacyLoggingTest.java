@@ -9,8 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -49,7 +49,7 @@ class TelegramUpdateHandlerPrivacyLoggingTest {
         when(commandHandler.canHandle(update)).thenReturn(true);
         when(commandHandler.getCommand()).thenReturn("/ask");
 
-        updateHandler.onUpdateReceived(update);
+        updateHandler.consume(update);
 
         assertThat(output)
                 .contains("chatId=100")
@@ -68,7 +68,7 @@ class TelegramUpdateHandlerPrivacyLoggingTest {
         Update update = textUpdate(200L, sensitiveText);
         when(commandHandler.canHandle(update)).thenReturn(false);
 
-        updateHandler.onUpdateReceived(update);
+        updateHandler.consume(update);
 
         assertThat(output)
                 .contains("chatId=200")
@@ -76,7 +76,7 @@ class TelegramUpdateHandlerPrivacyLoggingTest {
                 .doesNotContain(sensitiveText)
                 .doesNotContain("82.5")
                 .doesNotContain("medication")
-                .doesNotContain("No handler found for message");
+                .doesNotContain("No handler found" + " for message");
 
         verify(commandHandler).canHandle(update);
         verifyNoMoreInteractions(commandHandler);
@@ -88,7 +88,7 @@ class TelegramUpdateHandlerPrivacyLoggingTest {
         String sensitiveText = "private note for " + chatType + " chat";
         Update update = nonPrivateTextUpdate(300L, sensitiveText);
 
-        updateHandler.onUpdateReceived(update);
+        updateHandler.consume(update);
 
         verifyNoInteractions(commandHandler);
         assertThat(output).doesNotContain(sensitiveText);

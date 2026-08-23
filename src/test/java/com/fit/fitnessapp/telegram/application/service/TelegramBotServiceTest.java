@@ -9,8 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 class TelegramBotServiceTest {
 
     @Mock
-    private AbsSender botSender;
+    private TelegramClient botSender;
 
     @Mock
     private JdbcTemplate jdbcTemplate;

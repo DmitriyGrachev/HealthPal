@@ -39,7 +39,7 @@ public class OpenRouterAdapter implements AiModelPort {
             var requestSpec = chatClient.prompt().user(formattedPrompt);
 
             if (modelName != null) {
-                requestSpec = requestSpec.options(OpenAiChatOptions.builder().model(modelName).build());
+                requestSpec = requestSpec.options(OpenAiChatOptions.builder().model(modelName));
             }
 
             rawContent = requestSpec.call().content();

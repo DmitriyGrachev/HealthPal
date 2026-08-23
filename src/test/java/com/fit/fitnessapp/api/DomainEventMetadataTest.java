@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -49,7 +48,7 @@ class DomainEventMetadataTest {
     @Test
     void javaContractAcceptsYearOneAndEquivalentOffsetInstant() throws Exception {
         Instant offsetInstant = Instant.parse("0001-01-01T00:00:00+00:00");
-        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        ObjectMapper mapper = new ObjectMapper();
 
         assertThat(offsetInstant).isEqualTo(Instant.parse("0001-01-01T00:00:00Z"));
         assertThat(mapper.readValue("\"0001-01-01T00:00:00+00:00\"", Instant.class))

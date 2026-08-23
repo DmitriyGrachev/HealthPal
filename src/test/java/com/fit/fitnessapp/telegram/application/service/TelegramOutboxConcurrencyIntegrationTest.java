@@ -8,9 +8,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -30,7 +30,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
     private TelegramOutboxWorker scheduledWorker;
 
     @MockitoBean
-    private AbsSender botSender;
+    private TelegramClient botSender;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -50,7 +50,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
                 VALUES (?, 'Hello', 'PENDING', 0, 5, NOW())
                 RETURNING id
                 """, Long.class, chatId);
-        AbsSender sender = mock(AbsSender.class);
+        TelegramClient sender = mock(TelegramClient.class);
         AtomicBoolean transactionActiveAtProvider = new AtomicBoolean(true);
         CountDownLatch providerStarted = new CountDownLatch(1);
         CountDownLatch releaseProvider = new CountDownLatch(1);
@@ -114,7 +114,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
                 VALUES (?, 'second', 'PENDING', 0, 5, NOW())
                 RETURNING id
                 """, Long.class, secondChatId);
-        AbsSender sender = mock(AbsSender.class);
+        TelegramClient sender = mock(TelegramClient.class);
         CountDownLatch firstProviderCall = new CountDownLatch(1);
         CountDownLatch releaseFirstProviderCall = new CountDownLatch(1);
         AtomicBoolean firstCall = new AtomicBoolean(true);
@@ -206,7 +206,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
                 VALUES (?, ?, 'generation retry')
                 RETURNING id
                 """, Long.class, userId, chatId);
-        AbsSender sender = mock(AbsSender.class);
+        TelegramClient sender = mock(TelegramClient.class);
         TelegramApiRequestException rateLimit = telegramError(429, "rate limited");
         when(sender.execute(any(SendMessage.class))).thenThrow(rateLimit).thenReturn(null);
         TelegramBotService service = new TelegramBotService(sender, jdbc);
@@ -252,7 +252,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
                 INSERT INTO telegram_delivery_outbox (user_id, chat_id, text)
                 VALUES (?, ?, 'revocation outcome') RETURNING id
                 """, Long.class, userId, chatId);
-        TelegramBotService service = new TelegramBotService(mock(AbsSender.class), jdbc);
+        TelegramBotService service = new TelegramBotService(mock(TelegramClient.class), jdbc);
         try {
             TelegramDeliveryClaim claim = service.claimNextDelivery().orElseThrow();
             jdbc.update("UPDATE telegram_delivery_outbox SET lease_expires_at = NOW() - INTERVAL '1 second' WHERE id = ?",
@@ -307,7 +307,7 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
                 VALUES (?, ?, 'stale outcome', 'PENDING', 0, 5)
                 RETURNING id
                 """, Long.class, userId, chatId);
-        AbsSender sender = mock(AbsSender.class);
+        TelegramClient sender = mock(TelegramClient.class);
         CountDownLatch providerStarted = new CountDownLatch(1);
         CountDownLatch releaseProvider = new CountDownLatch(1);
         when(sender.execute(any(SendMessage.class))).thenAnswer(invocation -> {
