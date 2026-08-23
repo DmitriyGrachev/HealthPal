@@ -22,6 +22,11 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
     }
 
     @Override
+    public int exportSchemaVersion() {
+        return 2;
+    }
+
+    @Override
     public UserDataExportFragment exportData(Long userId) {
         List<Map<String, Object>> profiles = jdbc.queryForList(
                 "SELECT * FROM profile WHERE user_id = ?", userId);
@@ -31,25 +36,17 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
                         SELECT id, weight_kg, weight_date, weight_source, created_at
                           FROM weight_history
                          WHERE user_id = ?
+                           AND weight_source = 'MANUAL'
                          ORDER BY weight_date DESC
                         """, userId),
-                "nutritionDays", jdbc.queryForList(
-                        "SELECT * FROM fatsecret_day WHERE user_id = ? ORDER BY date DESC", userId),
-                "foodEntries", jdbc.queryForList("""
-                        SELECT food.*
-                          FROM fatsecret_food food
-                          JOIN fatsecret_day day ON day.id = food.day_id
-                         WHERE day.user_id = ?
-                        """, userId),
-                "nutritionSourceState", jdbc.queryForList("""
-                        SELECT source_date AS "sourceDate",
-                               source_version AS "sourceVersion",
-                               present,
-                               created_at AS "createdAt",
-                               updated_at AS "updatedAt"
-                          FROM nutrition_source_state
+                "fatSecretProviderIdentifiers", jdbc.queryForList("""
+                        SELECT identifier_type AS "identifierType",
+                               identifier_value AS "identifierValue",
+                               first_received_at AS "firstReceivedAt",
+                               last_received_at AS "lastReceivedAt"
+                          FROM fatsecret_provider_identifiers
                          WHERE user_id = ?
-                         ORDER BY source_date
+                         ORDER BY identifier_type, identifier_value
                         """, userId),
                 "fatSecretConnected", Boolean.TRUE.equals(jdbc.queryForObject("""
                         SELECT EXISTS(SELECT 1 FROM fatsecret_connection WHERE user_id = ?)
@@ -68,51 +65,36 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
                 new DataRetentionDisclosure(
-                        "fatsecret_connection",
+                        "fatsecret_encrypted_credentials",
                         DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
                         DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
                         null,
                         List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
-                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.DeletionScope.LOCAL_ONLY_REMOTE_SCOPE_UNKNOWN,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
                 new DataRetentionDisclosure(
-                        "fatsecret_weight",
-                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
+                        "fatsecret_permitted_identifiers",
+                        DataRetentionDisclosure.StorageClass.LOCAL_CANONICAL,
                         DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
                         null,
                         List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
-                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
+                        DataRetentionDisclosure.DeletionScope.LOCAL_ONLY_REMOTE_SCOPE_UNKNOWN,
                         DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
                 new DataRetentionDisclosure(
-                        "fatsecret_day",
-                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
-                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
+                        "fatsecret_restricted_response_content",
+                        DataRetentionDisclosure.StorageClass.NOT_STORED,
+                        DataRetentionDisclosure.RetentionClass.NOT_RETAINED,
                         null,
                         List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
-                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
-                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
-                new DataRetentionDisclosure(
-                        "fatsecret_food",
-                        DataRetentionDisclosure.StorageClass.LOCAL_PROVIDER_COPY,
-                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
-                        null,
-                        List.of(DataRetentionDisclosure.ExternalProcessor.FATSECRET),
-                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
-                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION),
-                new DataRetentionDisclosure(
-                        "nutrition_source_state",
-                        DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
-                        DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
-                        null,
-                        List.of(),
-                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED,
-                        DataRetentionDisclosure.BackupLimitation.SUBJECT_TO_BACKUP_RETENTION));
+                        DataRetentionDisclosure.DeletionScope.LOCAL_NONE,
+                        DataRetentionDisclosure.BackupLimitation.NOT_APPLICABLE));
     }
 
     @Override
     public void deleteData(Long userId) {
         jdbc.queryForObject("SELECT id FROM users WHERE id = ? FOR UPDATE", Long.class, userId);
         jdbc.update("DELETE FROM nutrition_source_state WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM fatsecret_provider_identifiers WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM fatsecret_connection WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM weight_history WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM profile WHERE user_id = ?", userId);
@@ -121,6 +103,10 @@ public class NutritionUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public void disconnectExternalAccount(Long userId) {
+        jdbc.update("DELETE FROM nutrition_source_state WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM weight_history WHERE user_id = ? AND weight_source = 'FATSECRET'", userId);
+        jdbc.update("DELETE FROM fatsecret_day WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM fatsecret_provider_identifiers WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM fatsecret_connection WHERE user_id = ?", userId);
     }
 }

@@ -2,6 +2,8 @@ package com.fit.fitnessapp.nutrition.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "fatsecret_connection")
 public class FatSecretConnectionJpaEntity {
@@ -19,6 +21,9 @@ public class FatSecretConnectionJpaEntity {
     @Column(name = "access_token_secret", nullable = false)
     private String accessTokenSecret;
 
+    @Column(name = "connection_epoch", nullable = false)
+    private UUID connectionEpoch;
+
     public FatSecretConnectionJpaEntity() {}
 
     public Long getId() { return id; }
@@ -32,4 +37,7 @@ public class FatSecretConnectionJpaEntity {
 
     public String getAccessTokenSecret() { return accessTokenSecret; }
     public void setAccessTokenSecret(String accessTokenSecret) { this.accessTokenSecret = accessTokenSecret; }
+
+    public UUID getConnectionEpoch() { return connectionEpoch; }
+    public void setConnectionEpoch(UUID connectionEpoch) { this.connectionEpoch = connectionEpoch; }
 }

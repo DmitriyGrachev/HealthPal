@@ -68,6 +68,7 @@ public record DataRetentionDisclosure(
         LOCAL_OPERATIONAL,
         LOCAL_PROVIDER_COPY,
         EXPIRING_PROVIDER_CACHE,
+        NOT_STORED,
         UNSPECIFIED
     }
 
@@ -76,6 +77,7 @@ public record DataRetentionDisclosure(
         HORIZON_BOUND,
         TIME_LIMITED,
         UNTIL_TERMINAL,
+        NOT_RETAINED,
         UNSPECIFIED
     }
 
@@ -89,10 +91,13 @@ public record DataRetentionDisclosure(
         LOCAL_PRIMARY_AND_DERIVED,
         LOCAL_CACHE,
         LOCAL_OPERATIONAL,
+        LOCAL_ONLY_REMOTE_SCOPE_UNKNOWN,
+        LOCAL_NONE,
         UNSPECIFIED
     }
 
     public enum BackupLimitation {
-        SUBJECT_TO_BACKUP_RETENTION
+        SUBJECT_TO_BACKUP_RETENTION,
+        NOT_APPLICABLE
     }
 }

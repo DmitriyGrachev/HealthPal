@@ -83,6 +83,11 @@ public class TelegramUserDataLifecycleParticipant implements UserDataLifecyclePa
         jdbc.update("DELETE FROM telegram_users WHERE user_id = ?", userId);
     }
 
+    @Override
+    public void disconnectExternalAccount(Long userId) {
+        jdbc.update("DELETE FROM telegram_delivery_outbox WHERE user_id = ?", userId);
+    }
+
     private UserDataExportFragment emptyFragment() {
         return new UserDataExportFragment(key(), Map.of(
                 "telegramAccount", Map.of(),

@@ -6,18 +6,20 @@ import com.fit.fitnessapp.job.DurableJobExecutor;
 import com.fit.fitnessapp.nutrition.application.port.in.SyncNutritionUseCase;
 import org.springframework.stereotype.Component;
 
+/** Fails closed if a legacy durable nutrition-sync job survives an upgrade race. */
 @Component
 public class NutritionSyncJobExecutor implements DurableJobExecutor {
 
     public static final String JOB_TYPE = "NUTRITION_SYNC";
 
-    private final SyncNutritionUseCase syncNutritionUseCase;
-    private final ObjectMapper objectMapper;
-
-    public NutritionSyncJobExecutor(SyncNutritionUseCase syncNutritionUseCase, ObjectMapper objectMapper) {
-        this.syncNutritionUseCase = syncNutritionUseCase;
-        this.objectMapper = objectMapper;
+    public NutritionSyncJobExecutor() {
     }
+
+    /** Compatibility constructor for focused regression tests and old wiring. */
+    public NutritionSyncJobExecutor(
+            SyncNutritionUseCase ignoredSyncNutritionUseCase,
+            ObjectMapper ignoredObjectMapper) {
+     }
 
     @Override
     public boolean supports(String jobType) {
@@ -25,11 +27,7 @@ public class NutritionSyncJobExecutor implements DurableJobExecutor {
     }
 
     @Override
-    public void execute(DurableJobDto job) throws Exception {
-        NutritionSyncJobPayload payload = objectMapper.readValue(
-                job.payloadJson(), NutritionSyncJobPayload.class);
-        for (var date : payload.dates()) {
-            syncNutritionUseCase.syncDay(job.userId(), date);
-        }
+    public void execute(DurableJobDto job) {
+        throw new IllegalStateException("NUTRITION_SYNC_DISABLED_BY_RETENTION_POLICY");
     }
 }

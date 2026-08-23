@@ -78,7 +78,7 @@ public class UserDataLifecycleService implements UserDataLifecycleUseCase {
     @Override
     @Transactional
     public void disconnectFatSecret(Long userId) {
-        requireUser(userId);
+        requireUserForUpdate(userId);
         log.info("Disconnecting FatSecret OAuth connection for userId={}", userId);
         participants.forEach(participant -> participant.disconnectExternalAccount(userId));
     }

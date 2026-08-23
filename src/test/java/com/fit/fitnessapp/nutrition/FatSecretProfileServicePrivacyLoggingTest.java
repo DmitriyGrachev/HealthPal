@@ -6,24 +6,21 @@ import com.fit.fitnessapp.nutrition.application.service.FatSecretProfileService;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
-import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -43,78 +40,29 @@ class FatSecretProfileServicePrivacyLoggingTest {
     }
 
     @Test
-    void syncProfileDoesNotLogExactWeight(CapturedOutput output) {
-        Long userId = 42L;
-        LocalDate date = LocalDate.of(2026, 7, 5);
-        FatSecretAuthResult authResult = authResult(userId);
-        WeightEntryDto latestWeight = new WeightEntryDto(new BigDecimal("82.35"), date, 20640, "private comment");
+    void historicalProfileAndWeightSyncAreDisabledWithoutProviderReadsOrWrites() {
+        FatSecretAuthResult authResult = authResult(42L);
 
-        when(fatSecretApi.getLatestWeight(authResult.token())).thenReturn(latestWeight);
-        when(weightHistoryUseCase.getWeightHistoryByUserIdAndDateRange(userId, date, date)).thenReturn(List.of());
-        when(weightHistoryUseCase.saveWeight(any(WeightHistoryDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        service.syncProfileFromFatSecret(42L, authResult);
+        service.syncWeightHistoryFromFatSecret(42L, authResult, LocalDate.of(2026, 7, 5));
 
-        service.syncProfileFromFatSecret(userId, authResult);
-
-        assertThat(output)
-                .contains("userId=42")
-                .contains("status=success")
-                .doesNotContain("82.35")
-                .doesNotContain("private comment")
-                .doesNotContain("kg");
+        verifyNoInteractions(fatSecretApi, weightHistoryUseCase);
     }
 
     @Test
-    void syncProfileUpdatesExistingFatSecretWeight() {
-        Long userId = 42L;
-        LocalDate date = LocalDate.of(2026, 7, 5);
-        FatSecretAuthResult authResult = authResult(userId);
-        WeightEntryDto latestWeight = new WeightEntryDto(new BigDecimal("81.50"), date, 20640, null);
-        WeightHistoryDto existing = new WeightHistoryDto(
-                10L,
-                userId,
-                new BigDecimal("82.00"),
-                date,
-                WeightHistoryDto.WeightSource.FATSECRET);
-
-        when(fatSecretApi.getLatestWeight(authResult.token())).thenReturn(latestWeight);
-        when(weightHistoryUseCase.getWeightHistoryByUserIdAndDateRange(userId, date, date)).thenReturn(List.of(existing));
-        when(weightHistoryUseCase.saveWeight(any(WeightHistoryDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        service.syncProfileFromFatSecret(userId, authResult);
-
-        ArgumentCaptor<WeightHistoryDto> captor = ArgumentCaptor.forClass(WeightHistoryDto.class);
-        verify(weightHistoryUseCase).saveWeight(captor.capture());
-        assertThat(captor.getValue().weightKg()).isEqualByComparingTo("81.50");
-        assertThat(captor.getValue().source()).isEqualTo(WeightHistoryDto.WeightSource.FATSECRET);
-    }
-
-    @Test
-    void syncProfilePropagatesProviderFailureToTheScheduler() {
-        Long userId = 42L;
-        FatSecretAuthResult authResult = authResult(userId);
-        when(fatSecretApi.getLatestWeight(authResult.token()))
-                .thenThrow(new IllegalStateException("provider unavailable"));
-
-        assertThatThrownBy(() -> service.syncProfileFromFatSecret(userId, authResult))
-                .isInstanceOf(com.fit.fitnessapp.exception.ExternalApiException.class)
-                .hasCauseInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void updateWeightDoesNotLogExactWeight(CapturedOutput output) {
-        Long userId = 42L;
-        FatSecretAuthResult authResult = authResult(userId);
+    void userAuthoredProviderUpdateDoesNotCreateAProviderWeightCopy(CapturedOutput output) {
+        FatSecretAuthResult authResult = authResult(42L);
         WeightEntryDto weightEntry = new WeightEntryDto(
                 new BigDecimal("91.20"),
                 LocalDate.of(2026, 7, 5),
                 20640,
                 "sensitive update");
-
         when(fatSecretApi.updateWeight(authResult.token(), weightEntry)).thenReturn(true);
-        when(weightHistoryUseCase.saveWeight(any(WeightHistoryDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.updateWeightOnFatSecret(authResult, weightEntry);
+        assertThat(service.updateWeightOnFatSecret(authResult, weightEntry)).isTrue();
 
+        verify(fatSecretApi).updateWeight(authResult.token(), weightEntry);
+        verify(weightHistoryUseCase, never()).saveWeight(org.mockito.ArgumentMatchers.any());
         assertThat(output)
                 .contains("userId=42")
                 .contains("status=success")

@@ -14,6 +14,8 @@ import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.nutrition.domain.NutritionDaySummary;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonth;
 import com.fit.fitnessapp.nutrition.domain.NutritionMonthFetchResult;
+import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
+import com.fit.fitnessapp.nutrition.domain.ProviderDataRetentionPolicy;
 import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.scribejava.core.builder.ServiceBuilder;
@@ -32,7 +34,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class FatSecretApiAdapter implements FatSecretApiPort {
@@ -113,6 +117,27 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             throw e;
         } catch (Exception e) {
             throw new ExternalApiException("Failed to fetch data from FatSecret", e);
+        }
+    }
+
+    @Override
+    public Set<ProviderDataIdentifier> fetchProviderIdentifiersForDay(
+            FatSecretToken token,
+            long daysSinceEpoch) {
+        try {
+            OAuthRequest request = request(Verb.POST, "https://platform.fatsecret.com/rest/server.api");
+            request.addParameter("method", "food_entries.get.v2");
+            request.addParameter("format", "json");
+            request.addParameter("date", String.valueOf(daysSinceEpoch));
+
+            Response response = execute(token, request);
+            log.debug("FatSecret identifier response status={}", response.getCode());
+            ensureSuccessful(response, "food entry identifiers");
+            return parseProviderIdentifiers(response.getBody());
+        } catch (ExternalApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ExternalApiException("Failed to fetch FatSecret identifiers", e);
         }
     }
 
@@ -430,6 +455,40 @@ public class FatSecretApiAdapter implements FatSecretApiPort {
             throw new ExternalApiException("Failed to parse FatSecret JSON", e);
         }
         return new NutritionDay(userId, date, entries);
+    }
+
+    Set<ProviderDataIdentifier> parseProviderIdentifiers(String jsonBody) {
+        try {
+            JsonNode root = objectMapper.readTree(jsonBody);
+            JsonNode entries = root.path("food_entries").path("food_entry");
+            LinkedHashSet<ProviderDataIdentifier> identifiers = new LinkedHashSet<>();
+            if (entries.isArray()) {
+                entries.forEach(entry -> addPermittedFoodIdentifiers(entry, identifiers));
+            } else if (entries.isObject()) {
+                addPermittedFoodIdentifiers(entries, identifiers);
+            }
+            return Set.copyOf(identifiers);
+        } catch (Exception e) {
+            throw new ExternalApiException("Failed to parse FatSecret identifiers", e);
+        }
+    }
+
+    private void addPermittedFoodIdentifiers(
+            JsonNode entry,
+            Set<ProviderDataIdentifier> identifiers) {
+        addIdentifier(entry, "food_id", identifiers);
+        addIdentifier(entry, "food_entry_id", identifiers);
+        addIdentifier(entry, "serving_id", identifiers);
+    }
+
+    private void addIdentifier(
+            JsonNode entry,
+            String fieldName,
+            Set<ProviderDataIdentifier> identifiers) {
+        JsonNode value = entry.get(fieldName);
+        if (value != null && !value.isNull() && !value.asText().isBlank()) {
+            identifiers.add(ProviderDataRetentionPolicy.identifier(fieldName, value.asText()));
+        }
     }
 
     private FoodEntry mapFoodEntryNode(JsonNode node) {

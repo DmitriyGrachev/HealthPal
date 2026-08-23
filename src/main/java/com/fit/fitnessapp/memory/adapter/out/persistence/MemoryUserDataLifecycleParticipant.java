@@ -47,4 +47,9 @@ public class MemoryUserDataLifecycleParticipant implements UserDataLifecyclePart
     public void deleteData(Long userId) {
         jdbc.update("DELETE FROM user_memory WHERE user_id = ?", userId);
     }
+
+    @Override
+    public void disconnectExternalAccount(Long userId) {
+        jdbc.update("DELETE FROM user_memory WHERE user_id = ?", userId);
+    }
 }

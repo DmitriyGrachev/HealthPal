@@ -131,11 +131,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
         assertThat(export.userId()).isEqualTo(userId);
         assertThat(export.profile()).containsEntry("goal_weight_kg", 75.0);
-        assertThat(export.weightHistory()).hasSize(2)
+        assertThat(export.weightHistory()).hasSize(1)
                 .extracting(row -> row.get("weight_source"))
-                .containsExactly("MANUAL", "FATSECRET");
-        assertThat(export.nutritionDays()).hasSize(1);
-        assertThat(export.foodEntries()).hasSize(1);
+                .containsExactly("MANUAL");
+        assertThat(export.nutritionDays()).isEmpty();
+        assertThat(export.foodEntries()).isEmpty();
         assertThat(export.workoutSessions()).hasSize(1);
         assertThat(export.workoutExercises()).hasSize(1);
         assertThat(export.workoutSets()).hasSize(1);
@@ -185,8 +185,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(moduleCategories(v2, "ai"))
                 .contains("ai_insights", "ai_usage_budget");
         assertThat(moduleCategories(v2, "nutrition"))
-                .contains("nutrition_profile_and_manual_weight", "fatsecret_connection", "fatsecret_weight",
-                        "fatsecret_day", "fatsecret_food", "nutrition_source_state");
+                .containsExactlyInAnyOrder(
+                        "nutrition_profile_and_manual_weight",
+                        "fatsecret_encrypted_credentials",
+                        "fatsecret_permitted_identifiers",
+                        "fatsecret_restricted_response_content");
         assertThat(moduleCategories(v2, "workout")).contains("workout_source_state");
         assertThat(moduleCategories(v2, "event-publications")).contains("event_publications");
 
@@ -194,12 +197,17 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .filter(module -> module.moduleKey().equals("nutrition"))
                 .findFirst()
                 .orElseThrow();
+        assertThat(nutritionModule.schemaVersion()).isEqualTo(2);
+        assertThat(nutritionModule.data())
+                .doesNotContainKeys("nutritionDays", "foodEntries", "nutritionSourceState");
         @SuppressWarnings("unchecked")
-        Map<String, Object> nutritionSourceState = ((List<Map<String, Object>>)
-                nutritionModule.data().get("nutritionSourceState")).getFirst();
-        assertThat(nutritionSourceState)
-                .containsKeys("sourceDate", "sourceVersion", "present", "createdAt", "updatedAt")
-                .doesNotContainKeys("content_hash", "lifecycle_epoch", "contentHash", "lifecycleEpoch");
+        List<Map<String, Object>> permittedIdentifiers = (List<Map<String, Object>>)
+                nutritionModule.data().get("fatSecretProviderIdentifiers");
+        assertThat(permittedIdentifiers).singleElement().satisfies(identifier -> assertThat(identifier)
+                .containsEntry("identifierType", "food_id")
+                .containsEntry("identifierValue", "101")
+                .containsKeys("firstReceivedAt", "lastReceivedAt")
+                .doesNotContainKeys("connection_epoch", "connectionEpoch"));
 
         var workoutModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("workout"))
@@ -249,13 +257,22 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
         lifecycleUseCase.disconnectFatSecret(userId);
         assertThat(count("fatsecret_connection", "user_id", userId)).isZero();
-        assertThat(count("fatsecret_day", "user_id", userId)).isOne();
-        assertThat(jdbc.queryForObject("""
-                SELECT COUNT(*)
-                FROM fatsecret_food food
-                JOIN fatsecret_day day ON day.id = food.day_id
-                WHERE day.user_id = ?
-                """, Long.class, userId)).isOne();
+        assertThat(count("fatsecret_provider_identifiers", "user_id", userId)).isZero();
+        assertThat(count("fatsecret_day", "user_id", userId)).isZero();
+        assertThat(count("nutrition_source_state", "user_id", userId)).isZero();
+        assertThat(count("weight_history", "user_id", userId)).isOne();
+        assertThat(count("profile", "user_id", userId)).isOne();
+        assertThat(count("user_notes", "user_id", userId)).isOne();
+        assertThat(count("workout", "user_id", userId)).isOne();
+        assertThat(count("ai_insights", "user_id", userId)).isZero();
+        assertThat(count("user_memory", "user_id", userId)).isZero();
+        assertThat(count("durable_jobs", "user_id", userId)).isZero();
+        assertThat(count("telegram_delivery_outbox", "user_id", userId)).isZero();
+        assertThat(publicationCount(completedPublication)).isZero();
+        assertThat(publicationCount(incompletePublication)).isZero();
+        assertThat(count("telegram_users", "user_id", userId)).isOne();
+        assertThat(count("conversation_history", "chat_id", chatId)).isOne();
+        assertThat(userBudgetCount(userId)).isOne();
 
         var result = lifecycleUseCase.deleteAccount(userId);
         transactionTemplate.executeWithoutResult(status -> {
@@ -833,22 +850,16 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 VALUES (?, 80.5, ?, 'MANUAL')
                 """, userId, LocalDate.of(2026, 8, 8));
         jdbc.update("""
-                INSERT INTO weight_history (user_id, weight_kg, weight_date, weight_source)
-                VALUES (?, 81.25, ?, 'FATSECRET')
-                """, userId, LocalDate.of(2026, 8, 7));
-        jdbc.update("""
                 INSERT INTO fatsecret_connection (user_id, access_token, access_token_secret)
                 VALUES (?, ?, ?)
                 """, userId, "oauth-token-canary-" + userId, "oauth-secret-canary-" + userId);
-        Long dayId = jdbc.queryForObject("""
-                INSERT INTO fatsecret_day (user_id, date, date_int)
-                VALUES (?, ?, 20673)
-                RETURNING id
-                """, Long.class, userId, LocalDate.of(2026, 8, 8));
         jdbc.update("""
-                INSERT INTO fatsecret_food (external_food_id, name, meal_type, day_id)
-                VALUES (101, 'Apple', 'snack', ?)
-                """, dayId);
+                INSERT INTO fatsecret_provider_identifiers
+                    (user_id, connection_epoch, identifier_type, identifier_value)
+                SELECT user_id, connection_epoch, 'food_id', '101'
+                  FROM fatsecret_connection
+                 WHERE user_id = ?
+                """, userId);
         Long workoutId = jdbc.queryForObject("""
                 INSERT INTO workout (jefit_id, date, user_id)
                 VALUES (201, CURRENT_TIMESTAMP, ?)

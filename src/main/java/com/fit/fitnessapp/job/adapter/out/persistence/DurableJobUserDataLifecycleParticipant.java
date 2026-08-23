@@ -50,4 +50,13 @@ public class DurableJobUserDataLifecycleParticipant implements UserDataLifecycle
     public void deleteData(Long userId) {
         jdbc.update("DELETE FROM durable_jobs WHERE user_id = ?", userId);
     }
+
+    @Override
+    public void disconnectExternalAccount(Long userId) {
+        jdbc.update("""
+                DELETE FROM durable_jobs
+                 WHERE user_id = ?
+                   AND job_type IN ('NUTRITION_SYNC', 'DAILY_INSIGHT', 'WEEKLY_REPORT', 'MONTHLY_REPORT')
+                """, userId);
+    }
 }

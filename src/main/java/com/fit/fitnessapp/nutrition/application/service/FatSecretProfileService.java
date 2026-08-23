@@ -6,7 +6,6 @@ import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.domain.FatSecretAuthResult;
 import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
-import com.fit.fitnessapp.nutrition.domain.WeightHistoryDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -71,59 +70,17 @@ public class FatSecretProfileService {
     }
     
     public void syncProfileFromFatSecret(Long userId, FatSecretAuthResult authResult) {
-        try {
-            WeightEntryDto latestWeight = fatSecretApi.getLatestWeight(authResult.token());
-            if (latestWeight != null) {
-                List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
-                        userId, latestWeight.date(), latestWeight.date());
-                
-                if (shouldSaveFatSecretWeight(existing, latestWeight.weight())) {
-                    WeightHistoryDto dto = new WeightHistoryDto(
-                            null, userId,
-                            latestWeight.weight().stripTrailingZeros(),
-                            latestWeight.date(),
-                            WeightHistoryDto.WeightSource.FATSECRET
-                    );
-                    weightHistoryRepository.saveWeight(dto);
-                }
-                log.info("FatSecret profile sync completed userId={} date={} status=success",
-                        userId, latestWeight.date());
-            }
-        } catch (Exception e) {
-            log.warn("FatSecret profile sync failed userId={} status=error errorCode={}",
-                    userId, e.getClass().getSimpleName());
-            throw new ExternalApiException("Failed to sync FatSecret profile", e);
-        }
+        log.debug(
+                "FatSecret profile persistence skipped userId={} reasonCode=PROVIDER_CONTENT_NON_RETENTION",
+                userId);
     }
     
     public void syncWeightHistoryFromFatSecret(Long userId, FatSecretAuthResult authResult, LocalDate date) {
-        try {
-            List<WeightEntryDto> weightHistory = fatSecretApi.getWeightHistory(authResult.token(), date.toEpochDay());
-            if (weightHistory != null && !weightHistory.isEmpty()) {
-                int savedCount = 0;
-                for (WeightEntryDto entry : weightHistory) {
-                    List<WeightHistoryDto> existing = weightHistoryRepository.getWeightHistoryByUserIdAndDateRange(
-                            userId, entry.date(), entry.date());
-
-                    if (shouldSaveFatSecretWeight(existing, entry.weight())) {
-                        WeightHistoryDto dto = new WeightHistoryDto(
-                                null, userId,
-                                entry.weight().stripTrailingZeros(),
-                                entry.date(),
-                                WeightHistoryDto.WeightSource.FATSECRET
-                        );
-                        weightHistoryRepository.saveWeight(dto);
-                        savedCount++;
-                    }
-                }
-                log.info("Synced {} weight entries from FatSecret for user {} for date {}",
-                        savedCount, userId, date);
-            }
-        } catch (Exception e) {
-            log.warn("FatSecret weight history sync failed userId={} status=error errorCode={}",
-                    userId, e.getClass().getSimpleName());
-            throw new ExternalApiException("Failed to sync FatSecret weight history", e);
-        }
+        log.debug(
+                "FatSecret weight history persistence skipped userId={} date={} "
+                        + "reasonCode=PROVIDER_CONTENT_NON_RETENTION",
+                userId,
+                date);
     }
 
     public boolean updateWeightOnFatSecret(FatSecretAuthResult authResult, WeightEntryDto weightEntry) {
@@ -134,14 +91,6 @@ public class FatSecretProfileService {
                         authResult.userId(),
                         weightEntry.date() != null ? weightEntry.date() : currentDate(authResult.userId()));
                 
-                // Also save to local history
-                WeightHistoryDto dto = new WeightHistoryDto(
-                        null, authResult.userId(),
-                        weightEntry.weight().stripTrailingZeros(),
-                        weightEntry.date() != null ? weightEntry.date() : currentDate(authResult.userId()),
-                        WeightHistoryDto.WeightSource.FATSECRET
-                );
-                weightHistoryRepository.saveWeight(dto);
             }
             return success;
         } catch (Exception e) {
@@ -149,12 +98,6 @@ public class FatSecretProfileService {
                     authResult.userId(), e.getClass().getSimpleName());
             return false;
         }
-    }
-
-    private boolean shouldSaveFatSecretWeight(List<WeightHistoryDto> existing, BigDecimal incomingWeight) {
-        return existing.stream()
-                .filter(entry -> entry.source() == WeightHistoryDto.WeightSource.FATSECRET)
-                .noneMatch(entry -> entry.weightKg().compareTo(incomingWeight) == 0);
     }
 
     private LocalDate currentDate(Long userId) {

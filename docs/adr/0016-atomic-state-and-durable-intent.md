@@ -1,5 +1,11 @@
 # ADR 0016: Commit Source State and Durable Intent Atomically
 
+## Status Note
+
+ADR 0015 supersedes the provider-backed nutrition canonical/source-state/event
+path described below. This decision remains active for workout state and its
+derived projections.
+
 ## Context
 
 Nutrition and workout changes drive a derived DAILY insight. A listener may be

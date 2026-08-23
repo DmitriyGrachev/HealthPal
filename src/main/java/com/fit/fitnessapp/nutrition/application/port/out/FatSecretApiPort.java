@@ -8,6 +8,8 @@ import com.fit.fitnessapp.nutrition.domain.WeightEntryDto;
 import com.fit.fitnessapp.nutrition.domain.FatSecretExerciseDto;
 import com.fit.fitnessapp.nutrition.domain.FatSecretExerciseEntryDto;
 import java.util.List;
+import java.util.Set;
+import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
 
 public interface FatSecretApiPort {
     String getAuthUrl(Long userId);
@@ -15,6 +17,7 @@ public interface FatSecretApiPort {
 
     NutritionDay fetchAndParseFoodEntries(FatSecretToken token, Long userId, long daysSinceEpoch);
     NutritionMonthFetchResult fetchAndParseFoodEntriesForCurrentMonth(FatSecretToken token, Long userId, long currentDaysInMonth);
+    Set<ProviderDataIdentifier> fetchProviderIdentifiersForDay(FatSecretToken token, long daysSinceEpoch);
     
     // Phase 1 additions
     WeightEntryDto getLatestWeight(FatSecretToken token);

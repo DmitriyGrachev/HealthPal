@@ -9,9 +9,10 @@
 
 ## Scheduled Work
 
-- Nutrition sync runs in UTC and uses `nutrition.sync.today.cron`, `nutrition.sync.window-days`, and `nutrition.sync.batch-size`.
-- Each user sync creates a durable job with an idempotency key. A second scheduler instance may create the same key, but only one job can be claimed.
-- In one JVM an overlapping scheduler invocation is skipped. A failed user does not stop the remaining batch.
+- Historical FatSecret content synchronization is disabled. There is no
+  scheduled provider-nutrition job and no durable provider-content replay.
+  An explicit refresh stores only permitted current-connection identifiers and
+  publishes no canonical nutrition event.
 - Durable jobs use a PostgreSQL-fenced lease (`lease_owner`, `lease_generation`,
   `lease_expires_at`, and `claimed_at`). Workers recover expired leases using
   PostgreSQL `NOW()`, then claim exactly one due row immediately before
@@ -67,6 +68,122 @@
 - Spring waits up to 30 seconds for scheduled and async executors. The AI executor waits five seconds for in-flight provider work, then interrupts it; the durable job or outbox state remains the recovery source for the next worker cycle.
 - Do not run destructive SQL against `durable_jobs`, `telegram_delivery_outbox`, `event_publication`, or `user_memory` during deployment.
 - Flyway migrations are append-only. Roll back by deploying a previous application version only when the new migration is backward compatible; otherwise restore the database backup and follow the incident procedure.
+
+## V31 → V32 FatSecret Retention Cutover
+
+V32 is an intentionally destructive, forward-only provider-retention migration.
+It removes restricted FatSecret content and ambiguous downstream projections;
+it is not a historical bridge and must never be copied into V1-V31.
+
+1. Stop application traffic, event replay, schedulers, durable-job workers, and
+   Telegram outbox workers. Confirm that no process can write or replay data in
+   the target schema.
+2. Create and verify a restorable, access-controlled database backup. Record
+   only its operational identifier and verification result. The backup is a
+   rollback artifact, not an application recovery source: if restored, keep the
+   database isolated and reapply V32 before enabling traffic, workers, exports,
+   or application reads.
+3. Set `search_path` to the fixed deployment schema and abort unless the latest
+   successful Flyway version is exactly `31`:
+
+```sql
+SELECT version
+  FROM flyway_schema_history
+ WHERE success
+ ORDER BY installed_rank DESC
+ LIMIT 1;
+```
+
+4. Record the following aggregate-only preflight row. Do not retain row values,
+   provider payloads, tokens, identifiers, or user IDs:
+
+```sql
+WITH affected_users AS (
+    SELECT user_id FROM fatsecret_connection
+    UNION
+    SELECT user_id FROM fatsecret_day
+    UNION
+    SELECT user_id FROM weight_history WHERE weight_source = 'FATSECRET'
+    UNION
+    SELECT user_id FROM nutrition_source_state
+)
+SELECT
+    (SELECT COUNT(*) FROM affected_users) AS affected_owners,
+    (SELECT COUNT(*) FROM fatsecret_connection) AS connections,
+    (SELECT COUNT(*) FROM fatsecret_day) AS restricted_days,
+    (SELECT COUNT(*) FROM fatsecret_food) AS restricted_foods,
+    (SELECT COUNT(*) FROM weight_history WHERE weight_source = 'FATSECRET')
+        AS restricted_weights,
+    (SELECT COUNT(*) FROM weight_history WHERE weight_source = 'MANUAL')
+        AS manual_weights,
+    (SELECT COUNT(*) FROM nutrition_source_state) AS restricted_source_states,
+    (SELECT COUNT(*) FROM ai_insights
+      WHERE user_id IN (SELECT user_id FROM affected_users)) AS affected_ai,
+    (SELECT COUNT(*) FROM user_memory
+      WHERE user_id IN (SELECT user_id FROM affected_users)) AS affected_memory,
+    (SELECT COUNT(*) FROM event_publication
+      WHERE user_id IN (SELECT user_id FROM affected_users)) AS affected_publications,
+    (SELECT COUNT(*) FROM durable_jobs
+      WHERE user_id IN (SELECT user_id FROM affected_users)
+        AND job_type IN ('NUTRITION_SYNC', 'DAILY_INSIGHT', 'WEEKLY_REPORT', 'MONTHLY_REPORT'))
+        AS affected_jobs,
+    (SELECT COUNT(*) FROM telegram_delivery_outbox
+      WHERE user_id IN (SELECT user_id FROM affected_users)) AS affected_outbox;
+```
+
+5. Apply V32 through the normal Flyway deployment mechanism. PostgreSQL and
+   Flyway own the migration transaction; do not run migration fragments by
+   hand, edit `flyway_schema_history`, or use `flyway repair` to conceal a
+   failure.
+6. Verify that the latest successful version is exactly `32`, the manual-weight
+   count equals the preflight value, and this postflight row contains zeros for
+   every `invalid_*`, `orphan_*`, and `restricted_*` field:
+
+```sql
+SELECT
+    (SELECT COUNT(*) FROM fatsecret_day) AS restricted_days,
+    (SELECT COUNT(*) FROM fatsecret_food) AS restricted_foods,
+    (SELECT COUNT(*) FROM weight_history WHERE weight_source = 'FATSECRET')
+        AS restricted_weights,
+    (SELECT COUNT(*) FROM nutrition_source_state) AS restricted_source_states,
+    (SELECT COUNT(*) FROM fatsecret_connection WHERE connection_epoch IS NULL)
+        AS invalid_connection_epochs,
+    (SELECT COUNT(*) FROM fatsecret_provider_identifiers identifier
+      WHERE identifier.identifier_type NOT IN (
+          'exercise_id', 'food_category_id', 'food_entry_id', 'food_id',
+          'recipe_id', 'recipe_types', 'saved_meal_id',
+          'saved_meal_item_id', 'serving_id'
+      )) AS invalid_identifier_types,
+    (SELECT COUNT(*) FROM fatsecret_provider_identifiers identifier
+      WHERE (identifier.identifier_type = 'recipe_types'
+             AND identifier.identifier_value !~ '^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$')
+         OR (identifier.identifier_type <> 'recipe_types'
+             AND identifier.identifier_value !~ '^[1-9][0-9]{0,18}$'))
+        AS invalid_identifier_shapes,
+    (SELECT COUNT(*) FROM fatsecret_provider_identifiers identifier
+      WHERE NOT EXISTS (
+          SELECT 1
+            FROM fatsecret_connection connection
+           WHERE connection.user_id = identifier.user_id
+             AND connection.connection_epoch = identifier.connection_epoch
+      )) AS orphan_identifiers,
+    (SELECT COUNT(*) FROM weight_history WHERE weight_source = 'MANUAL')
+        AS manual_weights;
+```
+
+7. Verify that an attempted FatSecret day/food write and a
+   `weight_source = 'FATSECRET'` write are rejected in a rolled-back operator
+   test transaction. Do not use real provider content for this check.
+8. Enable the application only after the postflight evidence is accepted. Do
+   not re-enable historical nutrition workers; V32 deliberately leaves that
+   capability disabled.
+
+If V32 fails, keep the application stopped. Confirm that its transaction rolled
+back, investigate without modifying old migrations, and restore the verified
+backup only when normal database recovery is required. A restored database
+must stay isolated until V32 succeeds. Local disconnect or account deletion
+does not imply remote FatSecret erasure, and delivered Telegram messages cannot
+be recalled by this procedure.
 
 ## Historical Upgrade Boundaries
 

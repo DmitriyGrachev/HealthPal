@@ -60,4 +60,9 @@ public class AiUserDataLifecycleParticipant implements UserDataLifecycleParticip
         jdbc.update("DELETE FROM ai_insights WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM ai_usage_budget WHERE scope_type = 'USER' AND scope_id = ?", userId);
     }
+
+    @Override
+    public void disconnectExternalAccount(Long userId) {
+        jdbc.update("DELETE FROM ai_insights WHERE user_id = ?", userId);
+    }
 }

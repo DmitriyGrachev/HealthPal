@@ -52,4 +52,9 @@ public class EventPublicationUserDataLifecycleParticipant implements UserDataLif
     public void deleteData(Long userId) {
         jdbc.update("DELETE FROM event_publication WHERE user_id = ?", userId);
     }
+
+    @Override
+    public void disconnectExternalAccount(Long userId) {
+        jdbc.update("DELETE FROM event_publication WHERE user_id = ?", userId);
+    }
 }

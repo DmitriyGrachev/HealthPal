@@ -5,10 +5,10 @@ import com.fit.fitnessapp.api.InsightType;
 import com.fit.fitnessapp.nutrition.application.port.out.FatSecretApiPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.service.NutritionService;
+import com.fit.fitnessapp.nutrition.domain.FatSecretConnectionSnapshot;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
-import com.fit.fitnessapp.nutrition.domain.FoodEntry;
-import com.fit.fitnessapp.nutrition.domain.NutritionDay;
-import com.fit.fitnessapp.nutrition.domain.NutritionDaySaveResult;
+import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
+import com.fit.fitnessapp.nutrition.domain.ProviderDataRetentionPolicy;
 import com.fit.fitnessapp.telegram.adapter.in.TelegramUpdateHandler;
 import com.fit.fitnessapp.telegram.application.service.handlers.WeightCommandHandler;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
@@ -37,6 +37,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -97,22 +98,29 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
     }
 
     @Test
-    void syncToInsightMemoryAndTelegramDeliveryUsesDurableBoundaries() throws Exception {
+    void identifierRefreshDoesNotBecomeCanonicalSourceAndInsightDeliveryRemainsDurable() throws Exception {
         long userId = insertUser();
         jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
                 8101L, userId, 8102L);
         LocalDate date = LocalDate.of(2026, 8, 9);
-        NutritionDay day = new NutritionDay(userId, date,
-                List.of(new FoodEntry(1L, 2L, "Oats", "breakfast", 400, 15, 8, 60)));
-        when(nutritionCommandPort.getToken(userId)).thenReturn(Optional.of(new FatSecretToken("token", "secret")));
-        when(fatSecretApiPort.fetchAndParseFoodEntries(any(), org.mockito.ArgumentMatchers.eq(userId), any(Long.class)))
-                .thenReturn(day);
-        when(nutritionCommandPort.saveNutritionDay(day)).thenReturn(
-                new NutritionDaySaveResult(userId, date, true, "summary-hash", "entries-hash", 400, 15, 8, 60));
+        FatSecretConnectionSnapshot connection = new FatSecretConnectionSnapshot(
+                userId,
+                new FatSecretToken("token", "secret"),
+                UUID.randomUUID());
+        Set<ProviderDataIdentifier> identifiers = Set.of(
+                ProviderDataRetentionPolicy.identifier("food_id", "1"));
+        when(nutritionCommandPort.getConnectionSnapshot(userId)).thenReturn(Optional.of(connection));
+        when(fatSecretApiPort.fetchProviderIdentifiersForDay(connection.token(), date.toEpochDay()))
+                .thenReturn(identifiers);
+        when(nutritionCommandPort.saveProviderIdentifiers(connection, identifiers)).thenReturn(1);
 
         nutritionService.syncDay(userId, date);
-        awaitCount("SELECT COUNT(*) FROM durable_jobs WHERE user_id = ? AND job_type = 'DAILY_INSIGHT'",
-                userId, 1L);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM durable_jobs WHERE user_id = ? AND job_type = 'DAILY_INSIGHT'",
+                Long.class,
+                userId)).isZero();
+        verify(nutritionCommandPort).saveProviderIdentifiers(connection, identifiers);
 
         jdbc.update("""
                 INSERT INTO ai_insights (user_id, insight_type, date, insight_text, metadata)

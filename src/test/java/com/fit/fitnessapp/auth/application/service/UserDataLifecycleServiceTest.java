@@ -100,11 +100,12 @@ class UserDataLifecycleServiceTest {
     }
 
     @Test
-    void disconnectDelegatesToModuleOwnersWithoutDeletingNutritionHistory() {
-        when(userIdentityPort.findById(42L)).thenReturn(Optional.of(user));
+    void disconnectLocksTheOwnerThenDelegatesCoordinatedCleanup() {
+        when(userIdentityPort.findByIdForUpdate(42L)).thenReturn(Optional.of(user));
 
         service.disconnectFatSecret(42L);
 
+        verify(userIdentityPort).findByIdForUpdate(42L);
         verify(aiParticipant).disconnectExternalAccount(42L);
         verify(nutritionParticipant).disconnectExternalAccount(42L);
     }
