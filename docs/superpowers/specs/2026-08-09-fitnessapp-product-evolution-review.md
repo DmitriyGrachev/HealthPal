@@ -1,6 +1,8 @@
 # FitnessApp: документ решений по развитию продукта
 
-> **Статус:** review завершён на уровне направления; Stage 2 принят к исполнению 2026-08-12.
+> **Статус:** review завершён на уровне направления; Stage 2 принят к исполнению
+> 2026-08-12; Phase 0 Truth and Recovery реализована и прошла exit gate
+> 2026-08-23; следующий engineering scope — Phase 1 Debugger Alpha.
 >
 > **Дата:** 2026-08-09
 >
@@ -12,7 +14,11 @@
 
 > **Терминология Stage 2:** поведение problem workspace из `PRD-001` реализуется как `Investigation`. Имя `Topic` зарезервировано для будущих living research topics/knowledge areas, чтобы не смешивать два разных понятия.
 
-> **Границы статуса:** технические решения Phase 0–2 разрешены более новым видением и Stage 2 roadmap. Пустые исторические поля ответа ниже не блокируют реализацию. `PRD-007`/`VAL-001`/`VAL-002` остаются отдельным эмпирическим product-validation gate и не могут считаться выполненными на основании автоматических тестов.
+> **Границы статуса:** technical implementation status ведётся в register ниже
+> и в Stage 2 roadmap. Пустые исторические поля ответа не отменяют уже принятые
+> решения. `PRD-007`/`VAL-001`/`VAL-002` остаются отдельным эмпирическим
+> product-validation gate и не могут считаться выполненными на основании
+> автоматических тестов.
 
 ## Как работать с документом
 
@@ -35,7 +41,7 @@
 |---|---|---|
 | Стратегия | `STR-001`–`STR-005` | форма продукта, первый User, promise, moat, invalidating assumption |
 | Фундамент | `FND-001`–`FND-006` | FatSecret, privacy, events, recovery, migrations, platform baseline |
-| Debugger alpha | `PRD-001`–`PRD-007` | Topic, Goal, Experiment, adherence, Outcome и первый workflow |
+| Debugger alpha | `PRD-001`–`PRD-007` | Investigation, Goal, Experiment, adherence, Outcome и первый workflow |
 | Knowledge | `KNO-001`–`KNO-005` | canonical claims, RAG projection, provenance, context, contradictions |
 | Agent | `AGT-001`–`AGT-005` | Investigator, run state, approvals, prompt security, evaluation |
 | Новые сигналы | `SIG-001`–`SIG-007` | Observation contract, sleep, mood, work/focus и wearables |
@@ -58,13 +64,13 @@
 | `STR-003` | Owner | Promise про одно проверяемое изменение | `STR-001` | Strategy | Сейчас |
 | `STR-004` | Shared | Moat = evidence-bearing learning loop | `STR-003` | Strategy | Сейчас |
 | `STR-005` | Owner | Проверять готовность завершать цикл и терпеть uncertainty | `STR-001` | Validation | Сейчас |
-| `FND-001` | Shared | Принять FatSecret storage/ownership policy | — | 0 | Сейчас |
-| `FND-002` | Engineering | Versioned PII-safe lifecycle/replay | `FND-001` частично | 0 | До реальных Users |
-| `FND-003` | Engineering | Атомарный state transition + durable intent | `FND-002` | 0 | До alpha |
-| `FND-004` | Engineering | Lease fencing и terminal recovery | — | 0 | До alpha |
-| `FND-005` | Engineering | Dirty-upgrade fixtures | — | 0 | До новых migrations |
-| `FND-006` | Engineering | Supported platform baseline и честные docs | — | 0 | До alpha |
-| `PRD-001` | Owner | Topic = problem workspace | `STR-001` | 1 | Сейчас |
+| `FND-001` | Shared | Принять FatSecret storage/ownership policy | — | 0 | Закрыто 2026-08-23 |
+| `FND-002` | Engineering | Versioned PII-safe lifecycle/replay | `FND-001` частично | 0 | Закрыто 2026-08-23 |
+| `FND-003` | Engineering | Атомарный state transition + durable intent | `FND-002` | 0 | Закрыто 2026-08-23 |
+| `FND-004` | Engineering | Lease fencing и terminal recovery | — | 0 | Закрыто 2026-08-23 |
+| `FND-005` | Engineering | Dirty-upgrade fixtures | — | 0 | Закрыто 2026-08-23 |
+| `FND-006` | Engineering | Supported platform baseline и честные docs | — | 0 | Закрыто 2026-08-23 |
+| `PRD-001` | Owner | Investigation = problem workspace; Topic зарезервирован | `STR-001` | 1 | Следующий scope |
 | `PRD-002` | Shared | Один canonical Goal lifecycle | `PRD-001` | 1 | Сейчас |
 | `PRD-003` | Shared | One-variable Experiment state machine | `PRD-002` | 1 | Сейчас |
 | `PRD-004` | Owner | Adherence обязателен для Evaluation | `PRD-003` | 1 | Сейчас |
@@ -106,6 +112,27 @@
 | `VAL-002` | Owner | Ценность до завершения 7–14 дней | `PRD-006` | 1 | Сейчас |
 | `VAL-003` | Owner | Monetization после repeat-loop signal | `VAL-001` | Post-alpha | Позже |
 | `NOG-001` | Owner | Зафиксировать non-goals | `STR-001` | Все | Сейчас |
+
+### Implementation status register
+
+| Scope | Decision IDs | Статус реализации | Что означает |
+|---|---|---|---|
+| Phase 0 — Truth and Recovery | `FND-001`–`FND-006` | ✅ Complete, 2026-08-23 | Код, V27–V33, lifecycle/replay, dirty upgrades, privacy, operations и supported Spring baseline прошли полный technical gate |
+| Phase 1 — Debugger Alpha engineering | `PRD-001`–`PRD-006`, `MET-002` | ⏭ Next; not implemented | Выполняется по canonical Phase 1 plan, начиная с `Investigation` |
+| Phase 1 — product validation | `PRD-007`, `VAL-001`, `VAL-002` | ⏳ Not proven | Требует реальных завершённых циклов и внешних target Users; тестами не закрывается |
+| Phase 2 — Trustworthy Personal Context | `KNO-001`–`KNO-005` | Planned; not implemented | Начинается после Phase 1 engineering-ready gate |
+| Phase 3+ | `AGT-*`, `SIG-*`, поздние UX/metrics | Deferred | Не входит в текущий Stage 2 execution scope |
+
+Phase 0 evidence by decision:
+
+| ID | Статус | Реализационное доказательство |
+|---|---|---|
+| `FND-001` | ✅ Complete | ADR-0015 и V32 закрепляют identifier-only FatSecret retention; disconnect/export/delete/replay покрыты PostgreSQL tests |
+| `FND-002` | ✅ Complete | Module-owned lifecycle, versioned metadata/lifecycle epoch, safe replay/no-op and complete export/delete coverage |
+| `FND-003` | ✅ Complete | Nutrition/workout source state и durable event intent фиксируются атомарно; stale projections fenced |
+| `FND-004` | ✅ Complete | V29/V30: owner + monotonic lease generation, guarded outcomes, terminal durable recovery и Telegram `DELIVERY_UNKNOWN` |
+| `FND-005` | ✅ Complete | Historical and dirty upgrade fixtures cover immutable migrations through V33 on PostgreSQL |
+| `FND-006` | ✅ Complete | Boot 4.1.0, Spring AI 2.0.0, Modulith 2.1.0; dependency analysis and all Maven/privacy gates green |
 
 Документ большой намеренно, но его необязательно заполнять за один проход:
 
@@ -303,7 +330,11 @@ Hypothesis
 
 ---
 
-## 3. Непосредственные блокеры развития - Коментарий с блокерами будем в первую очередь работать, для начала нужна мощная БАЗА!
+## 3. Непосредственные блокеры развития — историческое обоснование Phase 0
+
+Все шесть блокеров ниже закрыты 2026-08-23. Формулировки и пустые owner-response
+поля сохранены как история принятия решений; актуальное доказательство
+выполнения находится в implementation status register и canonical Phase 0 plan.
 
 ### FND-001 — Принять решение о правах хранения FatSecret data
 
@@ -445,9 +476,12 @@ Clean-schema migration tests недостаточны для уже сущест
 
 ## 4. Первый продуктовый вертикальный срез: Progress Debugger
 
-### PRD-001 — Ввести Topic как рабочее пространство проблемы
+### PRD-001 — Ввести Investigation как рабочее пространство проблемы
 
-`Topic` не является универсальной папкой для любых данных. Это ограниченный контекст, в котором пользователь пытается понять или изменить результат.
+`Investigation` не является универсальной папкой для любых данных. Это
+ограниченный контекст, в котором пользователь пытается понять или изменить
+результат. Историческое имя `Topic` зарезервировано для будущих living research
+topics/knowledge areas.
 
 Примеры:
 
@@ -462,7 +496,8 @@ Clean-schema migration tests недостаточны для уже сущест
 OPEN -> INVESTIGATING -> EXPERIMENTING -> RESOLVED | ARCHIVED
 ```
 
-Topic содержит ссылки на Goals, Observations, Hypotheses, Experiments, Decisions и Outcomes, но не владеет их raw source data.
+Investigation содержит ссылки на Goals, Observations, Hypotheses, Experiments,
+Decisions и Outcomes, но не владеет их raw source data.
 
 #### Ответ владельца по PRD-001
 
@@ -485,7 +520,7 @@ Topic содержит ссылки на Goals, Observations, Hypotheses, Experi
 - `createdAt`, `completedAt`;
 - source/provenance;
 - ссылку на superseded Goal;
-- связь с Topic.
+- связь с Investigation.
 
 Предлагаемый lifecycle:
 
@@ -506,7 +541,7 @@ DRAFT -> ACTIVE -> PAUSED -> ACHIEVED | ABANDONED | SUPERSEDED
 
 Минимальный Experiment:
 
-- Topic и Goal;
+- Investigation и Goal;
 - исходная Hypothesis;
 - baseline window;
 - ровно одна основная Intervention;
@@ -598,7 +633,7 @@ Outcome — наблюдаемый результат. Evaluation — вывод
 
 Предлагаемый alpha-flow через API и Telegram:
 
-1. User создаёт Topic и описывает проблему.
+1. User создаёт Investigation и описывает проблему.
 2. Детерминированный `AlphaExperimentContext` показывает data coverage и задаёт максимум один уточняющий вопрос за шаг.
 3. User формулирует Hypothesis вручную. Optional AI draft существует только за выключенным по умолчанию feature flag, пока не пройдёт минимальный Phase 1 AI safety gate. Полноценный tool-using Investigator в alpha не используется.
 4. Система или User создаёт один Experiment proposal.
@@ -612,7 +647,7 @@ Outcome — наблюдаемый результат. Evaluation — вывод
 
 Alpha обязан работать полностью без AI. Для реальных alpha-пользователей optional AI draft включается только после минимального Phase 1 gate:
 
-- free-text Topic/Notes передаются как untrusted tagged data, а не instructions;
+- free-text Investigation/Notes передаются как untrusted tagged data, а не instructions;
 - RAG и прошлые AI insights не используются;
 - output проходит domain и safety validation;
 - каждый claim draft ссылается на разрешённый `EvidenceRef`;
@@ -747,7 +782,7 @@ AI workflow не должен самостоятельно делать неск
 Context Bundle должен содержать:
 
 - active Goals;
-- Topic и текущий Experiment;
+- Investigation и текущий Experiment;
 - verified constraints/allergies/injuries;
 - period observations;
 - relevant claims с provenance;
@@ -794,7 +829,7 @@ Deterministic SQL выбирает Goals/Facts/Observations. Semantic search и�
 
 Первый агент получает только allowlisted read tools:
 
-- загрузить Topic и Goal;
+- загрузить Investigation и Goal;
 - получить period observations;
 - получить relevant claims с provenance;
 - проверить data coverage;
@@ -830,7 +865,7 @@ Deterministic SQL выбирает Goals/Facts/Observations. Semantic search и�
 - budget/cost;
 - status/checkpoint;
 - audit record;
-- correlation с Topic/Experiment.
+- correlation с Investigation/Experiment.
 
 Chat history не является state machine агента. `NutritionInsightResponse` не является контрактом универсального агента.
 
@@ -1009,7 +1044,7 @@ Mood tracking может включать:
 - stress;
 - motivation;
 - optional note;
-- связь с Topic/Experiment.
+- связь с Investigation/Experiment.
 
 Ограничения:
 
@@ -1037,7 +1072,9 @@ Mood tracking может включать:
 - time allocation;
 - влияние работы на тренировочное восстановление.
 
-Рекомендация: первый slice — не общий time tracker, а минимальный `Workload/Focus Observation`, используемый в конкретном Topic или Experiment.
+Рекомендация: первый slice — не общий time tracker, а минимальный
+`Workload/Focus Observation`, используемый в конкретном Investigation или
+Experiment.
 
 Не добавлять:
 
@@ -1115,7 +1152,7 @@ dailycontext (first) bounded manual sleep/readiness/mood/workload observations
 mood/work (later)    separate only after an independent domain/lifecycle appears
 wearable adapters    provider-specific ingestion
 
-experiment           Topic/Hypothesis/Experiment/Decision/Outcome workflow
+experiment           Investigation/Hypothesis/Experiment/Decision/Outcome workflow
 memory               semantic retrieval projection
 ai                   model execution, prompts, routing, validation
 analytics            period feature/snapshot assembly
@@ -1202,7 +1239,8 @@ Application command handlers не должны зависеть от Telegram SD
 
 ### ARC-006 — Не отдавать продуктовый домен модулю `ai`
 
-Topic, Goal, Hypothesis, Experiment, Decision и Outcome являются business state, а не результатами работы модели.
+Investigation, Goal, Hypothesis, Experiment, Decision и Outcome являются
+business state, а не результатами работы модели.
 
 Рекомендуемый первый владелец — focused top-level Module `experiment`. Альтернатива — `performance`, если в нём заранее запрещён рост в generic god-module. Выбор имени вторичен относительно правила:
 
@@ -1226,7 +1264,7 @@ Topic, Goal, Hypothesis, Experiment, Decision и Outcome являются busine
 
 Предлагаемая иерархия:
 
-1. Current Topic/Goal.
+1. Current Investigation/Goal.
 2. Current Experiment или следующий Decision.
 3. Сегодняшний минимальный check-in.
 4. Data gaps/contradictions.
@@ -1328,7 +1366,7 @@ User должен иметь возможность спросить:
 
 Предлагаемые продуктовые метрики:
 
-- доля Topics, дошедших до Hypothesis;
+- доля Investigations, дошедших до Hypothesis;
 - acceptance/edit/reject rate Experiments;
 - доля Experiments, реально начатых;
 - adherence completeness;
@@ -1400,7 +1438,9 @@ Loop считается завершённым только если есть:
 
 ### VAL-001 — Начать с dogfooding, но не закончить им
 
-Первый demo Topic должен быть реальной проблемой владельца проекта, потому что это ускоряет уточнение workflow. Однако собственное использование не доказывает рынок.
+Первая demo Investigation должна быть реальной проблемой владельца проекта,
+потому что это ускоряет уточнение workflow. Однако собственное использование
+не доказывает рынок.
 
 Предлагаемый validation loop:
 
@@ -1413,7 +1453,7 @@ Loop считается завершённым только если есть:
 #### Ответ владельца по VAL-001
 
 - Решение:
-- Первый личный Topic:
+- Первая личная Investigation:
 - Где найти первых пользователей:
 - Приоритет:
 
@@ -1492,27 +1532,29 @@ Non-goal можно пересмотреть, но только с новым Jo
 
 ### Phase 0 — Truth and Recovery
 
+**Статус: ✅ завершена 2026-08-23.**
+
 Состав:
 
 - FND-001–FND-006;
 - честная документация доказанных и недоказанных свойств;
 - module-owned personal data lifecycle foundation.
 
-Exit gate:
+Exit gate пройден:
 
-- FatSecret decision принят;
-- replay-after-delete безопасен;
-- crash/recovery tests проходят;
-- stale claimant не может завершить чужой lease;
-- dirty upgrade fixtures проходят;
-- три Maven gate зелёные;
-- поддерживаемая Spring Boot линия.
+- identifier-only FatSecret policy закреплена ADR-0015 и V32;
+- replay-after-delete и stale-version replay завершаются безопасно;
+- crash/recovery и atomic publication доказаны PostgreSQL tests;
+- stale claimant не может завершить чужой owner/generation lease;
+- dirty upgrade fixtures проходят через V33;
+- default, integration, architecture, dependency и privacy gates зелёные;
+- baseline: Spring Boot 4.1.0, Spring AI 2.0.0, Spring Modulith 2.1.0.
 
 ### Phase 1 — Debugger Alpha
 
 Состав:
 
-- Topic;
+- Investigation;
 - canonical Goal;
 - Experiment state machine;
 - adherence;
@@ -1587,7 +1629,9 @@ Exit gate:
 
 ### Phase 5 — Work/Focus и более широкий Personal Performance
 
-Начинать только после формулировки конкретного outcome. Переиспользовать Topic/Experiment/Evidence loop, а не строить параллельный productivity app.
+Начинать только после формулировки конкретного outcome. Переиспользовать
+Investigation/Experiment/Evidence loop, а не строить параллельный productivity
+app.
 
 Exit gate:
 
@@ -1620,11 +1664,12 @@ Exit gate:
 5. MockMvc security/validation tests для endpoint.
 6. Architecture gate.
 7. Privacy scan.
-8. Provider adapters mocked; никаких real API calls.
-9. Export/delete coverage.
-10. Observability без user-level PII labels/logs.
-11. Failure/retry/idempotency test.
-12. Документированное product metric событие.
+8. Dependency analysis для platform/dependency изменений.
+9. Provider adapters mocked; никаких real API calls.
+10. Export/delete coverage.
+11. Observability без user-level PII labels/logs.
+12. Failure/retry/idempotency test.
+13. Документированное product metric событие.
 
 Новая signal integration дополнительно требует:
 
@@ -1677,7 +1722,7 @@ ADR создаются после согласования решений, а н
 |---|---|
 | Какой продукт строится первым и для кого? | `STR-001`, `STR-002` |
 | Готов ли User выполнять один 7–14-дневный protocol и принимать `INCONCLUSIVE`? | `STR-005`, `PRD-005` |
-| Какой реальный Topic станет первым demo? | `VAL-001` |
+| Какая реальная Investigation станет первым demo? | `VAL-001` |
 | Что AI может только предложить, а что способен изменить? | `AGT-001`, `AGT-003` |
 | Что является источником истины о User? | `KNO-001`, `KNO-002` |
 | Как сон, mood и work допускаются в продукт? | `SIG-002`–`SIG-007` |
@@ -1698,9 +1743,12 @@ ADR создаются после согласования решений, а н
 
 ---
 
-## 17. Текущие code hotspots для будущих планов
+## 17. Исторический code-hotspot snapshot
 
-Этот список не означает, что все файлы нужно менять одновременно. Он фиксирует места, к которым должны быть привязаны отдельные implementation plans после review.
+Этот список зафиксирован на момент review 2026-08-09 и не является текущим
+backlog: Phase 0 hotspots уже обработаны. Перед новым plan используйте canonical
+roadmap, актуальный source tree и Graphify impact analysis; отсутствие или
+перемещение указанного здесь файла не означает новую задачу.
 
 ### Privacy и lifecycle
 

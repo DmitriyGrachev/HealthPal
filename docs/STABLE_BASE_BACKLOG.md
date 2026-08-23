@@ -2,7 +2,21 @@
 
 Этот документ фиксирует завершённый исторический scope Stable Base перед Stage 2.
 
-Он остаётся источником статуса для исходных задач `FND-001`–`FND-037`, но не для одноимённых решений нового product review. Канонический текущий порядок находится в `docs/superpowers/specs/2026-08-12-stage-2-roadmap-design.md`. Phase 1 нельзя начинать до выполнения нового Phase 0 exit gate.
+Он остаётся источником статуса только для исходных задач `FND-001`–`FND-037`.
+Одноимённые `FND-001`–`FND-006` в product review относятся к отдельному
+Stage 2 Phase 0 и не переопределяют этот ledger. Канонический порядок Stage 2
+находится в `docs/superpowers/specs/2026-08-12-stage-2-roadmap-design.md`.
+
+## Scope Boundary
+
+- **Stable Base:** исторические группы P0/P1/P2 ниже завершены в исходном
+  смысле; их номера не являются фазами Stage 2.
+- **Stage 2 Phase 0 — Truth and Recovery:** отдельный более строгий слой
+  гарантий для privacy/replay, atomic publication, lease fencing, dirty
+  upgrades, FatSecret retention и поддерживаемой Spring-платформы. Он завершён
+  и проверен 2026-08-23.
+- **Следующий implementation scope:** Stage 2 Phase 1 — Debugger Alpha. Его
+  порядок и exit gates определяет Stage 2 roadmap, а не этот backlog.
 
 ---
 
@@ -10,7 +24,7 @@
 
 | Group | Status | Details |
 |---|---|---|
-| **P0: Data, Security, Reliability** | ✅ COMPLETED | All P0 acceptance criteria are implemented and covered by focused unit/PostgreSQL tests; final three-gate verification remains part of the exit gate |
+| **P0: Data, Security, Reliability** | ✅ COMPLETED | Historical Stable Base P0 acceptance criteria are implemented and covered by focused unit/PostgreSQL tests |
 | **P1: Reliability & Domain** | ✅ COMPLETED | P1 acceptance criteria are implemented and covered by unit, web, and PostgreSQL workflow tests; vector strategy remains an explicit capacity decision |
 | **P2: Post-Stabilization Operations** | ✅ COMPLETED | Infrastructure/application boundaries, exact-scan capacity evidence, operations, observability and product-quality evaluation are covered by tests and runbooks; ANN indexing remains a future capacity decision |
 
@@ -29,7 +43,7 @@
 | `FND-007` | Убрать внешний I/O из DB-транзакций. | ✅ Completed (Removed `@Transactional` from Telegram handlers, `NutritionService` FatSecret sync, `WorkoutImportService` CSV parser, `DailyInsightService` AI provider calls) |
 | `FND-008` | Сделать Telegram link workflow безопасным и продакшн-готовым. | ✅ Completed (Flyway `V15`, SHA-256 code hashing, 10m TTL, atomic `FOR UPDATE` consumption, `TelegramLinkController`) |
 | `FND-009` | Ограничить публикацию данных Telegram только личными чатами. | ✅ Completed (`isUserChat()` enforcement across all handlers) |
-| `FND-010` | Сделать Telegram delivery надёжным (outbox ledger). | ✅ Completed with at-least-once semantics (transactional enqueue, atomic `SKIP LOCKED` claim, `SENDING` recovery, bounded retries/backoff, correct 400/429/5xx classification, PostgreSQL concurrency test). Exactly-once delivery is not provided by Telegram API. |
+| `FND-010` | Сделать Telegram delivery надёжным (outbox ledger). | ✅ Completed with fenced provider-aware semantics (transactional enqueue, just-in-time owner/generation claim, bounded retries for proven rejection, terminal `DELIVERY_UNKNOWN` for uncertain outcomes, PostgreSQL concurrency tests). Exactly-once delivery is not provided by Telegram API. |
 | `FND-011` | Ввести AI safety и output validation. | ✅ Completed for current workflows (strict type/period/macro/score/list/length validation, boundary-tag escaping, daily/report/Telegram integration) |
 | `FND-012` | Ограничить вызовы AI провайдеров и их стоимость. | ✅ Completed (single-response parsing, typed 400/401/429/timeout failures, configurable overall deadline and provider-attempt cap, global/per-user bulkheads, transactional PostgreSQL hourly token budgets, call-count and concurrency tests) |
 | `FND-013` | Закрепить PostgreSQL integration test baseline. | ✅ Completed (`mvn verify -Pintegration` Testcontainers gate) |
@@ -55,10 +69,10 @@
 | `FND-026` | Unified API errors & HTTP semantics. | ✅ Completed: validation/auth/domain/not-found paths share timestamped `ApiError`; report batch endpoints return explicit JSON status/period bodies and external provider details are not exposed |
 | `FND-027` | AI freshness & memory provenance. | ✅ Completed for current workflows: snapshot hashes and versioned prompts prevent stale regeneration; insight and note memories carry source metadata/stable IDs and deletion events remove derived memory |
 | `FND-028` | Observability & logging hygiene. | ✅ Completed for the stable base: privacy-safe structured logs, aggregate Actuator gauges for jobs/outbox/publications, alert thresholds and operator procedures are documented without user-data tags |
-| `FND-029` | Modulith event publication management. | ✅ Completed: JDBC publications are persisted, restart replay is enabled, listener completion is asserted against PostgreSQL, and the operations runbook documents retention/recovery |
+| `FND-029` | Modulith event publication management. | ✅ Completed: JDBC publications use the Modulith 2.1 lifecycle schema from V33, restart replay is enabled, bounded failed resubmission/completion is asserted against PostgreSQL, and the operations runbook documents retention/recovery |
 | `FND-030` | Spring Boot & Spring AI stack alignment. | ✅ Completed: dependency versions are pinned to the supported Boot/AI/Modulith lines and `mvn dependency:analyze` is green |
 | `FND-031` | CI & static analysis hygiene. | ✅ Completed: CI runs unit, architecture, PostgreSQL integration, dependency analysis and privacy-sensitive logging checks as required gates |
-| `FND-032` | Documentation as source of truth. | ✅ Completed: backlog, ADRs 0010–0013, vector benchmark note, operations runbook and test gate commands are reconciled |
+| `FND-032` | Documentation as source of truth. | ✅ Completed: backlog, ADRs 0010–0016, vector benchmark note, operations runbook and test gate commands are reconciled |
 
 ---
 
@@ -74,7 +88,10 @@
 
 ---
 
-## Stable Base Exit Gate Status
+## Historical Stable Base Exit Evidence
+
+Это снимок на момент закрытия исходных `FND-001`–`FND-037`, а не текущий
+размер набора тестов.
 
 - ✅ `mvn test` -> **BUILD SUCCESS** (283 tests, 0 failures/errors)
 - ✅ `mvn test -Parchitecture` -> **BUILD SUCCESS** (0 failures/errors; 1 documented skip)
@@ -86,3 +103,19 @@
 - ✅ Telegram responses no longer claim persistence before asynchronous work completes.
 - ✅ End-to-end `sync/import -> durable insight request -> memory -> delivery` is verified by `StableBaseWorkflowIntegrationTest` with provider boundaries mocked.
 - ✅ End-to-end `Telegram command -> transactional event -> durable save -> confirmation` is verified by `StableBaseWorkflowIntegrationTest`.
+
+## Stage 2 Phase 0 Exit Status
+
+- ✅ `FND-001`–`FND-006` из product review закрыты реализацией, миграциями
+  V27–V33, ADR и операционными процедурами.
+- ✅ `mvn test` -> **BUILD SUCCESS** (362 tests, 0 failures/errors).
+- ✅ `mvn verify -Pintegration` -> **BUILD SUCCESS** (362 default + 114
+  PostgreSQL/Testcontainers tests, 0 failures/errors).
+- ✅ `mvn test -Parchitecture` -> **BUILD SUCCESS** (4 tests, 0
+  failures/errors; 1 intentional documented skip).
+- ✅ `mvn dependency:analyze`, privacy scan, Graphify rebuild/review and
+  `git diff --check` are green.
+- ✅ The supported baseline is Spring Boot 4.1.0, Spring AI 2.0.0 and Spring
+  Modulith 2.1.0; the current Flyway schema is V33.
+- ✅ Phase 1 may start under the canonical Stage 2 roadmap. This technical gate
+  does not claim the later real-user product-validation gate.

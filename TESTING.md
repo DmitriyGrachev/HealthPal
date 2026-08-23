@@ -1,497 +1,161 @@
-# FitnessApp Testing Plan
+# FitnessApp Testing Strategy
 
-Last updated: 2026-05-15
+Last verified: 2026-08-23
 
-This document replaces the old goal of "make every old test pass" with a practical testing strategy. The current tests are useful as clues, but not all of them should be preserved exactly. A test suite is a specification; if the specification is stale, fix the specification first.
+This document is the source of truth for test selection and release gates. The
+Maven configuration in `pom.xml` and `.github/workflows/ci.yml` implement these
+rules. Test counts are a verification snapshot, not a fixed acceptance
+criterion; zero failures and the required behavior are what matter.
 
-## Testing Principles
+## Required Gates
 
-1. Test current intended behavior, not old implementation accidents.
-2. Prefer small tests first: pure unit tests are faster to understand and cheaper to maintain.
-3. Use integration tests only where Spring, SQL, security, or external boundaries matter.
-4. Do not use H2 for PostgreSQL-specific Flyway/JPA behavior. Use Testcontainers PostgreSQL.
-5. Avoid brittle assertions on localized error-message text. Prefer exception type, status code, error code, and important fields.
-6. Each test should answer one clear question.
+| Gate | Command | What it runs |
+|---|---|---|
+| Fast default | `mvn test` | Surefire default test names (`*Test`, `*Tests`, `*TestCase`); excludes `*IntegrationTest` and `*ArchitectureTest` |
+| PostgreSQL integration | `mvn verify -Pintegration` | The fast default suite, then Failsafe tests named `*IntegrationTest` against Testcontainers PostgreSQL |
+| Architecture | `mvn test -Parchitecture` | Spring Modulith checks named `*ArchitectureTest`; the profile overrides the default exclusions |
+| Dependency hygiene | `mvn dependency:analyze` | Fails on undeclared or unexplained dependency warnings |
+| Privacy | `powershell -File .codex/hooks/privacy-scan.ps1` | Scans changed files for likely secrets and unsafe Telegram logging patterns without printing values |
 
-## Test Types For This Project
+For a Phase or release gate, run all five commands. For code changes, also run
+`npx graphify hook-rebuild` and `git diff --check` as required by the execution
+plan. A focused test command may shorten the RED/GREEN loop, but never replaces
+the relevant final gate.
 
-### Unit Tests
+Verified Phase 0 snapshot on 2026-08-23:
 
-Use for:
+- default: 362 tests, 0 failures/errors;
+- integration: 362 default tests plus 114 PostgreSQL integration tests, 0 failures/errors;
+- architecture: 4 tests, 0 failures/errors, 1 intentional documented skip;
+- dependency analysis, privacy scan, and diff check: clean.
 
-- rate limiting logic
-- prompt/context builders
-- DTO mappers
-- command handlers with mocked dependencies
-- service branching and validation logic
+## Test Selection
 
-Tools:
+### Unit and service tests
+
+Use JUnit 5, AssertJ, and Mockito for deterministic domain behavior, state
+transitions, validation, routing, parsing, budgets, retry classification, and
+adapter mapping. Prefer constructor-created subjects and mocked ports. Do not
+start Spring when framework behavior is not part of the question.
 
-- JUnit 5
-- AssertJ
-- Mockito
+### Web and security tests
 
-### Web/API Tests
+Use `@WebMvcTest` with explicit `@AutoConfigureMockMvc`. On Boot 4, replace
+Spring context collaborators with `@MockitoBean` or `@MockitoSpyBean`.
 
-Use for:
+Assert stable protocol behavior:
 
-- auth endpoint behavior
-- request validation
-- HTTP status codes
-- security rules
-- JSON response shape
+- HTTP status and content type;
+- stable error code/type and required response fields;
+- authentication, authorization, CORS, and validation rules;
+- current-user scoping.
 
-Tools:
+Avoid assertions on localized prose. Do not disable security filters unless the
+test is explicitly about controller mapping/validation and security is covered
+by a separate focused test.
 
-- `@WebMvcTest` where possible
-- `MockMvc`
-- mocked service/use-case dependencies
+### PostgreSQL integration tests
 
-### Persistence Tests
+Use `*IntegrationTest` for behavior that depends on PostgreSQL, Flyway, JDBC,
+JPA, pgvector, transactions, locks, concurrency, event publication, lifecycle
+cleanup, or real Spring wiring. The shared base is
+`AbstractPostgresIntegrationTest`, backed by `pgvector/pgvector:pg16`.
 
-Use for:
+Rules:
 
-- Flyway migrations
-- JDBC queries
-- JPA mappings
-- PostgreSQL-specific SQL/types/indexes
+- Never use H2 to prove PostgreSQL SQL, types, indexes, migrations, locking, or
+  transaction behavior.
+- Existing Flyway migrations are immutable. Add a forward migration and cover
+  both clean-latest and relevant historical/dirty upgrade paths.
+- Prefer deterministic latches, barriers, and database state observation over
+  arbitrary sleeps in concurrency tests.
+- Clean fixtures by owner and keep tests isolated across a shared container.
+- Assert durable state and ownership, not incidental SQL formatting.
 
-Tools:
+`HistoricalUpgradeIntegrationTest` is the primary proof for dirty historical
+checkpoints and the latest schema. Migration-specific tests may use their own
+container when they must control Flyway target versions.
 
-- Testcontainers PostgreSQL
-- `@SpringBootTest` or sliced JDBC/JPA tests where practical
+### Architecture tests
 
-### Architecture Tests
+`ModuleArchitectureTest` verifies Spring Modulith boundaries and exposed API
+rules. Architecture documentation generation is intentionally separate from
+the verification assertion. When changing cross-module dependencies, public
+API packages, events, or ports:
 
-Use for:
+1. inspect the impact with Graphify;
+2. run focused tests for the affected producer and consumer;
+3. run `mvn test -Parchitecture`;
+4. run the default and integration gates when runtime wiring or persistence is
+   affected.
 
-- Spring Modulith boundaries
-- forbidden module dependencies
-- module documentation generation
+Do not solve a boundary failure with a broad allow-list or a root-package
+escape hatch. Expose the smallest stable API or use a port/event.
 
-Tools:
+### AI, Telegram, FatSecret, and other external boundaries
 
-- Spring Modulith `ApplicationModules`
+Tests must not call real OpenRouter, Gemini, Telegram, FatSecret, or other
+providers. Mock the provider port/client and verify:
 
-Run these through the dedicated architecture gate, not through the default push gate.
-
-## Existing Test Audit
-
-### `src/test/java/com/fit/fitnessapp/ai/RateLimiterServiceTest.java`
-
-Decision: KEEP, CLEAN
-
-Why:
-
-- Tests real current behavior.
-- Fast unit test.
-- No Spring context.
-
-Actions:
-
-- Clean corrupted display names/comments.
-- Keep tests for same-user bucket reuse, different-user buckets, initial token availability, and limit enforcement.
-- Consider renaming `sameuserIdReturnsSameBucket` to `sameUserIdReturnsSameBucket`.
-
-### `src/test/java/com/fit/fitnessapp/ai/RateLimitInterceptorTest.java`
-
-Decision: KEEP, REVISIT SECURITY EXPECTATION
-
-Why:
-
-- Fast unit test with mocks.
-- Covers important request behavior.
-
-Concern:
-
-- Current behavior allows unauthenticated requests through when `CurrentUserApi` throws. That may be intentional for non-AI routes, but it is dangerous if used for public/auth endpoints.
-
-Actions:
-
-- Clean display names/comments.
-- Keep current tests while behavior remains.
-- Add a future issue to rate-limit public endpoints by IP address.
-
-### `src/test/java/com/fit/fitnessapp/ai/SmartAiRouterTest.java`
-
-Decision: KEEP, CLEAN
-
-Why:
-
-- Tests meaningful fallback behavior.
-- Fast Mockito test.
-
-Actions:
-
-- Clean corrupted strings.
-- Assert exception types and provider calls.
-- Add missing cases:
-  - all OpenRouter models unavailable, Gemini succeeds
-  - all providers unavailable
-  - invalid request aborts OpenRouter fallback
-
-### `src/test/java/com/fit/fitnessapp/ai/OpenRouterAdapterTest.java`
-
-Decision: REWRITE
-
-Why:
-
-- The behavior is important, but the test is brittle and currently mismatches implementation messages.
-- It asserts localized text that has already changed.
-- It also reveals a design issue: `OpenRouterAdapter` treats the first provider failure like a parsing failure and calls the provider a second time.
-
-Actions:
-
-- First decide desired adapter behavior.
-- Rewrite tests around:
-  - 401/403 -> `AiAuthException`
-  - 400 -> `AiInvalidRequestException`
-  - timeout/5xx -> `AiUnavailableException`
-  - malformed structured output -> degraded response or specific parse exception, depending on desired design
-- Assert no unnecessary second provider call for auth/400 errors.
-
-### `src/test/java/com/fit/fitnessapp/nutrition/NutritionMonthlyApiTest.java`
-
-Decision: REWRITE AS JDBC ADAPTER UNIT TEST
-
-Why:
-
-- It is trying to test `NutritionJdbcQueryAdapter` without Spring, which is good.
-- Current mocking of `ResultSet.next()` inside a `RowCallbackHandler` is awkward and caused a stale failing expectation.
-
-Actions:
-
-- Rename to `NutritionJdbcQueryAdapterTest`.
-- Use clearer fake data setup.
-- Verify:
-  - monthly aggregate mapping
-  - daily/weekly breakdown mapping
-  - empty breakdown
-  - null aggregate behavior, if applicable
-- Do not test SQL correctness here. Test SQL correctness later with PostgreSQL integration tests.
-
-### `src/test/java/com/fit/fitnessapp/jdbc/workout/WorkoutQueryUseCaseTest.java`
-
-Decision: REWRITE AS POSTGRES INTEGRATION TEST LATER
-
-Why:
-
-- This is a real integration test and needs a real database.
-- It currently depends on full Spring context and H2, but migrations use PostgreSQL-specific types.
-- Package path typo `workoout` was removed; keep future workout JDBC tests under `workout`.
-
-Actions:
-
-- Disable or delete until Testcontainers PostgreSQL is introduced.
-- Recreate as `WorkoutQueryIntegrationTest`.
-- Use Testcontainers.
-- Verify weekly volume/reps aggregation with multiple exercises, multiple dates, and another user's workout to prove user isolation.
-
-### `src/test/java/com/fit/fitnessapp/FitnessAppApplicationTests.java`
-
-Decision: DELETE OR REPLACE
-
-Why:
-
-- Empty `contextLoads()` is low value.
-- It currently fails because the test environment is wrong, not because it proves a useful behavior.
-
-Actions:
-
-- Delete for now, or replace later with a real smoke test using Testcontainers and explicit test profile.
-- Do not let this block useful unit tests.
-
-### `src/test/java/com/fit/fitnessapp/module/ModuleArchitectureTest.java`
-
-Decision: KEEP IN ARCHITECTURE PROFILE
-
-Why:
-
-- This is valuable. It detects module cycles and leaked internals.
-- But it should not block the fast push gate.
-
-Actions:
-
-- Run through `mvn test -Parchitecture`.
-- Keep excluded from the default `mvn test` gate by naming convention.
-- Split documentation generation from verification. Docs generation should not be a normal unit test assertion.
-
-### `src/test/java/com/fit/fitnessapp/AuthTest.java`
-
-Decision: DELETE COMMENTED BLOCK, RECREATE AS FOCUSED AUTH TESTS
-
-Why:
-
-- The real test class is commented out.
-- The file contains old learning notes and corrupted comments.
-- It does not currently run, so it creates false confidence.
-
-Actions:
-
-- Move useful notes elsewhere if you want to keep them.
-- Delete the commented test block.
-- Recreate auth coverage in smaller tests:
-  - `AuthControllerWebTest`
-  - `RegisterServiceTest`
-  - `JwtCoreTest`
-  - `SecurityRulesWebTest`
-
-## Step-By-Step Testing Roadmap
-
-## Step 1 - Stabilize The Test Folder
-
-Goal:
-
-Make it obvious which tests are active and which are intentionally deferred.
-
-Tasks:
-
-- Clean corrupted comments/display names in tests you keep.
-- Delete `AuthTest.java` or replace it with a short TODO test skeleton.
-- Keep Modulith checks tagged by naming convention as `*ArchitectureTest`.
-- Delete or replace `FitnessAppApplicationTests`.
-- Keep workout JDBC tests under the correctly spelled `workout` package.
-
-Done when:
-
-- No test file is mostly commented-out learning notes.
-- Running the stable unit subset is possible.
-
-Current command:
-
-```bash
-mvn test
-```
-
-## Step 2 - Create A Fast Unit Test Baseline
-
-Goal:
-
-Have a small set of tests that run quickly and teach you the code.
-
-First tests to keep/write:
-
-- `RateLimiterServiceTest`
-- `RateLimitInterceptorTest`
-- `SmartAiRouterTest`
-- `MoeOrchestratorTest`
-
-Add next:
-
-- `TelegramLinkCodeManagerTest`
-- `ConversationStateServiceTest`
-- `WeightCommandHandlerTest`
-- `AskCommandHandlerTest`
-
-Done when:
-
-- The AI routing/rate-limit/Telegram command basics are covered without starting Spring.
-
-## Step 3 - Auth Tests
-
-Goal:
-
-Protect login/register/security behavior.
-
-Tests to create:
-
-- `RegisterServiceTest`
-  - hashes password
-  - assigns default role
-  - rejects duplicate username/email
-- `LoginServiceTest`
-  - valid credentials return JWT
-  - invalid credentials throw/return auth failure
-- `JwtCoreTest`
-  - generated token can be parsed
-  - expired/invalid token is rejected
-- `AuthControllerWebTest`
-  - `/auth/register` returns expected status
-  - `/auth/login` returns token
-  - invalid body returns validation error after validation is added
-- `SecurityRulesWebTest`
-  - `/auth/**` is public
-  - `/test/**` requires admin
-  - protected API requires authentication
-
-Done when:
-
-- You can change auth code without guessing whether login/register still work.
-
-## Step 4 - Nutrition Tests
-
-Goal:
-
-Protect FatSecret sync and query behavior.
-
-Unit tests:
-
-- `NutritionServiceTest`
-  - missing FatSecret token throws clear exception
-  - `syncDay` saves nutrition day and publishes `NutritionSyncedEvent`
-  - `syncMonth` saves monthly summary and attempts full day syncs
-
-Adapter tests:
-
-- `NutritionJdbcQueryAdapterTest`
-  - maps daily summary
-  - maps monthly aggregate
-  - maps breakdown rows
-
-Integration tests later:
-
-- Flyway creates nutrition tables in PostgreSQL.
-- Unique constraints prevent duplicate day rows.
-- Query adapter returns correct results from real SQL.
-
-Done when:
-
-- Nutrition behavior is covered at service and query mapping level.
-
-## Step 5 - Workout Tests
-
-Goal:
-
-Protect workout import and analytics.
-
-Unit tests:
-
-- `WorkoutImportServiceTest`
-  - imports valid workout
-  - ignores/rejects duplicate external IDs, depending on intended behavior
-  - validates missing exercise/set data
-
-Integration tests:
-
-- `WorkoutQueryIntegrationTest` with PostgreSQL Testcontainers
-  - weekly volume aggregation
-  - date filtering
-  - user isolation
-  - multiple exercises and sets
-
-Done when:
-
-- Workout analytics can be refactored safely.
-
-## Step 6 - AI Insight Tests
-
-Goal:
-
-Protect expensive and fragile AI workflows without calling real AI providers.
-
-Unit tests:
-
-- `OpenRouterAdapterTest` rewritten after adapter design is fixed.
-- `GeminiAdapterTest`
-- `MoeOrchestratorTest`
-- `FitnessAiServiceTest` split by behavior, or after `FitnessAiService` is refactored:
-  - daily insight skipped when already exists
-  - daily insight skipped when no nutrition data
-  - daily insight saved and event published
-  - weekly/monthly report saved and event published
-
-Prompt tests:
-
-- Prompt includes required fields.
-- Prompt does not include raw secrets.
-- Prompt templates render with all variables.
-
-Done when:
-
-- AI behavior is tested without real network calls.
-
-## Step 7 - Telegram Tests
-
-Goal:
-
-Protect bot command behavior.
-
-Tests:
-
-- `/link` with valid code links account
-- `/link` with invalid/expired code fails clearly
-- `/ask` requires linked account
-- `/ask question` publishes `TelegramAskRequestedEvent`
-- `/weight` starts state flow
-- weight input validates numeric range and publishes event
-- dev-only `/test_generate` is not active outside dev profile
-
-Done when:
-
-- Telegram behavior is understandable without manually clicking through the bot.
-
-## Step 8 - PostgreSQL Integration Test Foundation
-
-Goal:
-
-Stop fighting H2 for PostgreSQL behavior.
-
-Tasks:
-
-- Add Testcontainers dependency.
-- Create base integration test class with PostgreSQL container.
-- Configure datasource dynamically with `@DynamicPropertySource`.
-- Run Flyway against the container.
-- Move DB-heavy tests to `*IntegrationTest`.
-
-Done when:
-
-- Flyway migrations are tested against PostgreSQL.
-- H2 is no longer used for PostgreSQL-specific behavior.
-
-## Step 9 - Architecture Tests
-
-Goal:
-
-Make Spring Modulith verification useful again.
-
-Tasks:
-
-- Fix module API exposure with `@NamedInterface`.
-- Remove cycles deliberately.
-- Keep `ModuleArchitectureTest.verifyArchitecture()` green in the architecture profile.
-- Keep documentation generation separate from normal test verification.
-
-Done when:
-
-- Modulith test passes and protects the intended boundaries.
-
-## Step 10 - CI Strategy
-
-Goal:
-
-Run the right tests automatically.
-
-Stages:
-
-1. Fast unit tests on every push.
-2. Web tests after controller/security stabilization.
-3. PostgreSQL integration tests after Testcontainers setup.
-4. Architecture tests after module cleanup.
-
-Maven gates:
-
-- `mvn test` runs the fast default gate on every push. It includes `*Test` and excludes `*IntegrationTest` and `*ArchitectureTest`.
-- `mvn verify -Pintegration` runs future PostgreSQL/Testcontainers checks named `*IntegrationTest`.
-- `mvn test -Parchitecture` runs Modulith checks named `*ArchitectureTest`.
-
-Do not add feature work until the default `mvn test` gate is green.
-
-## Immediate Next Actions
-
-Do these in order:
-
-1. Clean and keep `RateLimiterServiceTest`.
-2. Clean and keep `RateLimitInterceptorTest`.
-3. Clean and keep `SmartAiRouterTest`.
-4. Rewrite or temporarily disable `OpenRouterAdapterTest`.
-5. Delete or replace `FitnessAppApplicationTests`.
-6. Keep `ModuleArchitectureTest.verifyArchitecture()` out of the default gate and runnable with `mvn test -Parchitecture`.
-7. Delete the commented-out `AuthTest.java` and recreate auth tests from scratch.
-8. Create the first stable command:
-
-```bash
-mvn test
-```
-
-After that, start building new tests module by module.
+- typed provider failure classification;
+- deadline, attempt, concurrency, and token-budget behavior;
+- transaction boundaries around external I/O;
+- idempotency/fencing and terminal or uncertain recovery states;
+- privacy-safe logs and persisted error codes;
+- prompt rendering with fixture context, without real secrets or personal data.
+
+### Serialization and compatibility
+
+Application JSON uses Jackson 3 (`tools.jackson`). Third-party Jackson 2 is an
+isolated compatibility boundary and must not leak into application imports.
+Serialization tests should deserialize and compare typed values instead of
+asserting incidental textual formatting such as a particular date encoding.
+
+## Naming and Placement
+
+- `*Test.java`: fast unit, service, adapter, MockMvc, and hygiene tests.
+- `*IntegrationTest.java`: PostgreSQL/Testcontainers or full Spring integration
+  behavior.
+- `*ArchitectureTest.java`: Spring Modulith verification only.
+- Keep tests near the module and package whose behavior they specify.
+- One test should answer one observable question; use parameterized tests for
+  a true behavior matrix rather than duplicated methods.
+
+## Change-to-Gate Matrix
+
+| Change | Minimum focused work | Required final gates |
+|---|---|---|
+| Pure domain/service branch | Affected unit tests | `mvn test` |
+| Controller, validation, security | MockMvc tests | `mvn test` |
+| SQL, JPA, Flyway, pgvector, locks | Relevant PostgreSQL tests | default + integration |
+| Cross-module API/event/port | Producer/consumer tests | default + architecture; integration if persisted/asynchronous |
+| AI/provider/prompt | Rendering/routing/provider-boundary tests | default; integration if durable state changes |
+| Dependency/platform upgrade | Compile/configuration tests and dependency trees | all required gates + `dependency:analyze` |
+| Privacy/lifecycle/export/delete | Focused lifecycle and log tests | all required gates + privacy scan |
+
+When several rows apply, use the union of their gates.
+
+## Failure Policy
+
+1. Reproduce the smallest failing test.
+2. Determine whether the implementation, fixture, environment, or documented
+   contract is wrong.
+3. Fix the root cause and add/strengthen the regression assertion.
+4. Rerun the focused test, then every relevant final gate.
+
+Do not delete, disable, loosen, or rename a valid test merely to make a gate
+green. An unavailable Docker runtime is an environmental blocker for the
+integration gate, not permission to substitute H2 or claim completion.
+
+## CI Contract
+
+GitHub Actions runs three jobs:
+
+- unit and architecture: `mvn -B test`, then `mvn -B -Parchitecture test`;
+- PostgreSQL integration: `mvn -B verify -Pintegration`;
+- dependency/privacy hygiene: `mvn -B dependency:analyze` plus a
+  privacy-sensitive logging pattern check.
+
+Local Phase/release verification additionally uses the repository PowerShell
+privacy hook because it checks changed and untracked files without exposing
+matched values.

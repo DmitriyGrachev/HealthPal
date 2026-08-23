@@ -3,9 +3,27 @@
 ## Startup
 
 1. Provide the production variables documented in `src/main/resources/application.properties`.
-2. Start the application with the default profile. Flyway must migrate a clean PostgreSQL database before the application accepts traffic.
+2. Start the application with the default profile. Flyway must migrate a clean
+   PostgreSQL database through V33 before the application accepts traffic.
 3. For local development use `SPRING_PROFILES_ACTIVE=dev`; the dev profile must point to PostgreSQL and keep `spring.jpa.hibernate.ddl-auto=validate`.
 4. Verify `GET /actuator/health` before enabling scheduled workers.
+
+## Supported Platform and Schema Baseline
+
+The verified production baseline as of 2026-08-23 is:
+
+- Java 21;
+- Spring Boot 4.1.0 and its managed Spring Framework 7.0.8 line;
+- Spring AI 2.0.0;
+- Spring Modulith 2.1.0 with the current JDBC publication structure;
+- Telegram Bots 10.2.0 on its long-polling/client APIs;
+- Flyway schema V33 on PostgreSQL/pgvector;
+- Jackson 3 for application JSON. Jackson 2 is restricted to the JJWT
+  compatibility boundary and must not appear in application imports.
+
+Before accepting a platform change, run the effective-POM/dependency-tree
+inspection and all gates in `TESTING.md`. Do not deploy a mixed Boot 3 /
+Spring Framework 6 graph under the Boot 4 application.
 
 ## Scheduled Work
 
@@ -56,6 +74,27 @@
 - Lease fencing protects the durable ledger, not external side effects. The
   system remains at-least-once around provider calls; provider idempotency
   keys are mandatory wherever a provider supports them.
+
+## Event Publication Recovery
+
+- Flyway owns the Spring Modulith JDBC schema. Runtime schema initialization is
+  disabled and `spring.modulith.events.jdbc.use-legacy-structure=false`.
+- V33 adds `status`, `completion_attempts`, and
+  `last_resubmission_date`. Pre-upgrade incomplete rows become `FAILED`;
+  completed rows become `COMPLETED`; both start with one recorded attempt.
+- Restart replay remains enabled for outstanding publications. There is no
+  generic public replay endpoint. Any failed-publication maintenance tooling
+  must use bounded `IncompleteEventPublications`/`ResubmissionOptions`;
+  never update publication state or replay serialized payloads with ad-hoc SQL.
+- A successful resubmission becomes `COMPLETED`, increments
+  `completion_attempts`, and records `last_resubmission_date`. Repeating the
+  operation does not redeliver an already completed publication.
+- Completed publications are retained as an account-scoped audit/replay
+  ledger. Export exposes safe receipt metadata only, never
+  `serialized_event`; account deletion removes rows by enforced `user_id`.
+- Inspect only aggregate counts/statuses. Never print or log
+  `serialized_event`, listener payloads, user IDs, or source metadata during
+  recovery.
 
 ## Observability
 
@@ -185,6 +224,50 @@ must stay isolated until V32 succeeds. Local disconnect or account deletion
 does not imply remote FatSecret erasure, and delivered Telegram messages cannot
 be recalled by this procedure.
 
+## V32 → V33 Modulith Publication Upgrade
+
+V33 is a forward-only schema expansion for Spring Modulith 2.1. Run it with
+traffic, schedulers, and event-producing workers stopped.
+
+1. Verify a restorable backup and confirm that the latest successful Flyway
+   version is exactly `32`.
+2. Record this aggregate-only preflight; do not select publication payloads or
+   owner identifiers:
+
+```sql
+SELECT
+    COUNT(*) AS publication_rows,
+    COUNT(*) FILTER (WHERE completion_date IS NULL) AS incomplete_rows,
+    COUNT(*) FILTER (WHERE completion_date IS NOT NULL) AS completed_rows
+  FROM event_publication;
+```
+
+3. Apply V33 through normal Flyway startup. Do not edit the old table or
+   `flyway_schema_history` manually.
+4. Before enabling traffic, verify that the latest successful version is
+   exactly `33` and that this aggregate-only postflight returns zeros for all
+   four invalid counts:
+
+```sql
+SELECT
+    COUNT(*) FILTER (WHERE status IS NULL) AS null_status,
+    COUNT(*) FILTER (WHERE completion_attempts IS NULL) AS null_attempts,
+    COUNT(*) FILTER (
+        WHERE completion_date IS NULL AND status <> 'FAILED'
+    ) AS inconsistent_incomplete,
+    COUNT(*) FILTER (
+        WHERE completion_date IS NOT NULL AND status <> 'COMPLETED'
+    ) AS inconsistent_completed
+  FROM event_publication;
+```
+
+5. Verify that `event_publication_serialized_event_hash_idx` exists without
+   selecting `serialized_event`.
+
+If V33 fails, keep the application stopped and confirm transactional rollback.
+Do not use `flyway repair` to conceal the failure. Restore only through the
+normal database incident procedure, then reapply V33 before enabling traffic.
+
 ## Historical Upgrade Boundaries
 
 Use these procedures only for a database stopped exactly at the stated
@@ -199,6 +282,14 @@ The boundary map is:
 - V22 → run `db/upgrade/pre-v23-absolute-timestamps.sql`, then Flyway V23.
 - V24 → run `db/upgrade/pre-v25-domain-invariants.sql`, then Flyway V25.
 - V25 → run `db/upgrade/pre-v26-memory-owner.sql`, then Flyway V26.
+
+V27–V31 are normal immutable forward migrations and require no separate bridge:
+they add durable-work ownership, purge unsafe ownerless terminal deliveries,
+add job/outbox generation-fenced leases, and version domain source state.
+V32 and V33 use the dedicated cutover procedures above. Dirty historical
+fixtures and clean-latest migration are verified by
+`HistoricalUpgradeIntegrationTest`; operator preflight remains mandatory in
+production.
 
 ### Fail-closed execution boundary
 
