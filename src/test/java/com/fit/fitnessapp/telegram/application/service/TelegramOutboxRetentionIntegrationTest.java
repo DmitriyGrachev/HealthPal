@@ -33,6 +33,9 @@ class TelegramOutboxRetentionIntegrationTest extends AbstractPostgresIntegration
     private JdbcTemplate jdbc;
 
     @MockitoBean
+    private TelegramOutboxWorker scheduledWorker;
+
+    @MockitoBean
     private AbsSender botSender;
 
     @Test
