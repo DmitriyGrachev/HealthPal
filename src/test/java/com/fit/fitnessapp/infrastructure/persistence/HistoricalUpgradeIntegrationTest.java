@@ -196,7 +196,7 @@ class HistoricalUpgradeIntegrationTest {
 
         executeUpgradeScript("db/upgrade/pre-v25-domain-invariants.sql");
         executeUpgradeScript("db/upgrade/pre-v25-domain-invariants.sql");
-        migrateToLatest();
+        migrateTo("31");
 
         assertThat(jdbc.queryForObject("SELECT username FROM " + table("users") + " WHERE id = ?",
                 String.class, V25.USER_ID)).isEqualTo("__legacy_invalid_username_2501__:2");
@@ -260,6 +260,16 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(deliveryError(V25.UNKNOWN_OUTCOME_DELIVERY_ID)).isEqualTo("LEGACY_DELIVERY_OUTCOME_UNKNOWN_PRE_V25");
         assertThat(deliveryStatus(V25.RECENT_SENDING_DELIVERY_ID)).isEqualTo("DELIVERY_UNKNOWN");
         assertThat(deliveryError(V25.RECENT_SENDING_DELIVERY_ID)).isEqualTo("TELEGRAM_DELIVERY_UNKNOWN");
+
+        migrateToLatest();
+
+        assertThat(count("fatsecret_day", "user_id = ?", V25.OTHER_USER_ID)).isZero();
+        assertThat(count("fatsecret_food", "TRUE")).isZero();
+        assertThat(count("nutrition_source_state", "user_id = ?", V25.OTHER_USER_ID)).isZero();
+        assertThat(count("fatsecret_provider_identifiers", "user_id = ?", V25.OTHER_USER_ID)).isZero();
+        assertThat(countById("profile", V25.PROFILE_ID)).isOne();
+        assertThat(countById("workout_sets", V25.VALID_SET_WITH_BAD_WEIGHT_ID)).isOne();
+        assertThat(countById("user_notes", V25.UNKNOWN_NOTE_ID)).isOne();
     }
 
     @Test
@@ -390,7 +400,7 @@ class HistoricalUpgradeIntegrationTest {
     @Test
     void v30ToV31BackfillsCanonicalSourceStateAndSafelyCleansExactLegacyEvents() {
         migrateTo("30");
-        Map<String, Integer> v1ToV30Checksums = migrationChecksums();
+        Map<String, Integer> v1ToV30Checksums = v1ToV30MigrationChecksums();
         insertUser(31_001L, "v31-owner-one");
         insertUser(31_002L, "v31-owner-two");
         insertUser(31_003L, "v31-empty-owner");
@@ -462,9 +472,9 @@ class HistoricalUpgradeIntegrationTest {
                 "com.fit.fitnessapp.api.NutritionSyncedEventExtra", "{not-json");
         UUID unrelated = insertTypedPublication("example.UnrelatedEvent", "{not-json");
 
-        migrateToLatest();
+        migrateTo("31");
 
-        assertThat(migrationChecksums()).containsExactlyInAnyOrderEntriesOf(v1ToV30Checksums);
+        assertThat(v1ToV30MigrationChecksums()).containsExactlyInAnyOrderEntriesOf(v1ToV30Checksums);
         assertThat(columnIsNotNull("users", "lifecycle_epoch")).isTrue();
         assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT lifecycle_epoch) FROM " + table("users"), Long.class))
                 .isEqualTo(jdbc.queryForObject("SELECT COUNT(*) FROM " + table("users"), Long.class));
@@ -520,18 +530,146 @@ class HistoricalUpgradeIntegrationTest {
                 "VALUES (999999, DATE '2026-08-10', 1, ?, TRUE, ?)",
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ownerEpoch))
                 .isInstanceOf(RuntimeException.class);
+
+        migrateToLatest();
+
+        assertThat(v1ToV30MigrationChecksums()).containsExactlyInAnyOrderEntriesOf(v1ToV30Checksums);
+        assertThat(count("fatsecret_day", "TRUE")).isZero();
+        assertThat(count("fatsecret_food", "TRUE")).isZero();
+        assertThat(count("nutrition_source_state", "TRUE")).isZero();
+        assertThat(count("workout_source_state", "user_id = 31001")).isEqualTo(3L);
+        assertThat(count("fatsecret_provider_identifiers", "TRUE")).isZero();
+        assertThat(countById("event_publication", complete)).isZero();
+        assertThat(countById("event_publication", completeYearOne)).isZero();
+        assertThat(List.of(
+                malformed,
+                incomplete,
+                metadataMissing,
+                metadataNull,
+                ownerlessComplete,
+                mismatchedOwner,
+                wrongUserId,
+                wrongSourceVersion,
+                wrongSourceId,
+                wrongOccurredAt))
+                .allSatisfy(publicationId -> assertThat(countById("event_publication", publicationId)).isZero());
+        assertThat(countById("event_publication", lookalike)).isOne();
+        assertThat(countById("event_publication", unrelated)).isOne();
     }
 
     @Test
-    void cleanLatestSchemaAllocatesLifecycleEpochAndEmptySourceTables() {
+    void v31ToV32PreservesOnlyPermittedFatSecretIdentifiersAndPurgesRestrictedDurableContent() {
+        migrateTo("31");
+        long userId = 32_001L;
+        insertUser(userId, "v32-retention-owner");
+        UUID lifecycleEpoch = jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users")
+                + " WHERE id = ?", UUID.class, userId);
+
+        jdbc.update("INSERT INTO " + table("fatsecret_connection")
+                + " (user_id, access_token, access_token_secret) VALUES (?, 'encrypted-token', 'encrypted-secret')",
+                userId);
+        jdbc.update("INSERT INTO " + table("fatsecret_day")
+                        + " (id, user_id, date, calories, protein, fat, carbohydrate, summary_hash, entries_hash)"
+                        + " VALUES (32101, ?, DATE '2026-08-08', 450, 30, 10, 55,"
+                        + " 'restricted-summary-canary', 'restricted-entries-canary')",
+                userId);
+        jdbc.update("INSERT INTO " + table("fatsecret_food")
+                + " (id, external_food_id, external_entry_id, name, meal_type, calories, protein, fat, carbohydrate, day_id)"
+                + " VALUES (32102, 101, 202, 'restricted-food-canary', 'restricted-meal-canary',"
+                + " 450, 30, 10, 55, 32101)");
+        jdbc.update("INSERT INTO " + table("weight_history")
+                        + " (user_id, weight_kg, weight_date, weight_source) VALUES"
+                        + " (?, 80.5, DATE '2026-08-08', 'MANUAL'),"
+                        + " (?, 81.5, DATE '2026-08-07', 'FATSECRET')",
+                userId, userId);
+        jdbc.update("INSERT INTO " + table("nutrition_source_state")
+                        + " (user_id, source_date, source_version, content_hash, present, lifecycle_epoch)"
+                        + " VALUES (?, DATE '2026-08-08', 1,"
+                        + " 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', TRUE, ?)",
+                userId, lifecycleEpoch);
+        jdbc.update("INSERT INTO " + table("ai_insights")
+                        + " (user_id, insight_type, date, insight_text)"
+                        + " VALUES (?, 'DAILY', DATE '2026-08-08', 'restricted-insight-canary')",
+                userId);
+        jdbc.update("INSERT INTO " + table("user_memory")
+                        + " (content, metadata) VALUES"
+                        + " ('restricted-memory-canary', jsonb_build_object('user_id', ?::bigint))",
+                userId);
+        jdbc.update("INSERT INTO " + table("durable_jobs")
+                        + " (job_type, user_id, idempotency_key) VALUES"
+                        + " ('NUTRITION_SYNC', ?, 'v32-nutrition-sync'),"
+                        + " ('DAILY_INSIGHT', ?, 'v32-daily-insight'),"
+                        + " ('WORKOUT_IMPORT', ?, 'v32-workout-import')",
+                userId, userId, userId);
+        UUID restrictedPublication = insertTypedPublication(
+                "example.LegacyEvent", "{\"userId\":32001,\"payload\":\"restricted-publication-canary\"}");
+        jdbc.update("INSERT INTO " + table("telegram_users")
+                        + " (telegram_id, user_id, chat_id) VALUES (32001, ?, 32001)",
+                userId);
+        jdbc.update("INSERT INTO " + table("telegram_delivery_outbox")
+                        + " (id, user_id, chat_id, text)"
+                        + " VALUES (32103, ?, 32001, 'restricted-outbox-canary')",
+                userId);
+
+        migrateToLatest();
+
+        assertThat(count("fatsecret_connection", "user_id = ? AND connection_epoch IS NOT NULL", userId)).isOne();
+        assertThat(jdbc.queryForList("SELECT identifier_type, identifier_value FROM "
+                        + table("fatsecret_provider_identifiers")
+                        + " WHERE user_id = ? ORDER BY identifier_type", userId))
+                .extracting(row -> row.get("identifier_type") + ":" + row.get("identifier_value"))
+                .containsExactly("food_entry_id:202", "food_id:101");
+        assertThat(count("fatsecret_day", "user_id = ?", userId)).isZero();
+        assertThat(count("fatsecret_food", "TRUE")).isZero();
+        assertThat(count("weight_history", "user_id = ? AND weight_source = 'FATSECRET'", userId)).isZero();
+        assertThat(count("weight_history", "user_id = ? AND weight_source = 'MANUAL'", userId)).isOne();
+        assertThat(count("nutrition_source_state", "user_id = ?", userId)).isZero();
+        assertThat(count("ai_insights", "user_id = ?", userId)).isZero();
+        assertThat(count("user_memory", "user_id = ?", userId)).isZero();
+        assertThat(count("durable_jobs", "user_id = ? AND job_type = 'NUTRITION_SYNC'", userId)).isZero();
+        assertThat(count("durable_jobs", "user_id = ? AND job_type = 'DAILY_INSIGHT'", userId)).isZero();
+        assertThat(count("durable_jobs", "user_id = ? AND job_type = 'WORKOUT_IMPORT'", userId)).isOne();
+        assertThat(countById("event_publication", restrictedPublication)).isZero();
+        assertThat(countById("telegram_delivery_outbox", 32_103L)).isZero();
+
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("fatsecret_day")
+                        + " (user_id, date) VALUES (?, DATE '2026-08-09')", userId))
+                .rootCause()
+                .hasMessageContaining("FatSecret restricted content persistence is disabled");
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("weight_history")
+                        + " (user_id, weight_kg, weight_date, weight_source)"
+                        + " VALUES (?, 82, DATE '2026-08-09', 'FATSECRET')", userId))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("fatsecret_provider_identifiers")
+                        + " (user_id, connection_epoch, identifier_type, identifier_value)"
+                        + " SELECT user_id, connection_epoch, 'food_name', 'restricted-content' FROM "
+                        + table("fatsecret_connection") + " WHERE user_id = ?", userId))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void cleanLatestSchemaAllocatesLifecycleAndConnectionEpochsWithEmptyRetentionTables() {
         migrateToLatest();
         long userId = 31_101L;
         insertUser(userId, "v31-clean-owner");
         assertThat(jdbc.queryForObject("SELECT lifecycle_epoch FROM " + table("users") + " WHERE id = ?",
                 UUID.class, userId))
                 .isNotNull();
+        jdbc.update("INSERT INTO " + table("fatsecret_connection")
+                + " (user_id, access_token, access_token_secret) VALUES (?, 'encrypted-token', 'encrypted-secret')",
+                userId);
+        assertThat(jdbc.queryForObject("SELECT connection_epoch FROM " + table("fatsecret_connection")
+                + " WHERE user_id = ?", UUID.class, userId)).isNotNull();
+        assertThat(columnIsNotNull("fatsecret_connection", "connection_epoch")).isTrue();
+        assertThat(constraintExists("uq_fatsecret_connection_user_epoch")).isTrue();
+        assertThat(constraintValidated("chk_weight_history_no_fatsecret_source")).isTrue();
         assertThat(count("nutrition_source_state", "user_id = ?", userId)).isZero();
         assertThat(count("workout_source_state", "user_id = ?", userId)).isZero();
+        assertThat(count("fatsecret_provider_identifiers", "user_id = ?", userId)).isZero();
+        assertThat(count("fatsecret_day", "TRUE")).isZero();
+        assertThat(count("fatsecret_food", "TRUE")).isZero();
+        assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("32");
     }
 
     @Test
@@ -572,7 +710,7 @@ class HistoricalUpgradeIntegrationTest {
                 9201L, 9301L, 9401L, 9402L, 0, 100, 5, 1200, 5.0d, 350,
                 "private-strength-five", "private-cardio-five");
 
-        migrateToLatest();
+        migrateTo("31");
 
         String nutritionBaseline = sourceHash("nutrition_source_state", 31_010L, "2026-08-10");
         String nutritionSameContent = sourceHash("nutrition_source_state", 31_011L, "2026-08-09");
@@ -591,6 +729,14 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(workoutStrengthNumbersChanged).isNotEqualTo(workoutBaseline);
         assertThat(workoutCardioNumbersChanged).isNotEqualTo(workoutBaseline);
         assertThat(workoutExcludedFieldsChanged).isEqualTo(workoutBaseline);
+
+        migrateToLatest();
+
+        assertThat(count("nutrition_source_state", "TRUE")).isZero();
+        assertThat(count("fatsecret_day", "TRUE")).isZero();
+        assertThat(count("fatsecret_food", "TRUE")).isZero();
+        assertThat(count("workout_source_state", "TRUE")).isEqualTo(5L);
+        assertThat(sourceHash("workout_source_state", 31_020L, "2026-08-11")).isEqualTo(workoutBaseline);
     }
 
     @Test
@@ -980,9 +1126,11 @@ class HistoricalUpgradeIntegrationTest {
                         + " WHERE user_id = ? AND source_date = CAST(? AS DATE)", String.class, userId, sourceDate);
     }
 
-    private Map<String, Integer> migrationChecksums() {
+    private Map<String, Integer> v1ToV30MigrationChecksums() {
         return jdbc.query("SELECT version, checksum FROM " + table("flyway_schema_history")
-                        + " WHERE version IS NOT NULL AND version <> '31'",
+                        + " WHERE version IS NOT NULL AND installed_rank <= ("
+                        + "SELECT installed_rank FROM " + table("flyway_schema_history")
+                        + " WHERE version = '30' AND success)",
                 resultSet -> {
                     Map<String, Integer> checksums = new java.util.HashMap<>();
                     while (resultSet.next()) {
