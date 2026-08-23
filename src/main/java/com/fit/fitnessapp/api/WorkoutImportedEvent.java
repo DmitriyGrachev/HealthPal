@@ -42,9 +42,6 @@ public record WorkoutImportedEvent(
                         .distinct()
                         .sorted()
                         .toList();
-        if (metadata != null && !userId.equals(metadata.userId())) {
-            throw new IllegalArgumentException("event userId must match metadata userId");
-        }
     }
 
     public WorkoutImportedEvent(DomainSourceState sourceState) {

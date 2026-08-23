@@ -188,6 +188,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .contains("nutrition_profile_and_manual_weight", "fatsecret_connection", "fatsecret_weight",
                         "fatsecret_day", "fatsecret_food", "nutrition_source_state");
         assertThat(moduleCategories(v2, "workout")).contains("workout_source_state");
+        assertThat(moduleCategories(v2, "event-publications")).contains("event_publications");
 
         var nutritionModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("nutrition"))
@@ -221,10 +222,27 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(v2DurableJob)
                 .doesNotContainKeys("lease_generation", "lease_owner", "lease_expires_at", "claimed_at");
 
+        var publicationModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("event-publications"))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> publicationReceipts = (List<Map<String, Object>>)
+                publicationModule.data().get("eventPublicationReceipts");
+        assertThat(publicationReceipts).hasSize(2).allSatisfy(receipt -> assertThat(receipt)
+                .containsKeys("id", "listenerId", "eventType", "publicationDate", "completionDate")
+                .doesNotContainKeys("serialized_event", "serializedEvent", "user_id", "userId"));
+        assertThat(publicationReceipts).extracting(receipt -> receipt.get("id"))
+                .containsExactlyInAnyOrder(completedPublication, incompletePublication);
+        assertThat(publicationModule.retentionDisclosure()).singleElement()
+                .extracting(DataRetentionDisclosure::retentionClass)
+                .isEqualTo(DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME);
+
         String v2Json = objectMapper.writeValueAsString(v2);
         assertThat(v2Json)
                 .doesNotContain("access_token", "access_token_secret")
                 .doesNotContain("oauth-token-canary-" + userId, "oauth-secret-canary-" + userId)
+                .doesNotContain("publication-payload-canary-" + userId)
                 .doesNotContain("other memory", "keep me");
         assertThat(v2Json).contains("\"moduleKey\":\"auth\"");
         assertThat(v2Json).contains("\"userNotes\"");
@@ -918,10 +936,10 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 INSERT INTO event_publication
                     (id, listener_id, event_type, serialized_event, publication_date, completion_date)
                 VALUES (?, 'lifecycle-test', 'example.UserEvent',
-                        jsonb_build_object('userId', ?::bigint, 'payload', 'private')::text,
+                        jsonb_build_object('userId', ?::bigint, 'payload', ?)::text,
                         CURRENT_TIMESTAMP,
                         CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END)
-                """, publicationId, userId, completed);
+                """, publicationId, userId, "publication-payload-canary-" + userId, completed);
         return publicationId;
     }
 

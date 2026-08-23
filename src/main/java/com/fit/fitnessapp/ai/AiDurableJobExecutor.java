@@ -42,7 +42,9 @@ public class AiDurableJobExecutor implements DurableJobExecutor {
     private void executeDaily(DurableJobDto job) throws Exception {
         DailyInsightJobPayload payload = objectMapper.readValue(
                 job.payloadJson(), DailyInsightJobPayload.class);
-        DailyInsightResult result = fitnessAiService.generateDailyInsight(job.userId(), payload.date());
+        DailyInsightResult result = payload.trigger() == null
+                ? fitnessAiService.generateDailyInsight(job.userId(), payload.date())
+                : fitnessAiService.generateDailyInsight(job.userId(), payload.date(), payload.trigger());
         if (result == null || result.status() == DailyInsightResult.Status.AI_FAILED) {
             String errorCode = result == null ? "NULL_RESULT" : result.errorCode();
             throw new IllegalStateException("Daily insight execution failed: " + errorCode);

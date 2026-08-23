@@ -8,9 +8,14 @@ import com.fit.fitnessapp.ai.MoeOrchestrator;
 import com.fit.fitnessapp.ai.AiDataClass;
 import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.domain.response.NutritionInsightResponse;
+import com.fit.fitnessapp.api.DomainEventMetadata;
+import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionSourceStateQueryPort;
+import com.fit.fitnessapp.workout.application.port.in.WorkoutSourceStateQueryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,9 +25,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,6 +60,15 @@ class DailyInsightServiceTest {
     private InsightSourceLock insightSourceLock;
 
     @Mock
+    private UserDateTransactionLock userDateTransactionLock;
+
+    @Mock
+    private NutritionSourceStateQueryPort nutritionSourceStateQueryPort;
+
+    @Mock
+    private WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
+
+    @Mock
     private AiProperties aiProperties;
 
     @Mock
@@ -73,11 +89,24 @@ class DailyInsightServiceTest {
                 eq(NutritionInsightResponse.ReportType.DAILY),
                 any(LocalDate.class),
                 any(LocalDate.class))).thenReturn(true);
+        lenient().when(userDateTransactionLock.lockAndReadLifecycleEpoch(
+                        eq(42L), any(LocalDate.class)))
+                .thenReturn(Optional.of(UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76")));
+        lenient().when(nutritionSourceStateQueryPort.findCurrent(eq(42L), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
+        lenient().when(workoutSourceStateQueryPort.findCurrent(eq(42L), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
         service = new DailyInsightService(
                 moeOrchestrator,
                 insightRepository,
                 snapshotService,
-                new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock),
+                new AiInsightPersistenceService(
+                        insightRepository,
+                        eventPublisher,
+                        insightSourceLock,
+                        userDateTransactionLock,
+                        nutritionSourceStateQueryPort,
+                        workoutSourceStateQueryPort),
                 aiProperties,
                 promptRenderer,
                 aiContextService,
@@ -244,6 +273,60 @@ class DailyInsightServiceTest {
     }
 
     @Test
+    void staleTriggerIsSuccessfulNoOpBeforeProviderWork() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        DomainSourceState stale = sourceState(userId, "NUTRITION_DAY", date, 2L, true);
+        DomainSourceState current = sourceState(userId, "NUTRITION_DAY", date, 3L, true);
+        DomainEventMetadata trigger = stale.metadata(
+                UUID.fromString("68e9ca4f-49f5-4891-98d8-16de24b4ddde"));
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.empty());
+        when(snapshotService.build(userId, date)).thenReturn(snapshot(
+                userId, date, "current", 850, 65.0, 17.0, 95.0, 1, 1250.0,
+                Optional.of(current), Optional.empty()));
+
+        DailyInsightResult result = service.generate(userId, date, trigger);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.SKIPPED_STALE);
+        verifyNoInteractions(moeOrchestrator, aiContextService, promptRenderer, eventPublisher);
+        verify(insightRepository, never()).save(any());
+    }
+
+    @Test
+    void sourceChangeDuringProviderExecutionRejectsFinalProjectionCommit() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        DomainSourceState captured = sourceState(userId, "NUTRITION_DAY", date, 3L, true);
+        DomainSourceState newer = sourceState(userId, "NUTRITION_DAY", date, 4L, true);
+        DomainEventMetadata trigger = captured.metadata(
+                UUID.fromString("68e9ca4f-49f5-4891-98d8-16de24b4ddde"));
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.empty());
+        when(snapshotService.build(userId, date)).thenReturn(snapshot(
+                userId, date, "captured", 850, 65.0, 17.0, 95.0, 1, 1250.0,
+                Optional.of(captured), Optional.empty()));
+        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
+                .thenReturn("memory context");
+        when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
+                .thenReturn("recent insights");
+        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
+        when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
+                .thenAnswer(invocation -> {
+                    when(nutritionSourceStateQueryPort.findCurrent(userId, date))
+                            .thenReturn(Optional.of(newer));
+                    return response("Stale summary", "Stale telegram");
+                });
+
+        DailyInsightResult result = service.generate(userId, date, trigger);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.SKIPPED_STALE);
+        verify(insightRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     void skipsGenerationWhenSnapshotUnavailable() {
         Long userId = 42L;
         LocalDate date = LocalDate.of(2026, 7, 6);
@@ -272,7 +355,7 @@ class DailyInsightServiceTest {
                 .build();
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.of(stale));
-        when(snapshotService.build(userId, date)).thenReturn(null);
+        when(snapshotService.build(userId, date)).thenReturn(emptySnapshot(userId, date));
 
         DailyInsightResult result = service.generate(userId, date);
 
@@ -281,6 +364,32 @@ class DailyInsightServiceTest {
         verify(eventPublisher).publishEvent(new InsightDeletedEvent(userId, date, InsightType.DAILY));
         verifyNoInteractions(moeOrchestrator);
         verify(insightRepository, never()).save(any());
+    }
+
+    @Test
+    void sourceAppearingBeforeNoSnapshotDeleteReturnsSkippedStale() {
+        Long userId = 42L;
+        LocalDate date = LocalDate.of(2026, 7, 6);
+        AiInsightEntity stale = AiInsightEntity.builder()
+                .id(7L)
+                .userId(userId)
+                .date(date)
+                .insightType(InsightType.DAILY)
+                .insightText("Old summary")
+                .metadata(Map.of("snapshot_hash", "old"))
+                .build();
+        DomainSourceState newlyPresent = sourceState(userId, "WORKOUT_DAY", date, 1L, true);
+        when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
+                .thenReturn(Optional.of(stale));
+        when(snapshotService.build(userId, date)).thenReturn(emptySnapshot(userId, date));
+        when(workoutSourceStateQueryPort.findCurrent(userId, date)).thenReturn(Optional.of(newlyPresent));
+
+        DailyInsightResult result = service.generate(userId, date);
+
+        assertThat(result.status()).isEqualTo(DailyInsightResult.Status.SKIPPED_STALE);
+        verify(insightRepository, never()).delete(stale);
+        verify(eventPublisher, never()).publishEvent(any());
+        verifyNoInteractions(moeOrchestrator);
     }
 
     @Test
@@ -337,6 +446,23 @@ class DailyInsightServiceTest {
             double carbs,
             int workoutSessions,
             double workoutVolumeKg) {
+        return snapshot(
+                userId, date, hash, calories, protein, fat, carbs, workoutSessions, workoutVolumeKg,
+                Optional.empty(), Optional.empty());
+    }
+
+    private DailyInsightSnapshot snapshot(
+            Long userId,
+            LocalDate date,
+            String hash,
+            int calories,
+            double protein,
+            double fat,
+            double carbs,
+            int workoutSessions,
+            double workoutVolumeKg,
+            Optional<DomainSourceState> nutritionSourceState,
+            Optional<DomainSourceState> workoutSourceState) {
         return new DailyInsightSnapshot(
                 userId,
                 date,
@@ -349,11 +475,55 @@ class DailyInsightServiceTest {
                 0,
                 0,
                 0.0,
+                true,
+                UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76"),
+                nutritionSourceState,
+                workoutSourceState,
                 Map.of(
                         "snapshot_hash", hash,
                         "source_coverage", "nutrition_workout"
                 )
         );
+    }
+
+    private DailyInsightSnapshot emptySnapshot(Long userId, LocalDate date) {
+        return new DailyInsightSnapshot(
+                userId,
+                date,
+                0,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                0.0,
+                0,
+                0,
+                0.0,
+                false,
+                UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76"),
+                Optional.empty(),
+                Optional.empty(),
+                Map.of("source_coverage", "none"));
+    }
+
+    private DomainSourceState sourceState(
+            Long userId,
+            String sourceType,
+            LocalDate date,
+            long version,
+            boolean present) {
+        Instant occurredAt = Instant.parse("2026-07-06T12:00:00Z");
+        return new DomainSourceState(
+                userId,
+                sourceType,
+                date,
+                version,
+                present,
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76"),
+                1,
+                occurredAt,
+                occurredAt);
     }
 
     private NutritionInsightResponse response(String summary, String telegramSummary) {

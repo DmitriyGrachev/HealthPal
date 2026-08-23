@@ -2,6 +2,7 @@ package com.fit.fitnessapp.api;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.UUID;
 
 /** Current, provider-neutral source truth for one user and calendar date. */
@@ -110,6 +111,19 @@ public record DomainSourceState(
     public DomainEventMetadata metadata(UUID eventId) {
         return new DomainEventMetadata(eventId, userId, sourceType, sourceId, sourceVersion, changeType(),
                 contentHash, lifecycleEpoch, schemaVersion, updatedAt);
+    }
+
+    public boolean matches(DomainEventMetadata metadata) {
+        return metadata != null
+                && Objects.equals(userId, metadata.userId())
+                && Objects.equals(sourceType, metadata.sourceType())
+                && Objects.equals(sourceId, metadata.sourceId())
+                && sourceVersion == metadata.sourceVersion()
+                && changeType() == metadata.changeType()
+                && Objects.equals(contentHash, metadata.contentHash())
+                && Objects.equals(lifecycleEpoch, metadata.lifecycleEpoch())
+                && schemaVersion == metadata.schemaVersion()
+                && Objects.equals(updatedAt, metadata.occurredAt());
     }
 
     private static boolean present(ChangeType changeType) {

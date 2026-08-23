@@ -23,6 +23,12 @@ public class UserIdentityLifecycleAdapter implements UserIdentityLifecyclePort, 
     }
 
     @Override
+    public Optional<UserIdentityData> findByIdForUpdate(Long userId) {
+        return userRepository.findByIdForUpdate(userId)
+                .map(user -> new UserIdentityData(user.getId(), user.getEmail(), user.getUsername()));
+    }
+
+    @Override
     public void deleteById(Long userId) {
         userRepository.deleteById(userId);
     }

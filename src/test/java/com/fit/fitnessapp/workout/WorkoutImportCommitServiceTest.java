@@ -3,6 +3,7 @@ package com.fit.fitnessapp.workout;
 import com.fit.fitnessapp.api.ChangeType;
 import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.WorkoutImportedEvent;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutSourceStatePort;
 import com.fit.fitnessapp.workout.application.service.WorkoutImportCommitService;
@@ -31,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class WorkoutImportCommitServiceTest {
@@ -44,6 +46,9 @@ class WorkoutImportCommitServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private UserDateTransactionLock userDateTransactionLock;
+
     @Test
     void commitImportAdvancesEachChangedDateAndPublishesOneMetadataEventPerDate() {
         LocalDate first = LocalDate.of(2026, 8, 18);
@@ -51,6 +56,11 @@ class WorkoutImportCommitServiceTest {
         List<WorkoutSession> sessions = List.of(
                 session(1L, first), session(2L, second));
         WorkoutImportResult parsed = WorkoutImportResult.from(sessions, List.of());
+        when(persistencePort.findAffectedDates(sessions, 42L)).thenReturn(List.of(first, second));
+        when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, first))
+                .thenReturn(Optional.of(UUID.randomUUID()));
+        when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, second))
+                .thenReturn(Optional.of(UUID.randomUUID()));
         when(persistencePort.saveAll(sessions, 42L)).thenReturn(new WorkoutPersistenceResult(List.of(first, second)));
         when(sourceStatePort.advance(eq(42L), eq(first), eq(ChangeType.UPSERT), anyString()))
                 .thenReturn(Optional.of(state(first, 1L, "a".repeat(64))));
@@ -58,9 +68,13 @@ class WorkoutImportCommitServiceTest {
                 .thenReturn(Optional.of(state(second, 2L, "b".repeat(64))));
 
         WorkoutImportCommitResult result = new WorkoutImportCommitService(
-                persistencePort, sourceStatePort, eventPublisher).commit(parsed, 42L);
+                persistencePort, sourceStatePort, eventPublisher, userDateTransactionLock).commit(parsed, 42L);
 
         assertThat(result.changedDates()).containsExactly(first, second);
+        var order = inOrder(userDateTransactionLock, persistencePort, sourceStatePort, eventPublisher);
+        order.verify(userDateTransactionLock).lockAndReadLifecycleEpoch(42L, first);
+        order.verify(userDateTransactionLock).lockAndReadLifecycleEpoch(42L, second);
+        order.verify(persistencePort).saveAll(sessions, 42L);
         verify(sourceStatePort).advance(eq(42L), eq(first), eq(ChangeType.UPSERT), anyString());
         verify(sourceStatePort).advance(eq(42L), eq(second), eq(ChangeType.UPSERT), anyString());
         verify(eventPublisher, times(2)).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(event ->

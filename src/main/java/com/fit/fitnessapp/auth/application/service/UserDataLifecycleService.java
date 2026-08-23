@@ -86,7 +86,7 @@ public class UserDataLifecycleService implements UserDataLifecycleUseCase {
     @Override
     @Transactional
     public UserAccountDeletionResult deleteAccount(Long userId) {
-        requireUser(userId);
+        requireUserForUpdate(userId);
         log.info("Initiating account deletion for userId={}", userId);
 
         participants.forEach(participant -> participant.deleteData(userId));
@@ -102,6 +102,11 @@ public class UserDataLifecycleService implements UserDataLifecycleUseCase {
 
     private UserIdentityData requireUser(Long userId) {
         return userIdentityPort.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+    }
+
+    private UserIdentityData requireUserForUpdate(Long userId) {
+        return userIdentityPort.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
     }
 

@@ -23,7 +23,17 @@ public class EventPublicationUserDataLifecycleParticipant implements UserDataLif
 
     @Override
     public UserDataExportFragment exportData(Long userId) {
-        return new UserDataExportFragment(key(), Map.of());
+        return new UserDataExportFragment(key(), Map.of(
+                "eventPublicationReceipts", jdbc.queryForList("""
+                        SELECT id,
+                               listener_id AS "listenerId",
+                               event_type AS "eventType",
+                               publication_date AS "publicationDate",
+                               completion_date AS "completionDate"
+                          FROM event_publication
+                         WHERE user_id = ?
+                         ORDER BY publication_date, id
+                        """, userId)));
     }
 
     @Override
@@ -31,7 +41,7 @@ public class EventPublicationUserDataLifecycleParticipant implements UserDataLif
         return List.of(new DataRetentionDisclosure(
                 "event_publications",
                 DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
-                DataRetentionDisclosure.RetentionClass.UNTIL_TERMINAL,
+                DataRetentionDisclosure.RetentionClass.ACCOUNT_LIFETIME,
                 null,
                 List.of(),
                 DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL,
@@ -40,12 +50,6 @@ public class EventPublicationUserDataLifecycleParticipant implements UserDataLif
 
     @Override
     public void deleteData(Long userId) {
-        jdbc.update("""
-                DELETE FROM event_publication
-                 WHERE CASE
-                           WHEN serialized_event IS JSON
-                           THEN serialized_event::jsonb ->> 'userId'
-                       END = ?
-                """, userId.toString());
+        jdbc.update("DELETE FROM event_publication WHERE user_id = ?", userId);
     }
 }

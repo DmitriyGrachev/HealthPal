@@ -71,6 +71,7 @@ public class AiController {
             case GENERATED -> "generated";
             case PUBLISHED_EXISTING -> "published_existing";
             case SKIPPED_FRESH -> "skipped_fresh";
+            case SKIPPED_STALE -> "skipped_stale";
             case NO_SNAPSHOT -> "no_snapshot";
             case AI_FAILED -> "ai_failed";
         };
@@ -81,6 +82,7 @@ public class AiController {
             case GENERATED -> "Daily insight generated";
             case PUBLISHED_EXISTING -> "Existing daily insight published";
             case SKIPPED_FRESH -> "Daily insight is already fresh";
+            case SKIPPED_STALE -> "Daily insight trigger is stale";
             case NO_SNAPSHOT -> "No nutrition or workout data is available for this date";
             case AI_FAILED -> "Daily insight generation failed";
         };

@@ -1,29 +1,56 @@
 package com.fit.fitnessapp.ai.application.service;
 
+import com.fit.fitnessapp.api.DomainSourceState;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionQueryUseCase;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionSourceStateQueryPort;
 import com.fit.fitnessapp.nutrition.domain.FoodEntry;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
 import com.fit.fitnessapp.workout.WorkoutDailyApi;
 import com.fit.fitnessapp.workout.WorkoutDailyStatsDto;
+import com.fit.fitnessapp.workout.application.port.in.WorkoutSourceStateQueryPort;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DailyInsightSnapshotServiceTest {
+
+    private static final UUID LIFECYCLE_EPOCH =
+            UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76");
 
     @Mock
     private NutritionQueryUseCase nutritionQueryUseCase;
 
     @Mock
     private WorkoutDailyApi workoutDailyApi;
+
+    @Mock
+    private NutritionSourceStateQueryPort nutritionSourceStateQueryPort;
+
+    @Mock
+    private WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
+
+    @Mock
+    private UserDateTransactionLock userDateTransactionLock;
+
+    @BeforeEach
+    void setUpFence() {
+        lenient().when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, LocalDate.of(2026, 7, 6)))
+                .thenReturn(Optional.of(LIFECYCLE_EPOCH));
+    }
 
     @Test
     void buildCombinesNutritionAndWorkoutContext() {
@@ -32,10 +59,12 @@ class DailyInsightSnapshotServiceTest {
         when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(day(userId, date));
         when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 1, 1250.0));
 
-        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        ).build(userId, date);
+        DomainSourceState nutritionState = sourceState(userId, "NUTRITION_DAY", date, true);
+        DomainSourceState workoutState = sourceState(userId, "WORKOUT_DAY", date, true);
+        when(nutritionSourceStateQueryPort.findCurrent(userId, date)).thenReturn(Optional.of(nutritionState));
+        when(workoutSourceStateQueryPort.findCurrent(userId, date)).thenReturn(Optional.of(workoutState));
+
+        DailyInsightSnapshot snapshot = service().build(userId, date);
 
         assertThat(snapshot.userId()).isEqualTo(userId);
         assertThat(snapshot.date()).isEqualTo(date);
@@ -48,6 +77,10 @@ class DailyInsightSnapshotServiceTest {
         assertThat(snapshot.cardioSessions()).isZero();
         assertThat(snapshot.cardioDurationSeconds()).isZero();
         assertThat(snapshot.cardioCalories()).isZero();
+        assertThat(snapshot.lifecycleEpoch()).isEqualTo(LIFECYCLE_EPOCH);
+        assertThat(snapshot.nutritionSourceState()).contains(nutritionState);
+        assertThat(snapshot.workoutSourceState()).contains(workoutState);
+        assertThat(snapshot.hasSourceData()).isTrue();
         assertThat(snapshot.sourceMetadata())
                 .containsKeys("snapshot_hash", "nutrition_entries")
                 .containsEntry("cardio_sessions", 0)
@@ -63,10 +96,7 @@ class DailyInsightSnapshotServiceTest {
         when(workoutDailyApi.getDailyStats(userId, date))
                 .thenReturn(stats(date, 1, 1250.0))
                 .thenReturn(stats(date, 2, 2500.0));
-        DailyInsightSnapshotService service = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        );
+        DailyInsightSnapshotService service = service();
 
         DailyInsightSnapshot first = service.build(userId, date);
         DailyInsightSnapshot second = service.build(userId, date);
@@ -82,10 +112,7 @@ class DailyInsightSnapshotServiceTest {
         when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
         when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 1, 1250.0));
 
-        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        ).build(userId, date);
+        DailyInsightSnapshot snapshot = service().build(userId, date);
 
         assertThat(snapshot).isNotNull();
         assertThat(snapshot.totalCalories()).isZero();
@@ -107,10 +134,7 @@ class DailyInsightSnapshotServiceTest {
                 .thenReturn(new NutritionDay(userId, date, List.of(), 2100, 140.0, 70.0, 220.0));
         when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 0, 0.0));
 
-        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        ).build(userId, date);
+        DailyInsightSnapshot snapshot = service().build(userId, date);
 
         assertThat(snapshot).isNotNull();
         assertThat(snapshot.totalCalories()).isEqualTo(2100);
@@ -130,10 +154,7 @@ class DailyInsightSnapshotServiceTest {
         when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
         when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(cardioStats(date, 1, 1800, 320.0));
 
-        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        ).build(userId, date);
+        DailyInsightSnapshot snapshot = service().build(userId, date);
 
         assertThat(snapshot).isNotNull();
         assertThat(snapshot.totalCalories()).isZero();
@@ -158,10 +179,7 @@ class DailyInsightSnapshotServiceTest {
         when(workoutDailyApi.getDailyStats(userId, date))
                 .thenReturn(cardioStats(date, 1, 1800, 320.0))
                 .thenReturn(cardioStats(date, 1, 2400, 420.0));
-        DailyInsightSnapshotService service = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        );
+        DailyInsightSnapshotService service = service();
 
         DailyInsightSnapshot first = service.build(userId, date);
         DailyInsightSnapshot second = service.build(userId, date);
@@ -171,18 +189,43 @@ class DailyInsightSnapshotServiceTest {
     }
 
     @Test
-    void returnsNullWhenNutritionAndWorkoutAreMissing() {
+    void returnsFencedEmptySnapshotWhenNutritionAndWorkoutAreMissing() {
         Long userId = 42L;
         LocalDate date = LocalDate.of(2026, 7, 6);
         when(nutritionQueryUseCase.getDay(userId, date)).thenReturn(new NutritionDay(userId, date, List.of()));
         when(workoutDailyApi.getDailyStats(userId, date)).thenReturn(stats(date, 0, 0.0));
 
-        DailyInsightSnapshot snapshot = new DailyInsightSnapshotService(
-                nutritionQueryUseCase,
-                workoutDailyApi
-        ).build(userId, date);
+        DailyInsightSnapshot snapshot = service().build(userId, date);
 
-        assertThat(snapshot).isNull();
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.hasSourceData()).isFalse();
+        assertThat(snapshot.lifecycleEpoch()).isEqualTo(LIFECYCLE_EPOCH);
+        assertThat(snapshot.nutritionSourceState()).isEmpty();
+        assertThat(snapshot.workoutSourceState()).isEmpty();
+    }
+
+    private DailyInsightSnapshotService service() {
+        return new DailyInsightSnapshotService(
+                nutritionQueryUseCase,
+                workoutDailyApi,
+                nutritionSourceStateQueryPort,
+                workoutSourceStateQueryPort,
+                userDateTransactionLock);
+    }
+
+    private DomainSourceState sourceState(Long userId, String sourceType, LocalDate date, boolean present) {
+        Instant occurredAt = Instant.parse("2026-07-06T12:00:00Z");
+        return new DomainSourceState(
+                userId,
+                sourceType,
+                date,
+                3L,
+                present,
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                LIFECYCLE_EPOCH,
+                1,
+                occurredAt,
+                occurredAt);
     }
 
     private NutritionDay day(Long userId, LocalDate date) {

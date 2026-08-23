@@ -86,13 +86,14 @@ class UserDataLifecycleServiceTest {
 
     @Test
     void deleteRunsAllModuleCleanupBeforeDeletingAuthIdentity() {
-        when(userIdentityPort.findById(42L)).thenReturn(Optional.of(user));
+        when(userIdentityPort.findByIdForUpdate(42L)).thenReturn(Optional.of(user));
         clearInvocations(aiParticipant, nutritionParticipant, userIdentityPort);
 
         UserAccountDeletionResult result = service.deleteAccount(42L);
 
         assertThat(result.success()).isTrue();
         InOrder order = inOrder(aiParticipant, nutritionParticipant, userIdentityPort);
+        order.verify(userIdentityPort).findByIdForUpdate(42L);
         order.verify(aiParticipant).deleteData(42L);
         order.verify(nutritionParticipant).deleteData(42L);
         order.verify(userIdentityPort).deleteById(42L);

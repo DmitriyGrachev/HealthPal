@@ -9,24 +9,24 @@ import com.fit.fitnessapp.ai.application.service.ReportSnapshotHasher;
 import com.fit.fitnessapp.ai.application.service.TelegramAskAiService;
 import com.fit.fitnessapp.ai.application.service.WeeklyReportService;
 import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
+import com.fit.fitnessapp.api.DomainEventMetadata;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
 import com.fit.fitnessapp.api.TelegramAiResponseEvent;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
 import com.fit.fitnessapp.api.TelegramTodayRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.api.WorkoutImportedEvent;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionSourceStateQueryPort;
+import com.fit.fitnessapp.workout.application.port.in.WorkoutSourceStateQueryPort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -44,6 +44,8 @@ public class FitnessAiService {
     private final ObjectMapper objectMapper;
     private final WeeklyReportService weeklyReportService;
     private final MonthlyReportService monthlyReportService;
+    private final NutritionSourceStateQueryPort nutritionSourceStateQueryPort;
+    private final WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
 
     public FitnessAiService(
             DailyInsightService dailyInsightService,
@@ -52,7 +54,9 @@ public class FitnessAiService {
             com.fit.fitnessapp.job.DurableJobUseCase durableJobUseCase,
             ObjectMapper objectMapper,
             WeeklyReportService weeklyReportService,
-            MonthlyReportService monthlyReportService) {
+            MonthlyReportService monthlyReportService,
+            NutritionSourceStateQueryPort nutritionSourceStateQueryPort,
+            WorkoutSourceStateQueryPort workoutSourceStateQueryPort) {
         this.dailyInsightService = dailyInsightService;
         this.telegramAskAiService = telegramAskAiService;
         this.eventPublisher = eventPublisher;
@@ -60,6 +64,8 @@ public class FitnessAiService {
         this.objectMapper = objectMapper;
         this.weeklyReportService = weeklyReportService;
         this.monthlyReportService = monthlyReportService;
+        this.nutritionSourceStateQueryPort = nutritionSourceStateQueryPort;
+        this.workoutSourceStateQueryPort = workoutSourceStateQueryPort;
     }
 
     @EventListener
@@ -89,24 +95,52 @@ public class FitnessAiService {
     @ApplicationModuleListener
     public void onNutritionSynced(NutritionSyncedEvent event) {
         log.info("AI module received NutritionSyncedEvent for user {} on {}", event.userId(), event.date());
-        if (event.changed()) {
-            enqueueDailyInsight(event.userId(), event.date(),
-                    "nutrition|" + event.summaryHash() + '|' + event.entriesHash());
+        if (event.metadata() == null) {
+            return;
         }
+        if (!hasExpectedIdentity(
+                event.metadata(), event.userId(), event.date(), "NUTRITION_DAY")) {
+            return;
+        }
+        var current = nutritionSourceStateQueryPort.findCurrent(event.userId(), event.date());
+        if (current.isEmpty() || !current.get().matches(event.metadata())) {
+            return;
+        }
+        enqueueDailyInsight(event.userId(), event.date(), event.metadata());
     }
 
     @ApplicationModuleListener
     public void onWorkoutImported(WorkoutImportedEvent event) {
         log.info("AI module received WorkoutImportedEvent for user {} from {} to {}",
                 event.userId(), event.fromDate(), event.toDate());
-        String eventFingerprint = sha256(serializeJobPayload(event));
-        for (LocalDate date : affectedWorkoutDates(event)) {
-            enqueueDailyInsight(event.userId(), date, "workout|" + eventFingerprint);
+        if (event.metadata() == null) {
+            return;
         }
+        LocalDate sourceDate = sourceDate(event.metadata());
+        if (sourceDate == null
+                || !Objects.equals(event.fromDate(), sourceDate)
+                || !Objects.equals(event.toDate(), sourceDate)
+                || !List.of(sourceDate).equals(event.affectedDates())
+                || !hasExpectedIdentity(
+                        event.metadata(), event.userId(), sourceDate, "WORKOUT_DAY")) {
+            return;
+        }
+        var current = workoutSourceStateQueryPort.findCurrent(event.userId(), sourceDate);
+        if (current.isEmpty() || !current.get().matches(event.metadata())) {
+            return;
+        }
+        enqueueDailyInsight(event.userId(), sourceDate, event.metadata());
     }
 
     public DailyInsightResult generateDailyInsight(Long userId, LocalDate date) {
         return dailyInsightService.generate(userId, date);
+    }
+
+    public DailyInsightResult generateDailyInsight(
+            Long userId,
+            LocalDate date,
+            DomainEventMetadata trigger) {
+        return dailyInsightService.generate(userId, date, trigger);
     }
 
     @ApplicationModuleListener
@@ -145,12 +179,37 @@ public class FitnessAiService {
         eventPublisher.publishEvent(new TelegramAiResponseEvent(event.userId(), event.chatId(), message));
     }
 
-    private void enqueueDailyInsight(Long userId, LocalDate date, String sourceFingerprint) {
+    private void enqueueDailyInsight(Long userId, LocalDate date, DomainEventMetadata metadata) {
         durableJobUseCase.createJob(
                 AiDurableJobExecutor.DAILY_INSIGHT,
                 userId,
-                serializeJobPayload(new DailyInsightJobPayload(date)),
-                "daily-insight:v1:%d:%s:%s".formatted(userId, date, sha256(sourceFingerprint)));
+                serializeJobPayload(new DailyInsightJobPayload(date, metadata)),
+                "daily-insight:v2:%d:%s:%s:%d:%s".formatted(
+                        userId,
+                        metadata.sourceType(),
+                        date,
+                        metadata.sourceVersion(),
+                        metadata.eventId()));
+    }
+
+    private boolean hasExpectedIdentity(
+            DomainEventMetadata metadata,
+            Long eventUserId,
+            LocalDate eventDate,
+            String expectedSourceType) {
+        LocalDate metadataDate = sourceDate(metadata);
+        return metadataDate != null
+                && Objects.equals(eventUserId, metadata.userId())
+                && Objects.equals(eventDate, metadataDate)
+                && expectedSourceType.equals(metadata.sourceType());
+    }
+
+    private LocalDate sourceDate(DomainEventMetadata metadata) {
+        try {
+            return LocalDate.parse(metadata.sourceId());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private String serializeJobPayload(Object payload) {
@@ -161,26 +220,4 @@ public class FitnessAiService {
         }
     }
 
-    private List<LocalDate> affectedWorkoutDates(WorkoutImportedEvent event) {
-        if (event.affectedDates() != null && !event.affectedDates().isEmpty()) {
-            return event.affectedDates();
-        }
-        if (event.fromDate() == null || event.toDate() == null || event.fromDate().isAfter(event.toDate())) {
-            return List.of();
-        }
-        List<LocalDate> dates = new ArrayList<>();
-        for (LocalDate date = event.fromDate(); !date.isAfter(event.toDate()); date = date.plusDays(1)) {
-            dates.add(date);
-        }
-        return dates;
-    }
-
-    private String sha256(String source) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return java.util.HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
-    }
 }

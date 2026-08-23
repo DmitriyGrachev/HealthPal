@@ -16,7 +16,9 @@ import com.fit.fitnessapp.api.MonthlyReportRequestedEvent;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.auth.application.port.in.UserNoteUseCase;
 import com.fit.fitnessapp.nutrition.application.port.in.ProfileUseCase;
+import com.fit.fitnessapp.nutrition.application.port.in.NutritionSourceStateQueryPort;
 import com.fit.fitnessapp.nutrition.application.port.in.WeightHistoryUseCase;
+import com.fit.fitnessapp.workout.application.port.in.WorkoutSourceStateQueryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -82,6 +84,12 @@ class FitnessAiServiceReportFreshnessTest {
     @Mock
     private com.fit.fitnessapp.job.DurableJobUseCase durableJobUseCase;
 
+    @Mock
+    private NutritionSourceStateQueryPort nutritionSourceStateQueryPort;
+
+    @Mock
+    private WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
+
     private FitnessAiService service;
 
     @BeforeEach
@@ -111,7 +119,9 @@ class FitnessAiServiceReportFreshnessTest {
                         profileUseCase,
                         weightHistoryUseCase,
                         promptRenderer,
-                        new com.fit.fitnessapp.ai.application.service.AiSafetyService())
+                        new com.fit.fitnessapp.ai.application.service.AiSafetyService()),
+                nutritionSourceStateQueryPort,
+                workoutSourceStateQueryPort
         );
     }
 

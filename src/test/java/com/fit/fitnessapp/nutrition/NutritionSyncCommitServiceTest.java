@@ -3,6 +3,7 @@ package com.fit.fitnessapp.nutrition;
 import com.fit.fitnessapp.api.ChangeType;
 import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionSourceStatePort;
 import com.fit.fitnessapp.nutrition.application.service.NutritionSyncCommitService;
@@ -41,6 +42,9 @@ class NutritionSyncCommitServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private UserDateTransactionLock userDateTransactionLock;
+
     @Test
     void commitDayAdvancesSourceAndPublishesMetadataEventAfterCanonicalWrite() {
         LocalDate date = LocalDate.of(2026, 8, 20);
@@ -50,14 +54,17 @@ class NutritionSyncCommitServiceTest {
                 42L, date, true, "b".repeat(64), "c".repeat(64), 500, 30.0, 10.0, 50.0);
         DomainSourceState state = state(42L, "NUTRITION_DAY", date, 3L, true, "d".repeat(64));
         when(commandPort.saveNutritionDay(day)).thenReturn(saved);
+        when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, date))
+                .thenReturn(Optional.of(state.lifecycleEpoch()));
         when(sourceStatePort.advance(eq(42L), eq(date), eq(ChangeType.UPSERT), anyString()))
                 .thenReturn(Optional.of(state));
 
         NutritionSyncCommitResult result = new NutritionSyncCommitService(
-                commandPort, sourceStatePort, eventPublisher).commitDay(day);
+                commandPort, sourceStatePort, eventPublisher, userDateTransactionLock).commitDay(day);
 
         assertThat(result.changedDates()).containsExactly(date);
-        InOrder order = inOrder(commandPort, sourceStatePort, eventPublisher);
+        InOrder order = inOrder(userDateTransactionLock, commandPort, sourceStatePort, eventPublisher);
+        order.verify(userDateTransactionLock).lockAndReadLifecycleEpoch(42L, date);
         order.verify(commandPort).saveNutritionDay(day);
         order.verify(sourceStatePort).advance(eq(42L), eq(date), eq(ChangeType.UPSERT), org.mockito.ArgumentMatchers.anyString());
         order.verify(eventPublisher).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(event ->

@@ -43,6 +43,45 @@ public class WorkoutPersistenceAdapter implements WorkoutPersistencePort {
     private final CurrentUserApi currentUserApi;
 
     @Override
+    @Transactional(readOnly = true)
+    public List<LocalDate> findAffectedDates(List<WorkoutSession> sessions, Long userId) {
+        List<LocalDate> affectedDates = sessions.stream()
+                .map(WorkoutSession::date)
+                .filter(Objects::nonNull)
+                .map(LocalDateTime::toLocalDate)
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        List<Long> workoutIds = sessions.stream()
+                .filter(session -> !session.exercises().isEmpty())
+                .map(WorkoutSession::externalId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!workoutIds.isEmpty()) {
+            workoutJpaRepository.findWithExercisesByJefitIdInAndUserId(workoutIds, userId).stream()
+                    .map(WorkoutJpaEntity::getDate)
+                    .filter(Objects::nonNull)
+                    .map(LocalDateTime::toLocalDate)
+                    .forEach(affectedDates::add);
+        }
+
+        List<Long> cardioIds = sessions.stream()
+                .flatMap(session -> session.cardioExercises().stream())
+                .map(CardioExercise::jefitId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!cardioIds.isEmpty()) {
+            cardioJpaRepository.findByJefitIdInAndUserId(cardioIds, userId).stream()
+                    .map(WorkoutCardioJpaEntity::getDate)
+                    .filter(Objects::nonNull)
+                    .map(LocalDateTime::toLocalDate)
+                    .forEach(affectedDates::add);
+        }
+        return distinctDates(affectedDates);
+    }
+
+    @Override
     @Transactional
     public WorkoutPersistenceResult saveAll(List<WorkoutSession> sessions, Long userId) {
         currentUserApi.findUserById(userId);

@@ -3,6 +3,8 @@ package com.fit.fitnessapp.ai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fit.fitnessapp.ai.application.service.DailyInsightResult;
+import com.fit.fitnessapp.api.DomainEventMetadata;
+import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.WeeklyReportRequestedEvent;
 import com.fit.fitnessapp.job.DurableJobDto;
 import com.fit.fitnessapp.job.JobStatus;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -23,15 +26,41 @@ class AiDurableJobExecutorTest {
     private final AiDurableJobExecutor executor = new AiDurableJobExecutor(fitnessAiService, objectMapper);
 
     @Test
-    void executesDailyInsightFromStoredPayload() throws Exception {
+    void executesLegacyDailyInsightFromDateOnlyPayload() throws Exception {
         LocalDate date = LocalDate.of(2026, 8, 9);
-        String payload = objectMapper.writeValueAsString(new DailyInsightJobPayload(date));
+        String payload = "{\"date\":\"2026-08-09\"}";
         when(fitnessAiService.generateDailyInsight(42L, date))
                 .thenReturn(DailyInsightResult.generated());
 
         executor.execute(job(AiDurableJobExecutor.DAILY_INSIGHT, payload));
 
         verify(fitnessAiService).generateDailyInsight(42L, date);
+    }
+
+    @Test
+    void executesVersionedDailyInsightWithTriggerAndTreatsStaleAsSuccess() throws Exception {
+        LocalDate date = LocalDate.of(2026, 8, 9);
+        Instant occurredAt = Instant.parse("2026-08-09T12:00:00Z");
+        DomainSourceState state = new DomainSourceState(
+                42L,
+                "NUTRITION_DAY",
+                date,
+                3L,
+                true,
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                UUID.fromString("8bf60f6f-a7ee-4b71-b82c-848e09277d76"),
+                1,
+                occurredAt,
+                occurredAt);
+        DomainEventMetadata trigger = state.metadata(
+                UUID.fromString("68e9ca4f-49f5-4891-98d8-16de24b4ddde"));
+        String payload = objectMapper.writeValueAsString(new DailyInsightJobPayload(date, trigger));
+        when(fitnessAiService.generateDailyInsight(42L, date, trigger))
+                .thenReturn(DailyInsightResult.skippedStale());
+
+        executor.execute(job(AiDurableJobExecutor.DAILY_INSIGHT, payload));
+
+        verify(fitnessAiService).generateDailyInsight(42L, date, trigger);
     }
 
     @Test

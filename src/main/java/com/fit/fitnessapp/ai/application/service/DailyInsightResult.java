@@ -6,6 +6,7 @@ public record DailyInsightResult(Status status, String errorCode) {
         GENERATED,
         PUBLISHED_EXISTING,
         SKIPPED_FRESH,
+        SKIPPED_STALE,
         NO_SNAPSHOT,
         AI_FAILED
     }
@@ -20,6 +21,10 @@ public record DailyInsightResult(Status status, String errorCode) {
 
     public static DailyInsightResult skippedFresh() {
         return new DailyInsightResult(Status.SKIPPED_FRESH, null);
+    }
+
+    public static DailyInsightResult skippedStale() {
+        return new DailyInsightResult(Status.SKIPPED_STALE, null);
     }
 
     public static DailyInsightResult noSnapshot() {

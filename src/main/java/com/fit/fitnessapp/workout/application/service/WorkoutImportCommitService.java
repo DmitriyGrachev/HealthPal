@@ -3,6 +3,7 @@ package com.fit.fitnessapp.workout.application.service;
 import com.fit.fitnessapp.api.ChangeType;
 import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.WorkoutImportedEvent;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutPersistencePort;
 import com.fit.fitnessapp.workout.application.port.out.WorkoutSourceStatePort;
 import com.fit.fitnessapp.workout.domain.CardioExercise;
@@ -39,26 +40,45 @@ public class WorkoutImportCommitService {
     private final WorkoutPersistencePort persistencePort;
     private final WorkoutSourceStatePort sourceStatePort;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserDateTransactionLock userDateTransactionLock;
 
     @Autowired
     public WorkoutImportCommitService(
             WorkoutPersistencePort persistencePort,
             WorkoutSourceStatePort sourceStatePort,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            UserDateTransactionLock userDateTransactionLock) {
         this.persistencePort = persistencePort;
         this.sourceStatePort = sourceStatePort;
         this.eventPublisher = eventPublisher;
+        this.userDateTransactionLock = userDateTransactionLock;
     }
 
     /** Compatibility constructor for narrow legacy unit tests; production uses the source-state port. */
     public WorkoutImportCommitService(
             WorkoutPersistencePort persistencePort,
             ApplicationEventPublisher eventPublisher) {
-        this(persistencePort, null, eventPublisher);
+        this(persistencePort, null, eventPublisher, null);
     }
 
     @Transactional
     public WorkoutImportCommitResult commit(WorkoutImportResult parsed, Long userId) {
+        List<LocalDate> affectedDates = new ArrayList<>();
+        parsed.sessions().stream()
+                .map(WorkoutSession::date)
+                .filter(java.util.Objects::nonNull)
+                .map(java.time.LocalDateTime::toLocalDate)
+                .forEach(affectedDates::add);
+        List<LocalDate> persistedDates = persistencePort.findAffectedDates(parsed.sessions(), userId);
+        if (persistedDates != null) {
+            affectedDates.addAll(persistedDates);
+        }
+        for (LocalDate date : affectedDates.stream().distinct().sorted().toList()) {
+            if (userDateTransactionLock != null
+                    && userDateTransactionLock.lockAndReadLifecycleEpoch(userId, date).isEmpty()) {
+                return new WorkoutImportCommitResult(List.of());
+            }
+        }
         WorkoutPersistenceResult persisted = persistencePort.saveAll(parsed.sessions(), userId);
         if (persisted.changedDates().isEmpty()) {
             return new WorkoutImportCommitResult(List.of());

@@ -3,6 +3,7 @@ package com.fit.fitnessapp.nutrition.application.service;
 import com.fit.fitnessapp.api.ChangeType;
 import com.fit.fitnessapp.api.DomainSourceState;
 import com.fit.fitnessapp.api.NutritionSyncedEvent;
+import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionCommandPort;
 import com.fit.fitnessapp.nutrition.application.port.out.NutritionSourceStatePort;
 import com.fit.fitnessapp.nutrition.domain.NutritionDay;
@@ -37,26 +38,32 @@ public class NutritionSyncCommitService {
     private final NutritionCommandPort commandPort;
     private final NutritionSourceStatePort sourceStatePort;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserDateTransactionLock userDateTransactionLock;
 
     @Autowired
     public NutritionSyncCommitService(
             NutritionCommandPort commandPort,
             NutritionSourceStatePort sourceStatePort,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            UserDateTransactionLock userDateTransactionLock) {
         this.commandPort = commandPort;
         this.sourceStatePort = sourceStatePort;
         this.eventPublisher = eventPublisher;
+        this.userDateTransactionLock = userDateTransactionLock;
     }
 
     /** Compatibility constructor for narrow legacy unit tests; production uses the source-state port. */
     public NutritionSyncCommitService(
             NutritionCommandPort commandPort,
             ApplicationEventPublisher eventPublisher) {
-        this(commandPort, null, eventPublisher);
+        this(commandPort, null, eventPublisher, null);
     }
 
     @Transactional
     public NutritionSyncCommitResult commitDay(NutritionDay day) {
+        if (!lockDate(day.userId(), day.date())) {
+            return new NutritionSyncCommitResult(List.of());
+        }
         NutritionDaySaveResult saved = commandPort.saveNutritionDay(day);
         if (!saved.changed()) {
             return new NutritionSyncCommitResult(List.of());
@@ -82,6 +89,11 @@ public class NutritionSyncCommitService {
     @Transactional
     public NutritionSyncCommitResult commitMonth(
             NutritionMonth month, LocalDate monthStart, LocalDate monthEnd) {
+        for (LocalDate date = monthStart; !date.isAfter(monthEnd); date = date.plusDays(1)) {
+            if (!lockDate(month.userId(), date)) {
+                return new NutritionSyncCommitResult(List.of());
+            }
+        }
         NutritionMonthSaveResult savedMonth = commandPort.saveNutritionMonth(month);
         List<NutritionDaySaveResult> deletedDays = commandPort.deleteNutritionDaysMissingFromMonth(
                 month.userId(), monthStart, monthEnd,
@@ -131,6 +143,11 @@ public class NutritionSyncCommitService {
 
     private void publish(DomainSourceState state) {
         eventPublisher.publishEvent(NutritionSyncedEvent.forSourceState(state));
+    }
+
+    private boolean lockDate(Long userId, LocalDate date) {
+        return userDateTransactionLock == null
+                || userDateTransactionLock.lockAndReadLifecycleEpoch(userId, date).isPresent();
     }
 
     private NutritionSyncedEvent legacyEvent(NutritionDaySaveResult result) {

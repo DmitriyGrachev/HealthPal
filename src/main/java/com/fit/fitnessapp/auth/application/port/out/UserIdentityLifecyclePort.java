@@ -8,5 +8,7 @@ public interface UserIdentityLifecyclePort {
 
     Optional<UserIdentityData> findById(Long userId);
 
+    Optional<UserIdentityData> findByIdForUpdate(Long userId);
+
     void deleteById(Long userId);
 }

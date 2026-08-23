@@ -12,6 +12,7 @@ import com.fit.fitnessapp.ai.exception.AiEgressDeniedException;
 import com.fit.fitnessapp.api.InsightDeletedEvent;
 import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.InsightType;
+import com.fit.fitnessapp.api.DomainEventMetadata;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,21 +38,45 @@ public class DailyInsightService {
     private final AiSafetyService aiSafetyService;
 
     public DailyInsightResult generate(Long userId, LocalDate date) {
-        return generate(userId, date, false);
+        return generate(userId, date, false, null);
+    }
+
+    public DailyInsightResult generate(Long userId, LocalDate date, DomainEventMetadata trigger) {
+        return generate(userId, date, false, trigger);
     }
 
     public DailyInsightResult generateOrPublishExisting(Long userId, LocalDate date) {
-        return generate(userId, date, true);
+        return generate(userId, date, true, null);
     }
 
-    private DailyInsightResult generate(Long userId, LocalDate date, boolean publishExistingWhenFresh) {
+    private DailyInsightResult generate(
+            Long userId,
+            LocalDate date,
+            boolean publishExistingWhenFresh,
+            DomainEventMetadata trigger) {
         var existingInsight = insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY);
         DailyInsightSnapshot snapshot = snapshotService.build(userId, date);
+        if (trigger != null && !matchesTrigger(userId, date, trigger, snapshot)) {
+            log.info("Skipping stale daily insight trigger for user {} on {}.", userId, date);
+            return DailyInsightResult.skippedStale();
+        }
         if (snapshot == null) {
             log.info("No source data for user {} on {}. Skipping insight generation.", userId, date);
-            existingInsight.ifPresent(insight -> persistenceService.deleteAndPublish(
-                    insight,
-                    new InsightDeletedEvent(userId, date, InsightType.DAILY)));
+            return DailyInsightResult.noSnapshot();
+        }
+        if (!snapshot.hasSourceData()) {
+            log.info("No source data for user {} on {}. Skipping insight generation.", userId, date);
+            if (existingInsight.isPresent()) {
+                try {
+                    persistenceService.deleteDailyAndPublish(
+                            existingInsight.get(),
+                            new InsightDeletedEvent(userId, date, InsightType.DAILY),
+                            snapshot.sourceExpectation());
+                } catch (StaleDailyInsightProjectionException e) {
+                    log.info("Skipping stale daily insight deletion for user {} on {}.", userId, date);
+                    return DailyInsightResult.skippedStale();
+                }
+            }
             return DailyInsightResult.noSnapshot();
         }
 
@@ -135,15 +160,18 @@ public class DailyInsightService {
             insight.setSchemaVersion(1);
             insight.setMetadata(meta);
 
-            persistenceService.saveAndPublish(insight, new InsightGeneratedEvent(
+            persistenceService.saveDailyAndPublish(insight, new InsightGeneratedEvent(
                     userId,
                     date,
                     InsightType.DAILY,
                     aiResponse.summary(),
                     aiResponse.telegramSummary(),
                     snapshotHash
-            ));
+            ), snapshot.sourceExpectation());
             return DailyInsightResult.generated();
+        } catch (StaleDailyInsightProjectionException e) {
+            log.info("Skipping stale daily insight projection for user {} on {}.", userId, date);
+            return DailyInsightResult.skippedStale();
         } catch (Exception e) {
             String errorCode = e instanceof AiEgressDeniedException denied
                     ? denied.code()
@@ -174,6 +202,28 @@ public class DailyInsightService {
         }
         Map<String, Object> metadata = existingInsight.get().getMetadata();
         return metadata != null && snapshotHash.equals(metadata.get("snapshot_hash"));
+    }
+
+    private boolean matchesTrigger(
+            Long userId,
+            LocalDate date,
+            DomainEventMetadata trigger,
+            DailyInsightSnapshot snapshot) {
+        if (snapshot == null
+                || !java.util.Objects.equals(userId, trigger.userId())
+                || !java.util.Objects.equals(date.toString(), trigger.sourceId())
+                || !java.util.Objects.equals(snapshot.lifecycleEpoch(), trigger.lifecycleEpoch())) {
+            return false;
+        }
+        return switch (trigger.sourceType()) {
+            case "NUTRITION_DAY" -> snapshot.nutritionSourceState()
+                    .filter(state -> state.matches(trigger))
+                    .isPresent();
+            case "WORKOUT_DAY" -> snapshot.workoutSourceState()
+                    .filter(state -> state.matches(trigger))
+                    .isPresent();
+            default -> false;
+        };
     }
 
     private void logAiCall(
