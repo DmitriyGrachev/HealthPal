@@ -38,7 +38,7 @@ Prove typed values/units, temporal validity, origin/verification separation, nor
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V36__create_knowledge_claims.sql` with:
+Add `src/main/resources/db/migration/V37__create_knowledge_claims.sql` with:
 
 - `knowledge_claims`;
 - `knowledge_claim_evidence`;
@@ -96,7 +96,7 @@ Add MockMvc and integration tests for:
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V37__create_knowledge_claim_usage_and_conflicts.sql` with:
+Add `src/main/resources/db/migration/V38__create_knowledge_claim_usage_and_conflicts.sql` with:
 
 - `knowledge_claim_usage`;
 - `knowledge_claim_conflicts`;
@@ -204,7 +204,7 @@ Add PostgreSQL/provider-mocked tests for:
 
 ### GREEN
 
-Add `src/main/resources/db/migration/V38__version_memory_projection.sql` with:
+Add `src/main/resources/db/migration/V39__version_memory_projection.sql` with:
 
 - `memory_projection_generations` (`BUILDING`, `ACTIVE`, `FAILED`, owner, schema version, timestamps);
 - indexed/generated metadata required to identify source type/id/version/hash/generation in `user_memory`;

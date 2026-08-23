@@ -113,8 +113,10 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         long otherChatId = 5_001L;
 
         seedOwnedData(userId, chatId);
+        seedExperimentData(userId);
         jdbc.update("INSERT INTO telegram_delivery_outbox (chat_id, text) VALUES (?, 'anonymous same chat')", chatId);
         seedControlData(otherUserId, otherChatId);
+        seedExperimentData(otherUserId);
         UUID completedPublication = insertPublication(userId, true);
         UUID incompletePublication = insertPublication(userId, false);
         UUID otherPublication = insertPublication(otherUserId, false);
@@ -192,6 +194,28 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                         "fatsecret_restricted_response_content");
         assertThat(moduleCategories(v2, "workout")).contains("workout_source_state");
         assertThat(moduleCategories(v2, "event-publications")).contains("event_publications");
+        assertThat(moduleCategories(v2, "experiment"))
+                .containsExactlyInAnyOrder("investigations", "goals", "command_receipts");
+
+        var experimentModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("experiment"))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedInvestigations = (List<Map<String, Object>>)
+                experimentModule.data().get("investigations");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedGoals = (List<Map<String, Object>>)
+                experimentModule.data().get("goals");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedReceipts = (List<Map<String, Object>>)
+                experimentModule.data().get("commandReceipts");
+        assertThat(exportedInvestigations).hasSize(1);
+        assertThat(exportedGoals).hasSize(1);
+        assertThat(exportedReceipts).singleElement().satisfies(receipt -> assertThat(receipt)
+                .containsKeys("id", "aggregate_type", "aggregate_id", "idempotency_key", "result_version", "created_at")
+                .doesNotContainKeys("command", "reason", "payload", "request_fingerprint", "requestFingerprint",
+                        "user_id", "userId"));
 
         var nutritionModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("nutrition"))
@@ -267,6 +291,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("ai_insights", "user_id", userId)).isZero();
         assertThat(count("user_memory", "user_id", userId)).isZero();
         assertThat(count("durable_jobs", "user_id", userId)).isZero();
+        assertThat(count("investigations", "user_id", userId)).isOne();
+        assertThat(count("goals", "user_id", userId)).isOne();
+        assertThat(count("experiment_command_receipts", "user_id", userId)).isOne();
         assertThat(count("telegram_delivery_outbox", "user_id", userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -300,6 +327,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
         assertThat(count("durable_jobs", "user_id", userId)).isZero();
         assertThat(count("user_memory", "user_id", userId)).isZero();
+        assertThat(count("investigations", "user_id", userId)).isZero();
+        assertThat(count("goals", "user_id", userId)).isZero();
+        assertThat(count("experiment_command_receipts", "user_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -310,6 +340,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("telegram_users", "user_id", otherUserId)).isOne();
         assertThat(count("telegram_delivery_outbox", "chat_id", otherChatId)).isOne();
         assertThat(count("user_memory", "user_id", otherUserId)).isOne();
+        assertThat(count("investigations", "user_id", otherUserId)).isOne();
+        assertThat(count("goals", "user_id", otherUserId)).isOne();
+        assertThat(count("experiment_command_receipts", "user_id", otherUserId)).isOne();
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -915,6 +948,28 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 INSERT INTO ai_usage_budget(scope_type, scope_id, window_start, used_tokens)
                 VALUES ('USER', ?, TIMESTAMPTZ '2025-01-01 00:00:00Z', 250)
                 """, userId);
+    }
+
+    private void seedExperimentData(long userId) {
+        long investigationId = jdbc.queryForObject("""
+                INSERT INTO investigations (user_id, title, problem_statement, status, aggregate_version)
+                VALUES (?, 'Bench plateau', 'Progress stopped', 'OPEN', 0)
+                RETURNING id
+                """, Long.class, userId);
+        long goalId = jdbc.queryForObject("""
+                INSERT INTO goals (user_id, investigation_id, type, name, metric,
+                                   target_min, target_max, target_unit, status, priority, source,
+                                   is_primary, aggregate_version)
+                VALUES (?, ?, 'PERFORMANCE', 'Bench press', 'STRENGTH',
+                        100, 120, 'kg', 'ACTIVE', 1, 'USER', TRUE, 1)
+                RETURNING id
+                """, Long.class, userId, investigationId);
+        jdbc.update("""
+                INSERT INTO experiment_command_receipts
+                    (user_id, aggregate_type, aggregate_id, idempotency_key, result_version, request_fingerprint)
+                VALUES (?, 'GOAL', ?, 'export-command', 1,
+                        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')
+                """, userId, goalId);
     }
 
     private void seedControlData(long otherUserId, long otherChatId) {

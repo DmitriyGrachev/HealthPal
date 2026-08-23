@@ -7,9 +7,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.io.IOException;
@@ -17,6 +19,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -40,6 +43,36 @@ public class GlobalExceptionHandler {
                 "Validation failed",
                 request,
                 fieldErrors);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> methodValidation(HandlerMethodValidationException exception,
+                                                       HttpServletRequest request) {
+        Map<String, List<String>> fieldErrors = exception.getParameterValidationResults().stream()
+                .collect(Collectors.toMap(
+                        result -> result.getMethodParameter().getParameterName() == null
+                                ? "parameter" : result.getMethodParameter().getParameterName(),
+                        result -> result.getResolvableErrors().stream()
+                                .map(error -> error.getDefaultMessage() == null ? "Invalid value" : error.getDefaultMessage())
+                                .toList(),
+                        (left, right) -> left));
+        return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Validation failed", request, fieldErrors);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiError> constraintViolation(ConstraintViolationException exception,
+                                                          HttpServletRequest request) {
+        Map<String, List<String>> fieldErrors = exception.getConstraintViolations().stream()
+                .collect(Collectors.groupingBy(
+                        violation -> violation.getPropertyPath().toString(),
+                        Collectors.mapping(violation -> violation.getMessage(), Collectors.toList())));
+        return error(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Validation failed", request, fieldErrors);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> unreadableRequest(HttpMessageNotReadableException exception,
+                                                       HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST, "Malformed request", request);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
