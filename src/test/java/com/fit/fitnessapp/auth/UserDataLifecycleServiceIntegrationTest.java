@@ -114,9 +114,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
 
         seedOwnedData(userId, chatId);
         seedExperimentData(userId);
+        seedKnowledgeData(userId);
         jdbc.update("INSERT INTO telegram_delivery_outbox (chat_id, text) VALUES (?, 'anonymous same chat')", chatId);
         seedControlData(otherUserId, otherChatId);
         seedExperimentData(otherUserId);
+        seedKnowledgeData(otherUserId);
         UUID completedPublication = insertPublication(userId, true);
         UUID incompletePublication = insertPublication(userId, false);
         UUID otherPublication = insertPublication(otherUserId, false);
@@ -198,6 +200,35 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .containsExactlyInAnyOrder(
                         "investigations", "goals", "experiments", "transitions", "checkIns", "outcomes",
                         "evaluations", "decisions", "evidenceRefs", "command_receipts");
+        assertThat(moduleCategories(v2, "knowledge"))
+                .containsExactlyInAnyOrder(
+                        "knowledge_claims", "knowledge_claim_evidence", "knowledge_claim_command_receipts");
+
+        var knowledgeModule = v2.modules().stream()
+                .filter(module -> module.moduleKey().equals("knowledge"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(knowledgeModule.schemaVersion()).isEqualTo(1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedClaims = (List<Map<String, Object>>)
+                knowledgeModule.data().get("knowledgeClaims");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedClaimEvidence = (List<Map<String, Object>>)
+                knowledgeModule.data().get("claimEvidence");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedClaimReceipts = (List<Map<String, Object>>)
+                knowledgeModule.data().get("commandReceipts");
+        assertThat(exportedClaims).singleElement().satisfies(claim -> assertThat(claim)
+                .containsKeys("id", "subject", "predicate", "value", "value_type", "origin", "verification",
+                        "temporal_status", "source_type", "source_id", "source_version", "content_hash")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedClaimEvidence).singleElement().satisfies(evidence -> assertThat(evidence)
+                .containsKeys("id", "claim_id", "evidence_type", "evidence_id", "evidence_version", "content_hash")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedClaimReceipts).singleElement().satisfies(receipt -> assertThat(receipt)
+                .containsKeys("id", "idempotency_key", "outcome", "result_claim_id", "source_type",
+                        "source_id", "source_version", "created_at")
+                .doesNotContainKeys("user_id", "userId", "request_fingerprint", "requestFingerprint"));
 
         var experimentModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("experiment"))
@@ -327,7 +358,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .doesNotContain("access_token", "access_token_secret")
                 .doesNotContain("oauth-token-canary-" + userId, "oauth-secret-canary-" + userId)
                 .doesNotContain("publication-payload-canary-" + userId)
-                .doesNotContain("other memory", "keep me");
+                .doesNotContain("other memory", "keep me", "other-claim-" + otherUserId);
         assertThat(v2Json).contains("\"moduleKey\":\"auth\"");
         assertThat(v2Json).contains("\"userNotes\"");
 
@@ -353,6 +384,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiment_evaluations", "user_id", userId)).isOne();
         assertThat(count("experiment_decisions", "user_id", userId)).isOne();
         assertThat(count("experiment_evidence_refs", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claims", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claim_evidence", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claim_command_receipts", "user_id", userId)).isOne();
         assertThat(count("telegram_delivery_outbox", "user_id", userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -396,6 +430,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiment_evaluations", "user_id", userId)).isZero();
         assertThat(count("experiment_decisions", "user_id", userId)).isZero();
         assertThat(count("experiment_evidence_refs", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claims", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claim_evidence", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claim_command_receipts", "user_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -416,6 +453,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiment_evaluations", "user_id", otherUserId)).isOne();
         assertThat(count("experiment_decisions", "user_id", otherUserId)).isOne();
         assertThat(count("experiment_evidence_refs", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claims", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claim_evidence", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claim_command_receipts", "user_id", otherUserId)).isOne();
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -663,8 +703,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }
 
-        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
-                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        verify(botSender).execute(messageForChat(chatId));
         assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
     }
 
@@ -699,8 +738,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }
 
-        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
-                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        verify(botSender).execute(messageForChat(chatId));
         assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
     }
 
@@ -736,8 +774,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }
 
-        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
-                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        verify(botSender).execute(messageForChat(chatId));
         assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
     }
 
@@ -773,8 +810,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }
 
-        verify(botSender).execute(org.mockito.ArgumentMatchers.any(
-                org.telegram.telegrambots.meta.api.methods.send.SendMessage.class));
+        verify(botSender).execute(messageForChat(chatId));
         assertThat(count("telegram_delivery_outbox", "chat_id", chatId)).isZero();
     }
 
@@ -1102,6 +1138,38 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 """, userId, checkInId);
     }
 
+    private void seedKnowledgeData(long userId) {
+        long claimId = jdbc.queryForObject("""
+                INSERT INTO knowledge_claims
+                    (user_id, subject, subject_normalized, predicate, predicate_normalized,
+                     value, value_type, origin, verification, temporal_status,
+                     confidence_basis, confidence_score, source_type, source_id, source_version,
+                     observed_at, content_hash, schema_version, aggregate_version)
+                VALUES (?, 'lifecycle subject', 'lifecycle subject', 'preferred value', 'preferred value',
+                        jsonb_build_object('value', ?), 'TEXT', 'USER_DECLARED', 'SUPPORTED', 'ACTIVE',
+                        'USER_CONFIRMATION', 1, 'MANUAL_NOTE', ?, 1,
+                        TIMESTAMPTZ '2026-08-08 12:00:00Z',
+                        'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 1, 0)
+                RETURNING id
+                """, Long.class, userId, "other-claim-" + userId, "lifecycle-" + userId);
+        jdbc.update("""
+                INSERT INTO knowledge_claim_evidence
+                    (user_id, claim_id, evidence_type, evidence_id, evidence_version,
+                     content_hash, observed_at)
+                VALUES (?, ?, 'USER_NOTE', ?, 1,
+                        'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+                        TIMESTAMPTZ '2026-08-08 12:00:00Z')
+                """, userId, claimId, "lifecycle-" + userId);
+        jdbc.update("""
+                INSERT INTO knowledge_claim_command_receipts
+                    (user_id, idempotency_key, request_fingerprint, outcome, result_claim_id,
+                     result_version, source_type, source_id, source_version)
+                VALUES (?, ?,
+                        'abababababababababababababababababababababababababababababababab',
+                        'CREATED', ?, 0, 'MANUAL_NOTE', ?, 1)
+                """, userId, "knowledge-lifecycle-" + userId, claimId, "lifecycle-" + userId);
+    }
+
     private void seedControlData(long otherUserId, long otherChatId) {
         seedSourceStateRows(otherUserId);
         jdbc.update("INSERT INTO profile (user_id, goal_weight_kg) VALUES (?, 70)", otherUserId);
@@ -1222,6 +1290,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .retentionDisclosure().stream()
                 .map(DataRetentionDisclosure::category)
                 .collect(java.util.stream.Collectors.toSet());
+    }
+
+    private static org.telegram.telegrambots.meta.api.methods.send.SendMessage messageForChat(long chatId) {
+        return org.mockito.ArgumentMatchers.argThat(message ->
+                Long.toString(chatId).equals(message.getChatId()));
     }
 
     private void await(CountDownLatch latch, String failureMessage) {
