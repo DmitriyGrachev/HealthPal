@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -46,6 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** Contract test for the stable-base path with provider boundaries mocked. */
+@TestPropertySource(properties = "app.ai.allow-sensitive-external-egress=true")
 class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
@@ -154,8 +156,8 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
 
         awaitCount("SELECT COUNT(*) FROM weight_history WHERE user_id = ? AND weight_kg = 77.7",
                 userId, 1L);
-        awaitCount("SELECT COUNT(*) FROM telegram_delivery_outbox WHERE chat_id = ? AND status = 'PENDING'",
-                8202L, 1L);
+        awaitCount("SELECT COUNT(*) FROM telegram_delivery_outbox WHERE user_id = ?",
+                userId, 2L);
 
         telegramBotService.processOutboxRetries();
 

@@ -248,16 +248,24 @@ class TelegramOutboxConcurrencyIntegrationTest extends AbstractPostgresIntegrati
         long chatId = uniqueChatId();
         jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
                 chatId, userId, chatId);
-        long outboxId = jdbc.queryForObject("""
-                INSERT INTO telegram_delivery_outbox (user_id, chat_id, text)
-                VALUES (?, ?, 'revocation outcome') RETURNING id
-                """, Long.class, userId, chatId);
         TelegramBotService service = new TelegramBotService(mock(TelegramClient.class), jdbc);
+        long outboxId = 0L;
+        var claimReference = new java.util.concurrent.atomic.AtomicReference<TelegramDeliveryClaim>();
         try {
-            TelegramDeliveryClaim claim = service.claimNextDelivery().orElseThrow();
-            jdbc.update("UPDATE telegram_delivery_outbox SET lease_expires_at = NOW() - INTERVAL '1 second' WHERE id = ?",
-                    outboxId);
-            service.recoverStuckClaims();
+            outboxId = transactionTemplate.execute(status -> {
+                long insertedId = jdbc.queryForObject("""
+                        INSERT INTO telegram_delivery_outbox (user_id, chat_id, text)
+                        VALUES (?, ?, 'revocation outcome') RETURNING id
+                        """, Long.class, userId, chatId);
+                TelegramDeliveryClaim claim = service.claimNextDelivery().orElseThrow();
+                assertThat(claim.id()).isEqualTo(insertedId);
+                claimReference.set(claim);
+                jdbc.update("UPDATE telegram_delivery_outbox SET lease_expires_at = NOW() - INTERVAL '1 second' "
+                        + "WHERE id = ?", insertedId);
+                service.recoverStuckClaims();
+                return insertedId;
+            });
+            TelegramDeliveryClaim claim = claimReference.get();
             service.markLinkRevoked(claim);
 
             assertThat(jdbc.queryForObject(

@@ -131,7 +131,9 @@ class ExperimentEventsAndMetricsTest {
                     .map(Tag::getKey)
                     .collect(java.util.stream.Collectors.toSet());
             assertThat(tagKeys).containsAnyOf("status", "type");
-            assertThat(tagKeys).doesNotContain("userId", "username", "email", "title", "problemStatement", "freeText");
+            assertThat(tagKeys).doesNotContain(
+                    "userId", "user_id", "user-id", "username", "email",
+                    "title", "problemStatement", "freeText");
         });
         assertThat(registry.get("fitnessapp.experiment.started")
                 .tag("status", "ACTIVE").counter().count()).isEqualTo(1.0);
@@ -226,6 +228,14 @@ class ExperimentEventsAndMetricsTest {
                 .counter().count()).isEqualTo(1.0);
         assertThat(registry.get("fitnessapp.experiment.evaluation.decision").tag("decision", "KEEP")
                 .counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("fitnessapp.experiment.evaluated").counter().getId().getTags())
+                .containsExactly(Tag.of("decision", "KEEP"));
+        assertThat(registry.get("fitnessapp.experiment.evaluation.decision").counter().getId().getTags())
+                .containsExactly(Tag.of("decision", "KEEP"));
+        assertThat(registry.getMeters()).allSatisfy(meter -> assertThat(meter.getId().getTags())
+                .extracting(Tag::getKey)
+                .doesNotContain(
+                        "userId", "user_id", "user-id", "username", "email", "freeText", "free-text"));
         assertThat(registry.get("fitnessapp.experiment.time_to_evaluation").timer().count()).isEqualTo(1);
         assertThat(registry.get("fitnessapp.experiment.time_to_evaluation").timer().getId().getTags())
                 .isEmpty();

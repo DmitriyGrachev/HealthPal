@@ -1,8 +1,9 @@
 package com.fit.fitnessapp.experiment.application.service;
 
+import com.fit.fitnessapp.experiment.domain.EvaluationDecision;
+import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.GoalStatus;
 import com.fit.fitnessapp.experiment.domain.GoalType;
-import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.InvestigationStatus;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,10 +40,6 @@ public class ExperimentMetrics {
         increment("fitnessapp.goal.transitioned", "status", status.name());
     }
 
-    public void goalActivated(GoalStatus status) {
-        increment("fitnessapp.goal.activated", "status", status.name());
-    }
-
     public void goalActivated(GoalType type) {
         increment("fitnessapp.goal.activated", "type", type.name());
     }
@@ -56,22 +53,22 @@ public class ExperimentMetrics {
     }
 
     /** Records a completed deterministic evaluation after its transaction commits. */
-    public void evaluated(Enum<?> decision) {
+    public void evaluated(EvaluationDecision decision) {
         increment("fitnessapp.experiment.evaluated", "decision", enumName(decision));
     }
 
     /** Records the decision distribution for completed deterministic evaluations. */
-    public void evaluationDecision(Enum<?> decision) {
+    public void evaluationDecision(EvaluationDecision decision) {
         increment("fitnessapp.experiment.evaluation.decision", "decision", enumName(decision));
     }
 
     /** Compatibility-friendly name for callers publishing an evaluated event. */
-    public void experimentEvaluated(Enum<?> decision) {
+    public void experimentEvaluated(EvaluationDecision decision) {
         evaluated(decision);
     }
 
     /** Compatibility-friendly name for callers publishing the decision distribution. */
-    public void decisionDistribution(Enum<?> decision) {
+    public void decisionDistribution(EvaluationDecision decision) {
         evaluationDecision(decision);
     }
 
@@ -89,7 +86,7 @@ public class ExperimentMetrics {
 
     private void increment(String name, String key, String value) {
         if (registry != null) {
-            Runnable increment = () -> counters.computeIfAbsent(name + ':' + value,
+            Runnable increment = () -> counters.computeIfAbsent(name + ':' + key + ':' + value,
                     ignored -> Counter.builder(name).tag(key, value).register(registry)).increment();
             if (TransactionSynchronizationManager.isSynchronizationActive()) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -121,7 +118,7 @@ public class ExperimentMetrics {
         }
     }
 
-    private static String enumName(Enum<?> value) {
+    private static String enumName(EvaluationDecision value) {
         if (value == null) {
             throw new IllegalArgumentException("metric enum must not be null");
         }

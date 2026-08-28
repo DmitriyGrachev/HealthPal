@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.IncompleteEventPublications;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.modulith.events.ResubmissionOptions;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(DomainEventReplayIntegrationTest.ReplayTestConfiguration.class)
+@TestPropertySource(properties = "app.ai.allow-sensitive-external-egress=true")
 class DomainEventReplayIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired

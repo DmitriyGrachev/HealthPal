@@ -22,6 +22,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+@TestPropertySource(properties = "app.ai.allow-sensitive-external-egress=true")
 class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
 
     private static final int EMBEDDING_DIMENSIONS = 2048;
