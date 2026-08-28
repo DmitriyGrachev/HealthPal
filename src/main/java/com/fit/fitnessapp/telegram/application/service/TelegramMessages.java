@@ -24,6 +24,25 @@ public final class TelegramMessages {
     public static final String WEIGHT_UNREALISTIC = "Please enter a realistic weight value.";
     public static final String WEIGHT_INVALID_FORMAT =
             "Invalid format. Please enter a number (e.g., 80 or 72.5):";
+    public static final String GOAL_USAGE =
+            "Goal: `/goal <name>`; then `/goal activate`.";
+    public static final String EXPERIMENT_USAGE =
+            "Experiment: `/experiment hypothesis | action | protocol | metric | baselineDays | durationDays | direction | meaningfulChange | stopCondition`, or `/experiment propose|accept|start|pause|resume|complete|abort`.";
+    public static final String CHECKIN_USAGE =
+            "Check-in: `/checkin adherence | value? | readiness? | sleep? | mood? | note?`.";
+    public static final String OUTCOME_USAGE =
+            "Outcome: `/outcome metric | baseline | observed | unit | baselineSamples | observedSamples | note?`.";
+    public static final String EVALUATE_USAGE = "Evaluation: `/evaluate`.";
+    public static final String COMMAND_INVALID = """
+            Command is invalid or the required workflow state is missing.
+            %s
+            %s
+            %s
+            %s
+            %s""".formatted(
+            GOAL_USAGE, EXPERIMENT_USAGE, CHECKIN_USAGE, OUTCOME_USAGE, EVALUATE_USAGE);
+    public static final String COMMAND_ALREADY_PROCESSED =
+            "This update was already processed.";
 
     private TelegramMessages() {
     }
@@ -36,7 +55,12 @@ public final class TelegramMessages {
                 /today - Get daily insights
                 /week - Get weekly report
                 /note - Save a quick note
-                /weight - Log your weight""";
+                /weight - Log your weight
+                /goal - Create or activate a debugger goal
+                /experiment - Create or advance an experiment
+                /checkin - Record experiment adherence
+                /outcome - Record the primary outcome
+                /evaluate - Evaluate a completed experiment""";
     }
 
     public static String startUnlinked() {
@@ -68,5 +92,33 @@ public final class TelegramMessages {
 
     public static String personalizedInsight(String telegramSummary) {
         return "*Personalized Insight:*\n\n" + telegramSummary;
+    }
+
+    public static String goalUpdated(Long investigationId, Long goalId, String status) {
+        return "Goal updated. Investigation ID: " + investigationId
+                + ", goal ID: " + goalId + ", status: " + status + ".";
+    }
+
+    public static String experimentUpdated(Long experimentId, String status) {
+        return "Experiment updated. ID: " + experimentId + ", status: " + status + ".";
+    }
+
+    public static String checkInRecorded(Long recordId, boolean created) {
+        return evidenceRecorded("Check-in", recordId, created);
+    }
+
+    public static String outcomeRecorded(Long recordId, boolean created) {
+        return evidenceRecorded("Outcome", recordId, created);
+    }
+
+    public static String evaluationRecorded(
+            Long evaluationId, String recommendedDecision, String dataQuality) {
+        return "Evaluation recorded. ID: " + evaluationId
+                + ", recommendation: " + recommendedDecision
+                + ", data quality: " + dataQuality + ".";
+    }
+
+    private static String evidenceRecorded(String kind, Long recordId, boolean created) {
+        return kind + (created ? " recorded" : " already recorded") + ". ID: " + recordId + ".";
     }
 }

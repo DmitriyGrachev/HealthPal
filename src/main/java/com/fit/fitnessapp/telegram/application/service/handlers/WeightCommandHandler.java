@@ -1,136 +1,86 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
-import com.fit.fitnessapp.auth.UserTimeApi;
 import com.fit.fitnessapp.api.TelegramWeightRequestedEvent;
+import com.fit.fitnessapp.auth.UserTimeApi;
+import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
 import com.fit.fitnessapp.telegram.application.port.in.ConversationStateUseCase;
+import com.fit.fitnessapp.telegram.application.port.in.InboundCommand;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
 import com.fit.fitnessapp.telegram.domain.ConversationState;
-import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
-import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
-import com.fit.fitnessapp.infrastructure.events.TransactionalEventPublisher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Optional;
 
 @Component
 public class WeightCommandHandler implements CommandHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(WeightCommandHandler.class);
-
-    private final TelegramBotService botService;
-    private final TelegramUserRepository telegramUserRepository;
-    private final ConversationStateUseCase stateUseCase;
-    private final TransactionalEventPublisher eventPublisher;
-    private final UserTimeApi userTimeApi;
+    private final TelegramBotService bot;
+    private final ConversationStateUseCase states;
+    private final TransactionalEventPublisher events;
+    private final UserTimeApi userTime;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public WeightCommandHandler(TelegramBotService botService,
-                                 TelegramUserRepository telegramUserRepository,
-                                 ConversationStateUseCase stateUseCase,
-                                 TransactionalEventPublisher eventPublisher,
-                                 UserTimeApi userTimeApi) {
-        this.botService = botService;
-        this.telegramUserRepository = telegramUserRepository;
-        this.stateUseCase = stateUseCase;
-        this.eventPublisher = eventPublisher;
-        this.userTimeApi = userTimeApi;
+    public WeightCommandHandler(
+            TelegramBotService bot,
+            ConversationStateUseCase states,
+            TransactionalEventPublisher events,
+            UserTimeApi userTime) {
+        this.bot = bot;
+        this.states = states;
+        this.events = events;
+        this.userTime = userTime;
     }
 
-    public WeightCommandHandler(TelegramBotService botService,
-                                TelegramUserRepository telegramUserRepository,
-                                ConversationStateUseCase stateUseCase,
-                                org.springframework.context.ApplicationEventPublisher eventPublisher,
-                                UserTimeApi userTimeApi) {
-        this(botService, telegramUserRepository, stateUseCase,
-                new TransactionalEventPublisher(eventPublisher), userTimeApi);
-    }
-
-    @Override
-    public boolean canHandle(Update update) {
-        if (!update.hasMessage() || !update.getMessage().hasText()) return false;
-        if (!Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) return false;
-
-        Long chatId = update.getMessage().getChatId();
-        Long telegramId = update.getMessage().getFrom().getId();
-        String text = update.getMessage().getText();
-        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
-        if (userOpt.isEmpty() || !chatId.equals(userOpt.get().getChatId())) {
-            return false;
-        }
-        ConversationState currentState = stateUseCase.getState(chatId);
-
-        return TelegramCommandParser.isCommand(text, "/weight") || currentState == ConversationState.WAITING_WEIGHT;
+    public WeightCommandHandler(
+            TelegramBotService bot,
+            ConversationStateUseCase states,
+            org.springframework.context.ApplicationEventPublisher events,
+            UserTimeApi userTime) {
+        this(bot, states, new TransactionalEventPublisher(events), userTime);
     }
 
     @Override
-    public void handle(Update update) {
-        if (update.getMessage().getChat() == null || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
-            return;
-        }
+    public boolean canHandle(InboundCommand command) {
+        return command.type() == InboundCommand.Type.WEIGHT
+                || command.type() == InboundCommand.Type.TEXT
+                && states.getState(command.chatId()) == ConversationState.WAITING_WEIGHT;
+    }
 
-        Long chatId = update.getMessage().getChatId();
-        Long telegramId = update.getMessage().getFrom().getId();
-        String text = update.getMessage().getText();
-
-        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
-        if (userOpt.isEmpty()) {
-            botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
-            return;
-        }
-        if (!chatId.equals(userOpt.get().getChatId())) {
-            return;
-        }
-        ConversationState state = stateUseCase.getState(chatId);
-        Long userId = userOpt.get().getUserId();
-
-        if (TelegramCommandParser.isCommand(text, "/weight")) {
-            startWeightFlow(userId, chatId);
-        } else if (state == ConversationState.WAITING_WEIGHT) {
-            handleWeightInput(chatId, userId, text);
+    @Override
+    public void handle(InboundCommand command) {
+        if (command.type() == InboundCommand.Type.WEIGHT) {
+            start(command);
+        } else if (states.getState(command.chatId()) == ConversationState.WAITING_WEIGHT) {
+            record(command);
         }
     }
 
-    private void startWeightFlow(Long userId, Long chatId) {
-        if (!stateUseCase.updateState(userId, chatId, ConversationState.WAITING_WEIGHT)) {
-            return;
+    private void start(InboundCommand command) {
+        if (states.updateState(command.userId(), command.chatId(), ConversationState.WAITING_WEIGHT)) {
+            bot.enqueueOwnedMessage(command.userId(), command.chatId(), TelegramMessages.WEIGHT_PROMPT);
         }
-        botService.sendMessage(chatId, TelegramMessages.WEIGHT_PROMPT);
     }
 
-    private void handleWeightInput(Long chatId, Long userId, String input) {
+    private void record(InboundCommand command) {
         try {
-            String normalizedInput = input.replace(',', '.');
-            BigDecimal weight = new BigDecimal(normalizedInput);
-
-            if (weight.compareTo(BigDecimal.ZERO) <= 0 || weight.compareTo(new BigDecimal("500")) > 0) {
-                botService.sendMessage(chatId, TelegramMessages.WEIGHT_UNREALISTIC);
+            BigDecimal weight = new BigDecimal(command.payload().replace(',', '.'));
+            if (weight.compareTo(BigDecimal.ZERO) <= 0
+                    || weight.compareTo(new BigDecimal("500")) > 0) {
+                bot.enqueueOwnedMessage(
+                        command.userId(), command.chatId(), TelegramMessages.WEIGHT_UNREALISTIC);
                 return;
             }
-
-            eventPublisher.publish(new TelegramWeightRequestedEvent(
-                    userId,
-                    chatId,
-                    weight,
-                    userTimeApi.currentDate(userId)
-            ));
-
-            String formattedWeight = weight.stripTrailingZeros().toPlainString();
-            botService.enqueueOwnedMessage(userId, chatId, TelegramMessages.weightRecorded(formattedWeight));
-            stateUseCase.clearState(chatId);
-
-        } catch (NumberFormatException e) {
-            botService.sendMessage(chatId, TelegramMessages.WEIGHT_INVALID_FORMAT);
+            events.publish(new TelegramWeightRequestedEvent(
+                    command.userId(), command.chatId(), weight,
+                    userTime.currentDate(command.userId())));
+            bot.enqueueOwnedMessage(command.userId(), command.chatId(),
+                    TelegramMessages.weightRecorded(weight.stripTrailingZeros().toPlainString()));
+            states.clearState(command.chatId());
+        } catch (NumberFormatException exception) {
+            bot.enqueueOwnedMessage(
+                    command.userId(), command.chatId(), TelegramMessages.WEIGHT_INVALID_FORMAT);
         }
     }
 
-    @Override
-    public String getCommand() {
-        return "/weight";
-    }
 }

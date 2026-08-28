@@ -9,6 +9,7 @@ import com.fit.fitnessapp.nutrition.domain.FatSecretConnectionSnapshot;
 import com.fit.fitnessapp.nutrition.domain.FatSecretToken;
 import com.fit.fitnessapp.nutrition.domain.ProviderDataIdentifier;
 import com.fit.fitnessapp.nutrition.domain.ProviderDataRetentionPolicy;
+import com.fit.fitnessapp.telegram.application.port.in.InboundCommand;
 import com.fit.fitnessapp.telegram.application.service.handlers.WeightCommandHandler;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,10 +28,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.chat.Chat;
-import org.telegram.telegrambots.meta.api.objects.message.Message;
-import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.math.BigDecimal;
@@ -46,7 +43,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Contract test for the stable-base path with provider boundaries mocked. */
@@ -151,8 +147,10 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
         jdbc.update("INSERT INTO telegram_users (telegram_id, user_id, chat_id) VALUES (?, ?, ?)",
                 8201L, userId, 8202L);
 
-        weightCommandHandler.handle(update(8201L, 8202L, "/weight"));
-        weightCommandHandler.handle(update(8201L, 8202L, "77.7"));
+        weightCommandHandler.handle(command(1, 8201L, 8202L, userId,
+                InboundCommand.Type.WEIGHT, ""));
+        weightCommandHandler.handle(command(2, 8201L, 8202L, userId,
+                InboundCommand.Type.TEXT, "77.7"));
 
         awaitCount("SELECT COUNT(*) FROM weight_history WHERE user_id = ? AND weight_kg = 77.7",
                 userId, 1L);
@@ -193,20 +191,13 @@ class StableBaseWorkflowIntegrationTest extends AbstractPostgresIntegrationTest 
         return values;
     }
 
-    private static Update update(long telegramId, long chatId, String text) {
-        Chat chat = mock(Chat.class);
-        when(chat.isUserChat()).thenReturn(true);
-        Message message = mock(Message.class);
-        when(message.getChat()).thenReturn(chat);
-        when(message.getChatId()).thenReturn(chatId);
-        User user = mock(User.class);
-        when(user.getId()).thenReturn(telegramId);
-        when(message.getFrom()).thenReturn(user);
-        when(message.hasText()).thenReturn(true);
-        when(message.getText()).thenReturn(text);
-        Update update = mock(Update.class);
-        when(update.hasMessage()).thenReturn(true);
-        when(update.getMessage()).thenReturn(message);
-        return update;
+    private static InboundCommand command(
+            int updateId,
+            long telegramId,
+            long chatId,
+            long userId,
+            InboundCommand.Type type,
+            String payload) {
+        return new InboundCommand(updateId, chatId, telegramId, userId, type, payload);
     }
 }

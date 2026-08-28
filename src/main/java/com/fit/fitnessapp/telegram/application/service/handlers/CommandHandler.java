@@ -1,23 +1,10 @@
 package com.fit.fitnessapp.telegram.application.service.handlers;
 
-import org.telegram.telegrambots.meta.api.objects.Update;
+import com.fit.fitnessapp.telegram.application.port.in.InboundCommand;
 
-/**
- * Strategy interface for handling Telegram commands.
- */
+/** SDK-free strategy used by the channel-neutral command kernel. */
 public interface CommandHandler {
-    /**
-     * Checks if this handler can process the given update.
-     */
-    boolean canHandle(Update update);
+    boolean canHandle(InboundCommand command);
 
-    /**
-     * Executes the command logic.
-     */
-    void handle(Update update);
-
-    /**
-     * Returns the command string (e.g., "/start").
-     */
-    String getCommand();
+    void handle(InboundCommand command);
 }

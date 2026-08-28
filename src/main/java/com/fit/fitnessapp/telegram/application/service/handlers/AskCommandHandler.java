@@ -2,19 +2,14 @@ package com.fit.fitnessapp.telegram.application.service.handlers;
 
 import com.fit.fitnessapp.api.AiRateLimitApi;
 import com.fit.fitnessapp.api.TelegramAskRequestedEvent;
+import com.fit.fitnessapp.telegram.application.port.in.InboundCommand;
 import com.fit.fitnessapp.telegram.application.service.TelegramBotService;
 import com.fit.fitnessapp.telegram.application.service.TelegramMessages;
-import com.fit.fitnessapp.telegram.infrastructure.persistence.entity.TelegramUserEntity;
-import com.fit.fitnessapp.telegram.infrastructure.persistence.repository.TelegramUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-import org.telegram.telegrambots.meta.api.objects.Update;
-
-import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -22,61 +17,32 @@ public class AskCommandHandler implements CommandHandler {
 
     private static final Logger log = LoggerFactory.getLogger(AskCommandHandler.class);
 
-    private final TelegramBotService botService;
-    private final TelegramUserRepository telegramUserRepository;
-    private final ApplicationEventPublisher eventPublisher;
-    private final AiRateLimitApi aiRateLimitApi;
+    private final TelegramBotService bot;
+    private final ApplicationEventPublisher events;
+    private final AiRateLimitApi rateLimit;
 
     @Override
-    public boolean canHandle(Update update) {
-        return update.hasMessage() && update.getMessage().hasText()
-                && Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())
-                && TelegramCommandParser.isCommand(update.getMessage().getText(), "/ask");
+    public boolean canHandle(InboundCommand command) {
+        return command.type() == InboundCommand.Type.ASK;
     }
 
     @Override
-    public void handle(Update update) {
-        if (update.getMessage().getChat() == null || !Boolean.TRUE.equals(update.getMessage().getChat().isUserChat())) {
+    public void handle(InboundCommand command) {
+        if (command.payload().isBlank()) {
+            bot.enqueueOwnedMessage(command.userId(), command.chatId(), TelegramMessages.ASK_REQUIRED);
             return;
         }
-
-        Long chatId = update.getMessage().getChatId();
-        Long telegramId = update.getMessage().getFrom().getId();
-        String text = update.getMessage().getText();
-
-        Optional<TelegramUserEntity> userOpt = telegramUserRepository.findById(telegramId);
-        if (userOpt.isEmpty()) {
-            botService.sendMessage(chatId, TelegramMessages.LINK_REQUIRED);
+        if (!rateLimit.tryConsume(command.userId())) {
+            log.info("Telegram AI request rate limited userId={} chatId={}",
+                    command.userId(), command.chatId());
+            bot.enqueueOwnedMessage(command.userId(), command.chatId(), TelegramMessages.ASK_RATE_LIMITED);
             return;
         }
-        if (!chatId.equals(userOpt.get().getChatId())) {
+        if (!bot.enqueueOwnedMessage(
+                command.userId(), command.chatId(), TelegramMessages.ASK_THINKING)) {
             return;
         }
-
-        String question = text.replace("/ask", "").trim();
-        if (question.isEmpty()) {
-            botService.sendMessage(chatId, TelegramMessages.ASK_REQUIRED);
-            return;
-        }
-
-        Long userId = userOpt.get().getUserId();
-        if (!aiRateLimitApi.tryConsume(userId)) {
-            log.info("Telegram AI request rate limited userId={} chatId={}", userId, chatId);
-            botService.sendMessage(chatId, TelegramMessages.ASK_RATE_LIMITED);
-            return;
-        }
-
-        botService.sendMessage(chatId, TelegramMessages.ASK_THINKING);
-
-        eventPublisher.publishEvent(new TelegramAskRequestedEvent(
-                userId,
-                chatId,
-                question
-        ));
-    }
-
-    @Override
-    public String getCommand() {
-        return "/ask";
+        events.publishEvent(new TelegramAskRequestedEvent(
+                command.userId(), command.chatId(), command.payload()));
     }
 }
