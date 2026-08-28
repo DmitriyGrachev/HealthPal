@@ -17,7 +17,8 @@ public record AiProperties(
         @NotNull String DAILY_INSIGHT_MODEL,
         @NotNull String QUICK_ANALYSIS_MODEL,
         ExecutionProperties execution,
-        boolean allowSensitiveExternalEgress
+        boolean allowSensitiveExternalEgress,
+        boolean experimentDraftEnabled
 ) {
     public record ProviderSettings(boolean enabled) {}
 

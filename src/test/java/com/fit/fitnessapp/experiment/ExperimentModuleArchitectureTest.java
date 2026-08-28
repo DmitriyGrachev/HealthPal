@@ -10,6 +10,9 @@ import com.fit.fitnessapp.experiment.application.port.in.ExperimentCommandUseCas
 import com.fit.fitnessapp.experiment.application.port.in.ExperimentQueryUseCase;
 import com.fit.fitnessapp.experiment.application.port.in.InvestigationCommandUseCase;
 import com.fit.fitnessapp.experiment.application.port.in.InvestigationQueryUseCase;
+import com.fit.fitnessapp.experiment.spi.ExperimentDraft;
+import com.fit.fitnessapp.experiment.spi.ExperimentDraftGenerator;
+import com.fit.fitnessapp.experiment.spi.ExperimentDraftRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModule;
 import org.springframework.modulith.core.ApplicationModules;
@@ -60,6 +63,11 @@ class ExperimentModuleArchitectureTest {
         assertThat(queryApi.contains(InvestigationQueryUseCase.class)).isTrue();
         assertThat(queryApi.contains(GoalQueryUseCase.class)).isTrue();
         assertThat(queryApi.contains(ExperimentQueryUseCase.class)).isTrue();
+
+        var draftSpi = experiment.getNamedInterfaces().getByName("draft-spi").orElseThrow();
+        assertThat(draftSpi.contains(ExperimentDraftGenerator.class)).isTrue();
+        assertThat(draftSpi.contains(ExperimentDraftRequest.class)).isTrue();
+        assertThat(draftSpi.contains(ExperimentDraft.class)).isTrue();
     }
 
     @Test
