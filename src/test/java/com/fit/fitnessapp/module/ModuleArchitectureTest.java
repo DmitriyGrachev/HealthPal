@@ -1,6 +1,9 @@
 package com.fit.fitnessapp.module;
 
 import com.fit.fitnessapp.FitnessAppApplication;
+import com.fit.fitnessapp.api.evidence.EvidenceSourceQuery;
+import com.fit.fitnessapp.api.evidence.EvidenceSourceRequest;
+import com.fit.fitnessapp.api.evidence.EvidenceSourceSlice;
 import com.fit.fitnessapp.api.lifecycle.DataRetentionDisclosure;
 import com.fit.fitnessapp.api.lifecycle.UserDataExportFragment;
 import com.fit.fitnessapp.api.lifecycle.UserDataLifecycleParticipant;
@@ -26,13 +29,17 @@ class ModuleArchitectureTest {
     }
 
     @Test
-    void lifecycleNamedInterfaceExposesNeutralLifecycleContracts() {
+    void apiNamedInterfacesExposeNeutralContracts() {
         ApplicationModule api = modules.getModuleByName("api").orElseThrow();
         var lifecycle = api.getNamedInterfaces().getByName("lifecycle").orElseThrow();
+        var evidence = api.getNamedInterfaces().getByName("evidence-source").orElseThrow();
 
         assertThat(lifecycle.contains(UserDataLifecycleParticipant.class)).isTrue();
         assertThat(lifecycle.contains(UserDataExportFragment.class)).isTrue();
         assertThat(lifecycle.contains(DataRetentionDisclosure.class)).isTrue();
+        assertThat(evidence.contains(EvidenceSourceQuery.class)).isTrue();
+        assertThat(evidence.contains(EvidenceSourceRequest.class)).isTrue();
+        assertThat(evidence.contains(EvidenceSourceSlice.class)).isTrue();
     }
 
     @Test

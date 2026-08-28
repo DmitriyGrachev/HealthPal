@@ -2,11 +2,14 @@ package com.fit.fitnessapp.experiment.application.port.out;
 
 import com.fit.fitnessapp.experiment.domain.Evaluation;
 import com.fit.fitnessapp.experiment.domain.ConfounderAssessment;
+import com.fit.fitnessapp.experiment.domain.EvidencePurpose;
+import com.fit.fitnessapp.experiment.domain.EvidenceRef;
 import com.fit.fitnessapp.experiment.domain.ExperimentCheckIn;
 import com.fit.fitnessapp.experiment.domain.Outcome;
 import com.fit.fitnessapp.experiment.domain.UserDecision;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -22,6 +25,11 @@ public interface EvidenceRepositoryPort {
 
     Optional<ExperimentCheckIn> findCheckInByUserIdAndExperimentIdAndLocalDate(
             Long userId, Long experimentId, LocalDate localDate);
+
+    List<ExperimentCheckIn> findCheckInsByUserIdAndExperimentIdAndLocalDateBetween(
+            Long userId, Long experimentId, LocalDate fromInclusive, LocalDate toInclusive);
+
+    void saveEvidenceRefs(Long userId, Long experimentId, List<EvidenceRefWrite> references);
 
     CheckInWriteResult insertCheckIn(ExperimentCheckIn checkIn);
 
@@ -95,6 +103,15 @@ public interface EvidenceRepositoryPort {
     enum WriteStatus {
         INSERTED,
         DUPLICATE
+    }
+
+    /** Immutable source identity stored without copying user content into the experiment module. */
+    record EvidenceRefWrite(EvidencePurpose purpose, LocalDate sourceDate, EvidenceRef reference) {
+        public EvidenceRefWrite {
+            if (purpose == null || sourceDate == null || reference == null) {
+                throw new IllegalArgumentException("evidence reference write is incomplete");
+            }
+        }
     }
 
     /** Counts are calculated from the inclusive intervention window. */

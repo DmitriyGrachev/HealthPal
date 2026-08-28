@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.List;
 import java.util.Optional;
 
-/** JDBC adapters for the V34/V35 aggregates and generic command receipts. */
+/** JDBC adapters for the V34-V36 experiment aggregates and generic command receipts. */
 @Repository
 public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryPort, GoalRepositoryPort,
         ExperimentRepositoryPort, CommandReceiptPort, EvidenceRepositoryPort {
@@ -306,6 +306,39 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
             Long userId, Long experimentId, LocalDate localDate) {
         return jdbc.query(checkInSelect() + " WHERE user_id = ? AND experiment_id = ? AND local_date = ?",
                 (rs, rowNum) -> checkIn(rs), userId, experimentId, localDate).stream().findFirst();
+    }
+
+    @Override
+    public List<ExperimentCheckIn> findCheckInsByUserIdAndExperimentIdAndLocalDateBetween(
+            Long userId, Long experimentId, LocalDate fromInclusive, LocalDate toInclusive) {
+        if (fromInclusive == null || toInclusive == null || toInclusive.isBefore(fromInclusive)) {
+            throw new IllegalArgumentException("check-in window is invalid");
+        }
+        return jdbc.query(checkInSelect() + """
+                 WHERE user_id = ? AND experiment_id = ?
+                   AND local_date BETWEEN ? AND ?
+                 ORDER BY local_date, id
+                """, (rs, rowNum) -> checkIn(rs),
+                userId, experimentId, fromInclusive, toInclusive);
+    }
+
+    @Override
+    public void saveEvidenceRefs(Long userId, Long experimentId, List<EvidenceRefWrite> references) {
+        if (references == null) {
+            throw new IllegalArgumentException("evidence references are required");
+        }
+        for (EvidenceRefWrite write : references) {
+            jdbc.update("""
+                    INSERT INTO experiment_evidence_refs
+                        (user_id, experiment_id, purpose, source_type, source_id, source_version,
+                         content_hash, source_date, observed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT ON CONSTRAINT uq_experiment_evidence_refs_identity DO NOTHING
+                    """, userId, experimentId, write.purpose().name(),
+                    write.reference().sourceType().name(), write.reference().sourceId(),
+                    write.reference().sourceVersion(), write.reference().contentHash(),
+                    write.sourceDate(), timestamp(write.reference().observedAt()));
+        }
     }
 
     @Override

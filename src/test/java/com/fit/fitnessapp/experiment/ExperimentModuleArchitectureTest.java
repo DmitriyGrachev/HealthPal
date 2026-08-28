@@ -28,7 +28,7 @@ class ExperimentModuleArchitectureTest {
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
                 .toList())
-                .containsExactlyInAnyOrder("auth", "api::lifecycle");
+                .containsExactlyInAnyOrder("auth", "api::lifecycle", "api::evidence-source");
 
         assertThat(experiment.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
@@ -65,6 +65,8 @@ class ExperimentModuleArchitectureTest {
     @Test
     void experimentModuleVerificationRejectsForbiddenDependencies() {
         ApplicationModule experiment = modules.getModuleByName("experiment").orElseThrow();
+        ApplicationModule nutrition = modules.getModuleByName("nutrition").orElseThrow();
+        ApplicationModule workout = modules.getModuleByName("workout").orElseThrow();
 
         assertThat(experiment.detectDependencies(modules).getMessages().stream()
                 .noneMatch(line -> line.contains("ai")
@@ -72,6 +74,12 @@ class ExperimentModuleArchitectureTest {
                         || line.contains("memory")
                         || line.contains("telegram")))
                 .isTrue();
+        assertThat(nutrition.getDirectDependencies(modules).stream()
+                .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
+                .toList()).doesNotContain("experiment");
+        assertThat(workout.getDirectDependencies(modules).stream()
+                .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
+                .toList()).doesNotContain("experiment");
     }
 
     @Test
