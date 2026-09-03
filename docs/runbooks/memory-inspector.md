@@ -14,8 +14,15 @@ or fabricate trusted provenance.
 | Correct | `PUT /api/v1/knowledge/claims/{id}` | correction body |
 | Forget | `DELETE /api/v1/knowledge/claims/{id}?expectedVersion=0` | `Idempotency-Key` header |
 | Persisted open conflicts | `GET /api/v1/knowledge/conflicts` | none |
+| Acknowledge conflict notification | `POST /api/v1/knowledge/conflicts/{id}/acknowledge` | command body; conflict version |
+| Dismiss conflict notification | `POST /api/v1/knowledge/conflicts/{id}/dismiss` | command body; conflict version |
+| Persisted explicit drift reasons | `GET /api/v1/knowledge/conflicts/drift` | none |
 
 Command body:
+
+For conflicts, the version belongs to the notification, not either Claim. Handling
+a notification never resolves its truth or changes Claim verification; see
+[consistency semantics](claim-consistency.md).
 
 ```json
 {"expectedVersion":0,"idempotencyKey":"unique-command-key"}

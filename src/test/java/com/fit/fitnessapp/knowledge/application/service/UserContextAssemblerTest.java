@@ -17,13 +17,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 class UserContextAssemblerTest {
+    private com.fit.fitnessapp.knowledge.domain.KnowledgeClaim independentHypothesis(long id, String source) {
+        var original = ContextRankingTest.hypothesis(id, source, source);
+        return com.fit.fitnessapp.knowledge.domain.KnowledgeClaim.create(1L, original.subject(),
+                new com.fit.fitnessapp.knowledge.domain.ClaimPredicate("pattern." + source), original.value(), original.origin(),
+                original.verification(), original.source(), original.observedAt(), null, null, original.confidenceBasis(),
+                original.evidence(), original.createdAt()).withId(id);
+    }
     @Test
     void searchIdentitiesCannotSupplyForeignStaleOrChangedClaimText() {
         var claims = mock(KnowledgeClaimRepositoryPort.class);
         var conflicts = mock(ClaimConflictQueryUseCase.class);
         var current = ContextRankingTest.hypothesis(4, "rest", "current");
-        var changed = ContextRankingTest.hypothesis(5, "changed", "changed");
-        var stale = ContextRankingTest.hypothesis(6, "stale", "stale");
+        var changed = independentHypothesis(5, "changed");
+        var stale = independentHypothesis(6, "stale");
         when(claims.findAllByOwner(1L)).thenReturn(List.of(current, changed, stale));
         when(conflicts.findOpen(1L)).thenReturn(List.of());
         CanonicalContextSource canonical = request -> new CanonicalContextSource.Snapshot(List.of(), null, List.of(), List.of());

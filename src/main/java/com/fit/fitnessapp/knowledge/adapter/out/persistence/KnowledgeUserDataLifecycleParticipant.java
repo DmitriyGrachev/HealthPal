@@ -22,7 +22,7 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public int exportSchemaVersion() {
-        return 3;
+        return 4;
     }
 
     @Override
@@ -52,8 +52,17 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
                           FROM knowledge_claim_usage WHERE user_id = ? ORDER BY id
                         """, userId),
                 "claimConflicts", jdbc.queryForList("""
-                        SELECT id, left_claim_id, right_claim_id, reason, status, created_at
+                        SELECT id, left_claim_id, right_claim_id, reason, status, created_at,
+                               aggregate_version, left_version, right_version, updated_at
                           FROM knowledge_claim_conflicts WHERE user_id = ? ORDER BY id
+                        """, userId),
+                "conflictCommandReceipts", jdbc.queryForList("""
+                        SELECT conflict_id, expected_version, action, result_version, created_at
+                          FROM knowledge_conflict_command_receipts WHERE user_id = ? ORDER BY created_at, conflict_id
+                        """, userId),
+                "claimDrift", jdbc.queryForList("""
+                        SELECT claim_id, reason, claim_version, detected_at
+                          FROM knowledge_claim_drift WHERE user_id = ? ORDER BY claim_id, reason
                         """, userId),
                 "projectionGenerations", jdbc.queryForList("""
                         SELECT id, projection_kind, status, schema_version, base_generation_id,
@@ -90,6 +99,14 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
                         DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED),
                 disclosure(
+                        "knowledge_conflict_command_receipts",
+                        DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL),
+                disclosure(
+                        "knowledge_claim_drift",
+                        DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED),
+                disclosure(
                         "memory_projection_generations",
                         DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED),
@@ -101,6 +118,8 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public void deleteData(Long userId) {
+        jdbc.update("DELETE FROM knowledge_conflict_command_receipts WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM knowledge_claim_drift WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM memory_projection_generations WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM knowledge_claim_command_receipts WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM knowledge_claim_usage WHERE user_id = ?", userId);

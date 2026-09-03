@@ -1,7 +1,6 @@
 package com.fit.fitnessapp.knowledge.adapter.out.persistence;
 
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimCommandReceiptPort;
-import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimConflictRepositoryPort;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimDeletionReceiptPort;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimRepositoryPort;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimUsageRepositoryPort;
@@ -13,7 +12,6 @@ import com.fit.fitnessapp.knowledge.domain.ClaimSourceRef;
 import com.fit.fitnessapp.knowledge.domain.ClaimSubject;
 import com.fit.fitnessapp.knowledge.domain.ClaimTemporalStatus;
 import com.fit.fitnessapp.knowledge.domain.ClaimVerification;
-import com.fit.fitnessapp.knowledge.domain.ClaimConflict;
 import com.fit.fitnessapp.knowledge.domain.ClaimUsagePurpose;
 import com.fit.fitnessapp.knowledge.domain.KnowledgeClaim;
 import com.fit.fitnessapp.knowledge.domain.TypedClaimValue;
@@ -30,8 +28,7 @@ import java.util.Optional;
 @Repository
 public class KnowledgeClaimJdbcRepositoryAdapter
         implements KnowledgeClaimRepositoryPort, KnowledgeClaimCommandReceiptPort,
-        KnowledgeClaimDeletionReceiptPort, KnowledgeClaimUsageRepositoryPort,
-        KnowledgeClaimConflictRepositoryPort {
+        KnowledgeClaimDeletionReceiptPort, KnowledgeClaimUsageRepositoryPort {
     private final JdbcTemplate jdbc;
 
     public KnowledgeClaimJdbcRepositoryAdapter(JdbcTemplate jdbc) {
@@ -247,22 +244,6 @@ public class KnowledgeClaimJdbcRepositoryAdapter
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (user_id, claim_id, purpose, consumer_id) DO NOTHING
                 """, userId, claimId, purpose.name(), consumerId, timestamp(usedAt)) == 1;
-    }
-
-    @Override
-    public List<ClaimConflict> findOpenByOwner(Long userId) {
-        return jdbc.query("""
-                SELECT id, left_claim_id, right_claim_id, reason, status, created_at
-                  FROM knowledge_claim_conflicts
-                 WHERE user_id = ? AND status = 'OPEN'
-                 ORDER BY created_at, id
-                """, (resultSet, rowNumber) -> new ClaimConflict(
-                resultSet.getLong("id"),
-                resultSet.getLong("left_claim_id"),
-                resultSet.getLong("right_claim_id"),
-                resultSet.getString("reason"),
-                resultSet.getString("status"),
-                instant(resultSet.getTimestamp("created_at"))), userId);
     }
 
     @Override

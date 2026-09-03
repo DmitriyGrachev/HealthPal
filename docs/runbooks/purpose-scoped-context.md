@@ -91,5 +91,6 @@ the relevant source versions at their durable boundary rather than treat a
 read snapshot as a concurrency fence.
 
 Iteration 2.4 supplies [versioned projections and atomic rebuild](versioned-memory-projections.md)
-through the optional narrative SPI. Iteration 2.5 detects conflicts; Iteration 2.6
+through the optional narrative SPI. Iteration 2.5 [detects conflicts](claim-consistency.md)
+from canonical state independently of notification acknowledgement/dismissal; Iteration 2.6
 connects durable consumers.

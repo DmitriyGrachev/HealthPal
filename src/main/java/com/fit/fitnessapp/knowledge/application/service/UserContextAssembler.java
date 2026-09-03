@@ -42,6 +42,9 @@ public class UserContextAssembler implements UserContextQuery {
         List<KnowledgeClaim> allClaims = claims.findAllByOwner(request.userId());
         Set<Long> conflicted = new HashSet<>();
         conflicts.findOpen(request.userId()).forEach(c -> { conflicted.add(c.leftClaimId()); conflicted.add(c.rightClaimId()); });
+        // Notification dismissal must not settle truth, even before an asynchronous refresh.
+        new com.fit.fitnessapp.knowledge.domain.ClaimConflictDetector().detect(allClaims, asOf)
+                .forEach(c -> { conflicted.add(c.leftClaimId()); conflicted.add(c.rightClaimId()); });
         var selection = policy.select(allClaims, conflicted, request, asOf);
         var observations = snapshot.observations().stream()
                 .filter(o -> !o.observedAt().isAfter(asOf) && !o.sourceDate().isBefore(request.fromInclusive())

@@ -203,13 +203,19 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(moduleCategories(v2, "knowledge"))
                 .containsExactlyInAnyOrder(
                         "knowledge_claims", "knowledge_claim_evidence", "knowledge_claim_command_receipts",
-                        "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_deletion_receipts", "memory_projection_generations");
+                        "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_deletion_receipts", "memory_projection_generations",
+                        "knowledge_conflict_command_receipts", "knowledge_claim_drift");
 
         var knowledgeModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("knowledge"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(knowledgeModule.schemaVersion()).isEqualTo(3);
+        assertThat(knowledgeModule.schemaVersion()).isEqualTo(4);
+        @SuppressWarnings("unchecked")
+        var exportedConflictReceipts = (List<Map<String, Object>>) knowledgeModule.data().get("conflictCommandReceipts");
+        assertThat(exportedConflictReceipts).hasSize(1).allSatisfy(row -> assertThat(row)
+                .containsKeys("conflict_id", "action", "result_version").doesNotContainKeys("request_key_hash", "user_id"));
+        assertThat((List<?>) knowledgeModule.data().get("claimDrift")).hasSize(1);
         @SuppressWarnings("unchecked")
         var exportedGenerations = (List<Map<String, Object>>) knowledgeModule.data().get("projectionGenerations");
         assertThat(exportedGenerations).hasSize(2).allSatisfy(row -> assertThat(row)
@@ -464,6 +470,8 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("knowledge_claim_conflicts", "user_id", userId)).isZero();
         assertThat(count("knowledge_deletion_receipts", "owner_id", userId)).isZero();
         assertThat(count("memory_projection_generations", "user_id", userId)).isZero();
+        assertThat(count("knowledge_conflict_command_receipts", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claim_drift", "user_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -491,6 +499,8 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("knowledge_claim_conflicts", "user_id", otherUserId)).isOne();
         assertThat(count("knowledge_deletion_receipts", "owner_id", otherUserId)).isOne();
         assertThat(count("memory_projection_generations", "user_id", otherUserId)).isEqualTo(2);
+        assertThat(count("knowledge_conflict_command_receipts", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claim_drift", "user_id", otherUserId)).isOne();
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -1239,6 +1249,11 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                     (user_id, left_claim_id, right_claim_id, reason, status)
                 VALUES (?, ?, ?, 'VALUE_CONTRADICTION', 'OPEN')
                 """, userId, claimId, conflictingClaimId);
+        jdbc.update("""
+                INSERT INTO knowledge_conflict_command_receipts(user_id, request_key_hash, conflict_id, expected_version, action, result_version)
+                SELECT user_id, repeat('f', 64), id, 0, 'ACKNOWLEDGED', 1 FROM knowledge_claim_conflicts WHERE user_id = ?
+                """, userId);
+        jdbc.update("INSERT INTO knowledge_claim_drift(user_id, claim_id, reason, claim_version) VALUES (?, ?, 'SOURCE_STALE', 0)", userId, claimId);
         jdbc.update("""
                 INSERT INTO knowledge_deletion_receipts
                     (owner_id, deleted_claim_id, source_fence_hash, request_fingerprint, request_key_hash)

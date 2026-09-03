@@ -52,6 +52,14 @@ public class KnowledgeMetrics {
         action("confirmed");
     }
 
+    public void conflictSurfaced(com.fit.fitnessapp.knowledge.domain.ConflictReason reason) {
+        if (registry != null) increment("conflict", reason.name());
+    }
+
+    public void claimDrifted(com.fit.fitnessapp.knowledge.domain.ClaimDriftReason reason) {
+        if (registry != null) increment("drift", reason.name());
+    }
+
     public void claimDisputed() {
         action("disputed");
     }
@@ -85,7 +93,7 @@ public class KnowledgeMetrics {
         Runnable increment = () -> counters.computeIfAbsent(
                 kind + ':' + label,
                 ignored -> Counter.builder("fitnessapp.knowledge.claim." + kind)
-                        .tag(kind.equals("usage") ? "purpose" : "action", label)
+                        .tag(switch (kind) { case "usage" -> "purpose"; case "conflict", "drift" -> "reason"; default -> "action"; }, label)
                         .register(registry))
                 .increment();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

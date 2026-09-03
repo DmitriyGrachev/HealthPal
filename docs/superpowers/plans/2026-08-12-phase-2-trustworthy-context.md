@@ -9,8 +9,13 @@
 - Iteration 2.1 is committed as `49035b1`.
 - Iteration 2.2 is committed as `0420289`; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
 - Iteration 2.3 is committed as `6e507eb`; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
-- Iteration 2.4 is implemented and verified inline, with no subagents: [Versioned memory projections](../../runbooks/versioned-memory-projections.md).
-- Next: Iteration 2.5, contradiction and freshness/drift detection. Iterations 2.5–2.6 and the Phase 2 exit gate are not complete.
+- Iteration 2.4 is committed as `bcf3e7c`: [Versioned memory projections](../../runbooks/versioned-memory-projections.md).
+- Iteration 2.5 is implemented and verified inline, with no subagents: [Claim consistency contract](../../runbooks/claim-consistency.md).
+- Next: Iteration 2.6, Experiment/AI integration and the Phase 2 exit gate. Phase 2 is not yet complete.
+- Verification for 2.5: `mvn verify -Pintegration` passed (650 fresh default tests, 138 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy and diff checks passed. The known post-`System.exit(0)` integration-fork warning recurred; Maven exited 0.
+- Eight core cases added: three detector tests, three transactional consistency cases, one MockMvc command case and one dirty historical upgrade case. Existing lifecycle tests cover both new tables. Numeric equality was RED before correction (`1` and `1.00`); one context fixture was corrected to model independent predicates rather than accidental contradictions.
+- Primary review confirmed owner/version/idempotency fencing, atomic canonical refresh, read-only context protection despite dismissal, metadata-only exports and enum-only metrics. Source staleness uses registered local high-watermarks, not external polling; wall-clock expiry refresh is paged and eventually consistent. No automatic Claim correction or trust promotion.
+- Graphify rebuilt for 2.5 (4791 nodes, 8955 edges); generated artifacts remain excluded. The privacy hook was run separately because Graphify's PowerShell parser is unavailable.
 - Verification for 2.4: `mvn test` and `mvn verify -Pintegration` passed (646 fresh default tests, 134 PostgreSQL tests); `mvn test -Parchitecture` passed (11 tests, one intentional skip). Dependency analysis, privacy scan and diff check passed. The known integration-fork shutdown warning recurred after all tests passed; Maven exited 0.
 - Added nine core test cases (including one extra parameterized case); existing lifecycle/lease tests were extended. Primary inline review checked lease/source fencing, active-generation reads, egress outside transactions, owner deletion, migration compatibility and module boundaries. No live provider calls. Orphan crash-time BUILDING retention is explicitly documented, not claimed solved.
 - Graphify rebuilt for 2.4 (4674 nodes, 8776 edges); generated files remain local and excluded. Its unavailable PowerShell parser does not replace the separately executed privacy hook.

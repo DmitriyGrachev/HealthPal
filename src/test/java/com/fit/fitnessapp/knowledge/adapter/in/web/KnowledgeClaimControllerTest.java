@@ -55,6 +55,7 @@ class KnowledgeClaimControllerTest {
     @MockitoBean KnowledgeClaimInspectorUseCase commands;
     @MockitoBean KnowledgeClaimQueryUseCase queries;
     @MockitoBean ClaimConflictQueryUseCase conflicts;
+    @MockitoBean com.fit.fitnessapp.knowledge.application.port.in.ClaimConflictCommandUseCase conflictCommands;
     @MockitoBean CurrentUserApi currentUser;
     @MockitoBean RateLimitInterceptor rateLimitInterceptor;
     @MockitoBean RateLimiterService rateLimiterService;
@@ -70,7 +71,7 @@ class KnowledgeClaimControllerTest {
         when(queries.find(42L, 7L)).thenReturn(Optional.of(claim));
         when(queries.findHistory(42L, 7L)).thenReturn(List.of(claim));
         when(conflicts.findOpen(42L)).thenReturn(List.of(
-                new ClaimConflict(1L, 7L, 8L, "VALUE_CONTRADICTION", "OPEN", NOW)));
+                new ClaimConflict(1L, 7L, 8L, "VALUE_CONTRADICTION", ClaimConflictStatus.OPEN, NOW, 0, 0, 0, NOW)));
 
         mvc.perform(get(BASE).param("userId", "999").with(user("me")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(7));
@@ -170,5 +171,26 @@ class KnowledgeClaimControllerTest {
                 new ClaimSourceRef("USER_NOTE", "note-1", 1), NOW, NOW, NOW.plusSeconds(3600),
                 new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.USER_ASSERTION, "1"),
                 List.of(new ClaimEvidence("USER_NOTE", "note-1", 1, "a".repeat(64), NOW)), NOW).withId(7L);
+    }
+
+    @Test
+    void conflictCommandsUseAuthenticatedOwnerAndValidateVersion() throws Exception {
+        var response = new ClaimConflict(1L, 7L, 8L, "VALUE_CONTRADICTION", ClaimConflictStatus.ACKNOWLEDGED, NOW, 1, 0, 0, NOW);
+        when(conflictCommands.acknowledge(42L, 1L, 0, "conflict-1")).thenReturn(response);
+        when(conflictCommands.dismiss(42L, 1L, 0, "conflict-1")).thenReturn(response);
+        for (String action : List.of("acknowledge", "dismiss")) {
+            var path = "/api/v1/knowledge/conflicts/1/" + action;
+            mvc.perform(post(path).with(user("me")).contentType("application/json")
+                    .content("{\"expectedVersion\":0,\"idempotencyKey\":\"conflict-1\"}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(1));
+            mvc.perform(post(path).with(user("me")).contentType("application/json")
+                    .content("{\"expectedVersion\":-1,\"idempotencyKey\":\"conflict-1\"}"))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(post(path).contentType("application/json")
+                    .content("{\"expectedVersion\":0,\"idempotencyKey\":\"conflict-1\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+        verify(conflictCommands).acknowledge(42L, 1L, 0, "conflict-1");
+        verify(conflictCommands).dismiss(42L, 1L, 0, "conflict-1");
     }
 }

@@ -696,7 +696,7 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(count("fatsecret_day", "TRUE")).isZero();
         assertThat(count("fatsecret_food", "TRUE")).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
-                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("39");
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("40");
     }
 
     @Test
@@ -713,6 +713,34 @@ class HistoricalUpgradeIntegrationTest {
                 .containsExactly("legacy note");
         assertThat(constraintExists("fk_memory_projection_generation")).isTrue();
         assertThat(constraintExists("fk_memory_projection_claim")).isTrue();
+    }
+
+    @Test
+    void v40CanonicalizesDuplicateConflictPairsWithoutAlteringClaims() {
+        migrateTo("39");
+        long owner = 40_001L;
+        insertUser(owner, "conflict-upgrade");
+        for (String value : List.of("left", "right")) {
+            jdbc.update("INSERT INTO " + table("knowledge_claims") + """
+                    (user_id, subject, subject_normalized, predicate, predicate_normalized, value, value_type,
+                     origin, verification, temporal_status, confidence_basis, confidence_score,
+                     source_type, source_id, source_version, observed_at, content_hash, schema_version, aggregate_version)
+                    VALUES (?, 'user', 'user', 'preference', 'preference', jsonb_build_object('value', ?::text), 'TEXT',
+                            'USER_DECLARED', 'SUPPORTED', 'ACTIVE', 'USER_ASSERTION', 0.5, 'NOTE', ?, 1, NOW(), repeat('a', 64), 1, 0)
+                    """, owner, value, value);
+        }
+        var ids = jdbc.queryForList("SELECT id FROM " + table("knowledge_claims") + " ORDER BY id", Long.class);
+        jdbc.update("INSERT INTO " + table("knowledge_claim_conflicts")
+                        + " (user_id, left_claim_id, right_claim_id, reason, status) VALUES (?, ?, ?, 'VALUE_CONTRADICTION', 'DISMISSED'), (?, ?, ?, 'VALUE_CONTRADICTION', 'OPEN')",
+                owner, ids.get(1), ids.get(0), owner, ids.get(0), ids.get(1));
+        migrateToLatest();
+        assertThat(count("knowledge_claims", "TRUE")).isEqualTo(2);
+        var conflict = jdbc.queryForMap("SELECT left_claim_id, right_claim_id, status, aggregate_version FROM " + table("knowledge_claim_conflicts"));
+        assertThat(conflict).containsEntry("left_claim_id", ids.get(0)).containsEntry("right_claim_id", ids.get(1))
+                .containsEntry("status", "OPEN").containsEntry("aggregate_version", 0L);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("knowledge_claim_conflicts")
+                + " (user_id,left_claim_id,right_claim_id,reason) VALUES (?, ?, ?, 'VALUE_CONTRADICTION')", owner, ids.get(0), ids.get(1)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 
     @Test

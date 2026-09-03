@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface ClaimConflictQueryUseCase {
     List<ClaimConflict> findOpen(Long userId);
+    java.util.Set<Long> conflictedClaimIds(Long userId);
 }
