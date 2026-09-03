@@ -19,11 +19,11 @@ class KnowledgeModuleArchitectureTest {
         assertThat(knowledge.getAllowedDependencies(modules).stream()
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
-                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user", "experiment::query-api");
+                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user", "experiment::query-api", "job");
         assertThat(knowledge.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
                 .distinct()
-                .toList()).containsOnly("api", "auth", "experiment");
+                .toList()).containsOnly("api", "auth", "experiment", "job");
         assertThat(modules.getModuleByName("experiment").orElseThrow().getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString()).toList())
                 .doesNotContain("knowledge");

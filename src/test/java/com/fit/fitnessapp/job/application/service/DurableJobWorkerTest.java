@@ -23,9 +23,24 @@ import static org.mockito.Mockito.when;
 class DurableJobWorkerTest {
 
     private final DurableJobUseCase jobs = mock(DurableJobUseCase.class);
-    private final DurableJobExecutor executor = mock(DurableJobExecutor.class);
+    private final DurableJobExecutor executor = mock(DurableJobExecutor.class, org.mockito.Mockito.CALLS_REAL_METHODS);
     private final DurableJobLeaseHeartbeat heartbeat = mock(DurableJobLeaseHeartbeat.class);
     private final DurableJobLeaseHeartbeat.Registration registration = mock(DurableJobLeaseHeartbeat.Registration.class);
+
+    @Test
+    void passesTheExecutionFenceToAnExecutorThatPublishesDurableResults() {
+        DurableJobClaim claim = claim();
+        var received = new java.util.concurrent.atomic.AtomicReference<DurableJobClaim>();
+        DurableJobExecutor fenced = new DurableJobExecutor() {
+            @Override public boolean supports(String type) { return true; }
+            @Override public void execute(DurableJobDto job) { throw new AssertionError("execution fence was lost"); }
+            @Override public void executeClaim(DurableJobClaim execution) { received.set(execution); }
+        };
+        when(jobs.claimNext(any(), any())).thenReturn(Optional.of(claim), Optional.empty());
+        when(jobs.completeJob(claim)).thenReturn(true);
+        new DurableJobWorker(jobs, List.of(fenced)).processDurableJobs();
+        org.assertj.core.api.Assertions.assertThat(received.get()).isEqualTo(claim);
+    }
 
     @Test
     void claimsFreshDtoImmediatelyBeforeExecutionAndMarksItSucceeded() throws Exception {

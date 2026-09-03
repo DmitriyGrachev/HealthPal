@@ -124,6 +124,18 @@ public class DurableJobService implements DurableJobUseCase {
     }
 
     @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public boolean lockClaim(DurableJobClaim claim) {
+        validateClaim(claim);
+        return !jdbcTemplate.queryForList("""
+                SELECT id FROM durable_jobs
+                 WHERE id = ? AND user_id IS NOT DISTINCT FROM ? AND status = 'RUNNING'
+                   AND lease_owner = ? AND lease_generation = ? AND lease_expires_at > clock_timestamp()
+                 FOR UPDATE
+                """, Long.class, claim.jobId(), claim.job().userId(), claim.leaseOwner(), claim.leaseGeneration()).isEmpty();
+    }
+
+    @Override
     @Transactional
     public boolean completeJob(DurableJobClaim claim) {
         validateClaim(claim);

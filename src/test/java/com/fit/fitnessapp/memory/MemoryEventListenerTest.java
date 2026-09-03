@@ -169,14 +169,15 @@ class MemoryEventListenerTest {
         verifyNoInteractions(insightSourceApi, vectorStore);
     }
 
-    @Test
-    void userNoteMemoryUsesStableSourceIdAndDeletesOnNoteDeletion() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"ALLERGY,FACT", "GOAL,EPISODIC"})
+    void userNoteMemoryUsesStableSourceIdAndDeletesOnNoteDeletion(UserNoteDto.NoteType noteType, String memoryType) {
         UserNoteCreatedEvent created = new UserNoteCreatedEvent(
                 77L,
                 42L,
                 LocalDate.of(2026, 7, 6),
                 "peanut allergy",
-                UserNoteDto.NoteType.ALLERGY);
+                noteType);
         when(userDataPresenceApi.userExists(42L)).thenReturn(true);
         when(userDataPresenceApi.userNoteExists(42L, 77L)).thenReturn(true);
 
@@ -191,6 +192,7 @@ class MemoryEventListenerTest {
         Document document = documentsCaptor.getValue().getFirst();
         assertThat(document.getId()).isEqualTo(expectedVectorId);
         assertThat(document.getMetadata())
+                .containsEntry("memory_type", memoryType)
                 .containsEntry("source_type", "USER_NOTE")
                 .containsEntry("source_id", 77L)
                 .containsEntry("memory_id", "note:42:77");

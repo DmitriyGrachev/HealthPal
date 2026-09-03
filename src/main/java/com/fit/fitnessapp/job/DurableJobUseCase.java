@@ -9,6 +9,8 @@ public interface DurableJobUseCase {
     Optional<DurableJobClaim> claimJob(Long jobId, String owner, Duration lease);
     Optional<DurableJobClaim> claimNext(String owner, Duration lease);
     boolean heartbeat(DurableJobClaim claim, Duration extension);
+    /** Validate and lock the current execution inside the caller's durable-result transaction. */
+    boolean lockClaim(DurableJobClaim claim);
     boolean completeJob(DurableJobClaim claim);
     boolean failJob(DurableJobClaim claim, JobFailure failure);
     boolean skipJob(DurableJobClaim claim, String reasonCode);

@@ -36,6 +36,18 @@ class MemoryServiceTest {
     private SensitiveAiEgressGuard egressGuard;
 
     @Test
+    void legacyReadersNeverExposeGenerationScopedClaimProjections() {
+        var projection = new Document(UUID.randomUUID().toString(), "staged projection", Map.of(
+                "user_id", 42L, "projection_generation", UUID.randomUUID().toString(),
+                "memory_type", "FACT", "memory_horizon", "LONG_TERM", "date", java.time.LocalDate.now().toString()));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(projection));
+        var service = new MemoryService(vectorStore, egressGuard);
+        assertThat(service.findRelevantMemories(42L, "question", 5)).isEmpty();
+        assertThat(service.findLongTermFacts(42L, 5)).isEmpty();
+        assertThat(service.findRecentContext(42L, 7, 5)).isEmpty();
+    }
+
+    @Test
     void deniedSensitiveEgressDoesNotReachVectorSearch() {
         doThrow(new IllegalStateException("denied")).when(egressGuard).validateSensitiveEgress();
         MemoryService service = new MemoryService(vectorStore, egressGuard);

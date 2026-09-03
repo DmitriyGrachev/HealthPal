@@ -696,7 +696,23 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(count("fatsecret_day", "TRUE")).isZero();
         assertThat(count("fatsecret_food", "TRUE")).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
-                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("38");
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("39");
+    }
+
+    @Test
+    void v39DropsLegacyGoalFactsButPreservesUnrelatedOpaqueMetadata() {
+        migrateTo("38");
+        long owner = 39_001L;
+        insertUser(owner, "projection-upgrade");
+        jdbc.update("INSERT INTO " + table("user_memory") + " (content, metadata) VALUES"
+                        + " ('old goal', jsonb_build_object('user_id', ?::bigint, 'memory_type', 'FACT', 'note_type', 'GOAL')),"
+                        + " ('legacy note', jsonb_build_object('user_id', ?::bigint, 'source_version', 'opaque', 'claim_id', 'legacy'))",
+                owner, owner);
+        migrateToLatest();
+        assertThat(jdbc.queryForList("SELECT content FROM " + table("user_memory") + " WHERE user_id = ?", String.class, owner))
+                .containsExactly("legacy note");
+        assertThat(constraintExists("fk_memory_projection_generation")).isTrue();
+        assertThat(constraintExists("fk_memory_projection_claim")).isTrue();
     }
 
     @Test

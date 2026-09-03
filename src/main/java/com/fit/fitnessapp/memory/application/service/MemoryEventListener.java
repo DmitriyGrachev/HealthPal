@@ -134,9 +134,10 @@ public class MemoryEventListener {
         metadata.put("user_id", event.userId());
         metadata.put("date", event.date().toString());
         metadata.put("note_type", event.type().name());
-        metadata.put("memory_type", isPermanent
-                ? MemoryType.FACT.name()
-                : MemoryType.EPISODIC.name());
+        metadata.put("memory_type", switch (event.type()) {
+            case GOAL -> MemoryType.EPISODIC.name();
+            default -> isPermanent ? MemoryType.FACT.name() : MemoryType.EPISODIC.name();
+        });
         metadata.put("memory_horizon", isPermanent ? "LONG_TERM" : "SHORT_TERM");
         metadata.put("created_at", clock.instant().toString());
         metadata.put("source_type", "USER_NOTE");

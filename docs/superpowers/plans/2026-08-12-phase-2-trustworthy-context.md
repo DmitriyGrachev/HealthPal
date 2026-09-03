@@ -8,8 +8,12 @@
 
 - Iteration 2.1 is committed as `49035b1`.
 - Iteration 2.2 is committed as `0420289`; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
-- Iteration 2.3 is implemented and verified inline, with no subagents; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
-- Next: Iteration 2.4, versioned vector projection and atomic rebuild. Iterations 2.4–2.6 and the Phase 2 exit gate are not complete.
+- Iteration 2.3 is committed as `6e507eb`; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
+- Iteration 2.4 is implemented and verified inline, with no subagents: [Versioned memory projections](../../runbooks/versioned-memory-projections.md).
+- Next: Iteration 2.5, contradiction and freshness/drift detection. Iterations 2.5–2.6 and the Phase 2 exit gate are not complete.
+- Verification for 2.4: `mvn test` and `mvn verify -Pintegration` passed (646 fresh default tests, 134 PostgreSQL tests); `mvn test -Parchitecture` passed (11 tests, one intentional skip). Dependency analysis, privacy scan and diff check passed. The known integration-fork shutdown warning recurred after all tests passed; Maven exited 0.
+- Added nine core test cases (including one extra parameterized case); existing lifecycle/lease tests were extended. Primary inline review checked lease/source fencing, active-generation reads, egress outside transactions, owner deletion, migration compatibility and module boundaries. No live provider calls. Orphan crash-time BUILDING retention is explicitly documented, not claimed solved.
+- Graphify rebuilt for 2.4 (4674 nodes, 8776 edges); generated files remain local and excluded. Its unavailable PowerShell parser does not replace the separately executed privacy hook.
 - Verification for 2.3: `mvn verify -Pintegration` passed (643 default tests from fresh reports, 128 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy scan and diff check passed. The integration fork emitted a 30-second post-`System.exit(0)` shutdown warning; Maven exited 0 and all test results passed.
 - Added six core tests. The full gate exposed an old explicit-user-ID/identity-sequence collision in two test fixtures; corrected only those fixture helpers and reran the full gate successfully. No live AI/provider calls. Primary review retained distinct canonical facts from one source while collapsing repeated optional AI evidence.
 - Graphify rebuilt (4595 nodes, 8649 edges); its PowerShell parser is unavailable for the privacy hook, which was executed separately. Generated Graphify files remain local and are excluded from the feature commit.

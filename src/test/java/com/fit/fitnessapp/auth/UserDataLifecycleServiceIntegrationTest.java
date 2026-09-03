@@ -203,13 +203,18 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(moduleCategories(v2, "knowledge"))
                 .containsExactlyInAnyOrder(
                         "knowledge_claims", "knowledge_claim_evidence", "knowledge_claim_command_receipts",
-                        "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_deletion_receipts");
+                        "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_deletion_receipts", "memory_projection_generations");
 
         var knowledgeModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("knowledge"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(knowledgeModule.schemaVersion()).isEqualTo(2);
+        assertThat(knowledgeModule.schemaVersion()).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        var exportedGenerations = (List<Map<String, Object>>) knowledgeModule.data().get("projectionGenerations");
+        assertThat(exportedGenerations).hasSize(2).allSatisfy(row -> assertThat(row)
+                .containsKeys("id", "status", "schema_version", "created_at")
+                .doesNotContainKeys("embedding", "content", "user_id", "lease_generation"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exportedClaims = (List<Map<String, Object>>)
                 knowledgeModule.data().get("knowledgeClaims");
@@ -458,6 +463,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("knowledge_claim_usage", "user_id", userId)).isZero();
         assertThat(count("knowledge_claim_conflicts", "user_id", userId)).isZero();
         assertThat(count("knowledge_deletion_receipts", "owner_id", userId)).isZero();
+        assertThat(count("memory_projection_generations", "user_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -484,6 +490,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("knowledge_claim_usage", "user_id", otherUserId)).isOne();
         assertThat(count("knowledge_claim_conflicts", "user_id", otherUserId)).isOne();
         assertThat(count("knowledge_deletion_receipts", "owner_id", otherUserId)).isOne();
+        assertThat(count("memory_projection_generations", "user_id", otherUserId)).isEqualTo(2);
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -1180,6 +1187,19 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                         'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 1, 0)
                 RETURNING id
                 """, Long.class, userId, "other-claim-" + userId, "lifecycle-" + userId);
+        UUID activeGeneration = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO memory_projection_generations(id, user_id, status, schema_version)
+                VALUES (?, ?, 'ACTIVE', 1), (?, ?, 'BUILDING', 1)
+                """, activeGeneration, userId, UUID.randomUUID(), userId);
+        jdbc.update("""
+                UPDATE user_memory SET metadata = metadata || jsonb_build_object(
+                    'projection_generation', ?::text, 'projection_kind', 'KNOWLEDGE_CLAIM', 'claim_id', ?::bigint,
+                    'projection_schema', 1, 'source_type', 'MANUAL_NOTE', 'source_id', ?::text,
+                    'source_version', 1, 'aggregate_version', 0, 'content_hash', repeat('e', 64),
+                    'claim_origin', 'USER_DECLARED', 'claim_verification', 'SUPPORTED', 'memory_type', 'SEMANTIC')
+                 WHERE user_id = ?
+                """, activeGeneration.toString(), claimId, "lifecycle-" + userId, userId);
         jdbc.update("""
                 INSERT INTO knowledge_claim_evidence
                     (user_id, claim_id, evidence_type, evidence_id, evidence_version,

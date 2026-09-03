@@ -26,6 +26,7 @@ class DurableJobLeaseConcurrencyIntegrationTest extends AbstractPostgresIntegrat
 
     @Autowired private DurableJobUseCase jobs;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @BeforeEach
     @AfterEach
@@ -49,6 +50,9 @@ class DurableJobLeaseConcurrencyIntegrationTest extends AbstractPostgresIntegrat
         assertThat(jobs.heartbeat(first, Duration.ofMinutes(1))).isFalse();
         assertThat(jobs.getJob(id).orElseThrow().status()).isEqualTo(JobStatus.RUNNING);
         assertThat(jobs.getJob(id).orElseThrow().errorMessage()).isNull();
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        assertThat(transaction.<Boolean>execute(status -> jobs.lockClaim(first))).isFalse();
+        assertThat(transaction.<Boolean>execute(status -> jobs.lockClaim(second))).isTrue();
         assertThat(jobs.completeJob(second)).isTrue();
     }
 

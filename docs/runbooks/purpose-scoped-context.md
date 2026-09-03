@@ -63,8 +63,8 @@ transaction; the experiment read is a short read-only repeatable-read
 transaction. Optional search runs after these reads, outside their transactions.
 There is no network call in the canonical path.
 
-`ContextNarrativeSearch` is an optional projection SPI with no implementation in
-this iteration. Its absence or failure produces a valid canonical result with
+`ContextNarrativeSearch` is an optional projection SPI, implemented by the memory
+adapter since Iteration 2.4. Its absence or failure produces a valid canonical result with
 `projectionAvailable=false`. Evaluation contexts never invoke it. Provider
 exception messages and user content are not logged.
 
@@ -90,5 +90,6 @@ consumer ID; merely retrieving a claim is not usage. Consumers must revalidate
 the relevant source versions at their durable boundary rather than treat a
 read snapshot as a concurrency fence.
 
-Next: Iteration 2.4 implements versioned projections and atomic rebuild;
-Iteration 2.5 detects conflicts; Iteration 2.6 connects durable consumers.
+Iteration 2.4 supplies [versioned projections and atomic rebuild](versioned-memory-projections.md)
+through the optional narrative SPI. Iteration 2.5 detects conflicts; Iteration 2.6
+connects durable consumers.

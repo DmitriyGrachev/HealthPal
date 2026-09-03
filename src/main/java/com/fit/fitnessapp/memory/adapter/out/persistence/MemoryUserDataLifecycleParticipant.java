@@ -21,11 +21,14 @@ public class MemoryUserDataLifecycleParticipant implements UserDataLifecyclePart
         return "memory";
     }
 
+    @Override public int exportSchemaVersion() { return 2; }
+
     @Override
     public UserDataExportFragment exportData(Long userId) {
         return new UserDataExportFragment(key(), Map.of(
                 "memories", jdbc.queryForList("""
-                        SELECT id, content, metadata
+                        SELECT id, content, metadata, projection_generation_id, projection_claim_id,
+                               projection_source_version, projection_content_hash, projection_schema_version
                           FROM user_memory
                          WHERE user_id = ?
                         """, userId)));

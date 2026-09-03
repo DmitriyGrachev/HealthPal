@@ -22,7 +22,7 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public int exportSchemaVersion() {
-        return 2;
+        return 3;
     }
 
     @Override
@@ -55,6 +55,11 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
                         SELECT id, left_claim_id, right_claim_id, reason, status, created_at
                           FROM knowledge_claim_conflicts WHERE user_id = ? ORDER BY id
                         """, userId),
+                "projectionGenerations", jdbc.queryForList("""
+                        SELECT id, projection_kind, status, schema_version, base_generation_id,
+                               failure_code, created_at, activated_at, finished_at
+                          FROM memory_projection_generations WHERE user_id = ? ORDER BY created_at, id
+                        """, userId),
                 "deletionReceipts", jdbc.queryForList("""
                         SELECT id, deleted_claim_id, deleted_at, schema_version
                           FROM knowledge_deletion_receipts WHERE owner_id = ? ORDER BY id
@@ -85,6 +90,10 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
                         DataRetentionDisclosure.StorageClass.LOCAL_DERIVED,
                         DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED),
                 disclosure(
+                        "memory_projection_generations",
+                        DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
+                        DataRetentionDisclosure.DeletionScope.LOCAL_PRIMARY_AND_DERIVED),
+                disclosure(
                         "knowledge_deletion_receipts",
                         DataRetentionDisclosure.StorageClass.LOCAL_OPERATIONAL,
                         DataRetentionDisclosure.DeletionScope.LOCAL_OPERATIONAL));
@@ -92,6 +101,7 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public void deleteData(Long userId) {
+        jdbc.update("DELETE FROM memory_projection_generations WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM knowledge_claim_command_receipts WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM knowledge_claim_usage WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM knowledge_claim_conflicts WHERE user_id = ?", userId);

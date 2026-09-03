@@ -65,7 +65,7 @@ public class DurableJobWorker {
 
         try (DurableJobLeaseHeartbeat.Registration ignored = leaseHeartbeat.track(claim, LEASE)) {
             try {
-                executor.execute(claim.job());
+                executor.executeClaim(claim);
                 if (!durableJobUseCase.completeJob(claim)) {
                     log.warn("Durable job completion rejected reasonCode=FENCE_REJECTED");
                 }

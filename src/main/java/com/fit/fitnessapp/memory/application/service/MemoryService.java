@@ -53,6 +53,7 @@ public class MemoryService implements MemoryQueryUseCase {
 
         return vectorStore.similaritySearch(request)
                 .stream()
+                .filter(doc -> !doc.getMetadata().containsKey("projection_generation"))
                 .filter(doc -> {
                     // Skip expired entries.
                     Object expiresAt = doc.getMetadata().get("expires_at");
@@ -76,6 +77,7 @@ public class MemoryService implements MemoryQueryUseCase {
 
         return vectorStore.similaritySearch(request)
                 .stream()
+                .filter(doc -> !doc.getMetadata().containsKey("projection_generation"))
                 .filter(doc -> "LONG_TERM".equals(
                         doc.getMetadata().get("memory_horizon")))
                 .filter(doc -> MemoryType.FACT.name().equals(
@@ -100,6 +102,7 @@ public class MemoryService implements MemoryQueryUseCase {
 
         return vectorStore.similaritySearch(request)
                 .stream()
+                .filter(doc -> !doc.getMetadata().containsKey("projection_generation"))
                 .filter(doc -> {
                     // Fresh entries only.
                     Object date = doc.getMetadata().get("date");
