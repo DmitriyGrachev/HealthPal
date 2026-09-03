@@ -36,6 +36,8 @@ public interface KnowledgeClaimCommandReceiptPort {
         SUPERSEDED,
         NOOP_STALE,
         NOOP_DELETED,
-        DELETED
+        DELETED,
+        CONFIRMED,
+        DISPUTED
     }
 }

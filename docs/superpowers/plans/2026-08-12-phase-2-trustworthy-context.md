@@ -4,6 +4,14 @@
 
 **Goal:** add a user-visible, explainable personal knowledge layer whose PostgreSQL source of truth survives provider replacement, vector deletion, replay, and account lifecycle operations.
 
+## Execution checkpoint — 2026-09-03
+
+- Iteration 2.1 is committed as `49035b1`.
+- Iteration 2.2 is implemented and verified; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
+- Next: Iteration 2.3, purpose-scoped deterministic context assembly. Iterations 2.3–2.6 and the Phase 2 exit gate are not complete.
+- Verification this iteration: 639 default tests; 32 selected PostgreSQL tests (claims, account lifecycle, historical upgrades); 11 architecture tests with one existing intentional skip. After final lock/boundary integration edits, reran 14 focused tests and 19 claim/lifecycle PostgreSQL tests; dependency analysis, privacy scan, and diff check passed.
+- Added 10 core tests, using one implementation subagent and primary integration review. No live AI/provider calls. Graphify rebuilt; its PowerShell parser is unavailable for the privacy hook, which was executed separately. Generated Graphify files remain local and are excluded from the feature commit.
+
 ## Domain contract
 
 A `KnowledgeClaim` is canonical business state. It separates three dimensions that the older review mixed together:
@@ -61,7 +69,7 @@ Add module structure:
 - repository ports, `KnowledgeClaimService`, and JDBC persistence adapter;
 - versioned `KnowledgeClaimChangedEvent` containing identifiers/hash only, never Claim value text.
 
-Declare the initial `knowledge` module with `@ApplicationModule(allowedDependencies={"api::lifecycle"})`. Architecture tests forbid broad `api`, `ai`, `memory`, and implementation-package dependencies. Later iterations extend the allow-list only with `experiment::query-api` and `experiment::api` when those consuming adapters/events are introduced.
+Declare the initial `knowledge` module with `@ApplicationModule(allowedDependencies={"api::lifecycle"})`. Architecture tests forbid broad `api`, `ai`, `memory`, and implementation-package dependencies. Iteration 2.2 adds the narrow `auth::current-user` interface for authenticated inspector controllers, as required by the canonical current-user invariant. Later iterations add `experiment::query-api` and `experiment::api` when those consuming adapters/events are introduced.
 
 Every command uses current owner, `expectedVersion`, and `idempotencyKey`. A source replay with an older/equal version is a successful no-op; a deleted source cannot resurrect a Claim.
 
@@ -100,7 +108,7 @@ Add `src/main/resources/db/migration/V38__create_knowledge_claim_usage_and_confl
 
 - `knowledge_claim_usage`;
 - `knowledge_claim_conflicts`;
-- `knowledge_deletion_receipts` containing live owner, deleted claim ID, deletion time, and schema version but no value/source content; `owner_id` has `users(id) ON DELETE CASCADE`.
+- `knowledge_deletion_receipts` containing live owner, deleted claim ID, deletion time, and schema version but no value/source content; `owner_id` has `users(id) ON DELETE CASCADE`. Internal owner-scoped source/key digests provide replay fencing without retaining plaintext source identifiers or command keys; these digests are not part of exported audit metadata.
 
 Add:
 

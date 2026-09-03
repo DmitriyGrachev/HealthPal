@@ -31,7 +31,7 @@ class ExperimentModuleArchitectureTest {
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
                 .toList())
-                .containsExactlyInAnyOrder("auth", "api::lifecycle", "api::evidence-source");
+                .containsExactlyInAnyOrder("auth::current-user", "api::lifecycle", "api::evidence-source");
 
         assertThat(experiment.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())

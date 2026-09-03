@@ -9,4 +9,6 @@ public interface KnowledgeClaimQueryUseCase {
     List<KnowledgeClaim> findAll(Long userId);
 
     Optional<KnowledgeClaim> find(Long userId, Long claimId);
+
+    List<KnowledgeClaim> findHistory(Long userId, Long claimId);
 }

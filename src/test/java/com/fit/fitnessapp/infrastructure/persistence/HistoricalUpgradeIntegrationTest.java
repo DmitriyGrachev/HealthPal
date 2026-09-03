@@ -696,7 +696,7 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(count("fatsecret_day", "TRUE")).isZero();
         assertThat(count("fatsecret_food", "TRUE")).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
-                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("37");
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("38");
     }
 
     @Test

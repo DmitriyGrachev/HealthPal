@@ -202,13 +202,14 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                         "evaluations", "decisions", "evidenceRefs", "command_receipts");
         assertThat(moduleCategories(v2, "knowledge"))
                 .containsExactlyInAnyOrder(
-                        "knowledge_claims", "knowledge_claim_evidence", "knowledge_claim_command_receipts");
+                        "knowledge_claims", "knowledge_claim_evidence", "knowledge_claim_command_receipts",
+                        "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_deletion_receipts");
 
         var knowledgeModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("knowledge"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(knowledgeModule.schemaVersion()).isEqualTo(1);
+        assertThat(knowledgeModule.schemaVersion()).isEqualTo(2);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exportedClaims = (List<Map<String, Object>>)
                 knowledgeModule.data().get("knowledgeClaims");
@@ -218,7 +219,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exportedClaimReceipts = (List<Map<String, Object>>)
                 knowledgeModule.data().get("commandReceipts");
-        assertThat(exportedClaims).singleElement().satisfies(claim -> assertThat(claim)
+        assertThat(exportedClaims).hasSize(2).allSatisfy(claim -> assertThat(claim)
                 .containsKeys("id", "subject", "predicate", "value", "value_type", "origin", "verification",
                         "temporal_status", "source_type", "source_id", "source_version", "content_hash")
                 .doesNotContainKeys("user_id", "userId"));
@@ -229,6 +230,24 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .containsKeys("id", "idempotency_key", "outcome", "result_claim_id", "source_type",
                         "source_id", "source_version", "created_at")
                 .doesNotContainKeys("user_id", "userId", "request_fingerprint", "requestFingerprint"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedClaimUsage = (List<Map<String, Object>>)
+                knowledgeModule.data().get("claimUsage");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedClaimConflicts = (List<Map<String, Object>>)
+                knowledgeModule.data().get("claimConflicts");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportedDeletionReceipts = (List<Map<String, Object>>)
+                knowledgeModule.data().get("deletionReceipts");
+        assertThat(exportedClaimUsage).singleElement().satisfies(usage -> assertThat(usage)
+                .containsKeys("id", "claim_id", "purpose", "consumer_id", "used_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedClaimConflicts).singleElement().satisfies(conflict -> assertThat(conflict)
+                .containsKeys("id", "left_claim_id", "right_claim_id", "reason", "status", "created_at")
+                .doesNotContainKeys("user_id", "userId"));
+        assertThat(exportedDeletionReceipts).singleElement().satisfies(receipt -> assertThat(receipt)
+                .containsKeys("id", "deleted_claim_id", "deleted_at", "schema_version")
+                .doesNotContainKeys("owner_id", "source_fence_hash", "request_fingerprint", "request_key_hash"));
 
         var experimentModule = v2.modules().stream()
                 .filter(module -> module.moduleKey().equals("experiment"))
@@ -384,9 +403,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiment_evaluations", "user_id", userId)).isOne();
         assertThat(count("experiment_decisions", "user_id", userId)).isOne();
         assertThat(count("experiment_evidence_refs", "user_id", userId)).isOne();
-        assertThat(count("knowledge_claims", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claims", "user_id", userId)).isEqualTo(2);
         assertThat(count("knowledge_claim_evidence", "user_id", userId)).isOne();
         assertThat(count("knowledge_claim_command_receipts", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claim_usage", "user_id", userId)).isOne();
+        assertThat(count("knowledge_claim_conflicts", "user_id", userId)).isOne();
+        assertThat(count("knowledge_deletion_receipts", "owner_id", userId)).isOne();
         assertThat(count("telegram_delivery_outbox", "user_id", userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -433,6 +455,9 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("knowledge_claims", "user_id", userId)).isZero();
         assertThat(count("knowledge_claim_evidence", "user_id", userId)).isZero();
         assertThat(count("knowledge_claim_command_receipts", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claim_usage", "user_id", userId)).isZero();
+        assertThat(count("knowledge_claim_conflicts", "user_id", userId)).isZero();
+        assertThat(count("knowledge_deletion_receipts", "owner_id", userId)).isZero();
         assertThat(userBudgetCount(userId)).isZero();
         assertThat(publicationCount(completedPublication)).isZero();
         assertThat(publicationCount(incompletePublication)).isZero();
@@ -453,9 +478,12 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         assertThat(count("experiment_evaluations", "user_id", otherUserId)).isOne();
         assertThat(count("experiment_decisions", "user_id", otherUserId)).isOne();
         assertThat(count("experiment_evidence_refs", "user_id", otherUserId)).isOne();
-        assertThat(count("knowledge_claims", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claims", "user_id", otherUserId)).isEqualTo(2);
         assertThat(count("knowledge_claim_evidence", "user_id", otherUserId)).isOne();
         assertThat(count("knowledge_claim_command_receipts", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claim_usage", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_claim_conflicts", "user_id", otherUserId)).isOne();
+        assertThat(count("knowledge_deletion_receipts", "owner_id", otherUserId)).isOne();
         assertThat(userBudgetCount(otherUserId)).isOne();
         assertThat(globalBudgetCount()).isOne();
         assertThat(publicationCount(otherPublication)).isOne();
@@ -1168,6 +1196,36 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                         'abababababababababababababababababababababababababababababababab',
                         'CREATED', ?, 0, 'MANUAL_NOTE', ?, 1)
                 """, userId, "knowledge-lifecycle-" + userId, claimId, "lifecycle-" + userId);
+        long conflictingClaimId = jdbc.queryForObject("""
+                INSERT INTO knowledge_claims
+                    (user_id, subject, subject_normalized, predicate, predicate_normalized,
+                     value, value_type, origin, verification, temporal_status,
+                     confidence_basis, confidence_score, source_type, source_id, source_version,
+                     observed_at, content_hash, schema_version, aggregate_version)
+                VALUES (?, 'lifecycle subject', 'lifecycle subject', 'preferred value', 'preferred value',
+                        jsonb_build_object('value', ?), 'TEXT', 'USER_DECLARED', 'PROPOSED', 'ACTIVE',
+                        'USER_ASSERTION', 0.5, 'MANUAL_NOTE', ?, 1,
+                        TIMESTAMPTZ '2026-08-08 12:00:00Z',
+                        'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 1, 0)
+                RETURNING id
+                """, Long.class, userId, "conflicting-claim-" + userId,
+                "lifecycle-conflict-" + userId);
+        jdbc.update("""
+                INSERT INTO knowledge_claim_usage (user_id, claim_id, purpose, consumer_id)
+                VALUES (?, ?, 'AI_ANSWER', ?)
+                """, userId, claimId, "answer-" + userId);
+        jdbc.update("""
+                INSERT INTO knowledge_claim_conflicts
+                    (user_id, left_claim_id, right_claim_id, reason, status)
+                VALUES (?, ?, ?, 'VALUE_CONTRADICTION', 'OPEN')
+                """, userId, claimId, conflictingClaimId);
+        jdbc.update("""
+                INSERT INTO knowledge_deletion_receipts
+                    (owner_id, deleted_claim_id, source_fence_hash, request_fingerprint, request_key_hash)
+                VALUES (?, ?, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                        'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')
+                """, userId, claimId);
     }
 
     private void seedControlData(long otherUserId, long otherChatId) {

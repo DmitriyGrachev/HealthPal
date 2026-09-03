@@ -16,6 +16,12 @@ public interface KnowledgeClaimRepositoryPort {
 
     List<KnowledgeClaim> findAllByOwner(Long userId);
 
+    List<KnowledgeClaim> findHistory(Long userId, Long claimId);
+
+    boolean update(KnowledgeClaim claim, long expectedVersion);
+
+    List<KnowledgeClaim> deleteLineage(Long userId, Long claimId);
+
     boolean markSuperseded(KnowledgeClaim superseded, long expectedVersion);
 
     List<KnowledgeClaim> deleteBySource(Long userId, String sourceType, String sourceId);

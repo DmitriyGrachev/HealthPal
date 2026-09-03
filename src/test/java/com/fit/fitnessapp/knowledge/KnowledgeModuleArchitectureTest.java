@@ -12,17 +12,17 @@ class KnowledgeModuleArchitectureTest {
     private final ApplicationModules modules = ApplicationModules.of(FitnessAppApplication.class);
 
     @Test
-    void knowledgeHasOnlyItsInitialLifecycleDependency() {
+    void knowledgeUsesOnlyLifecycleAndCurrentUserContracts() {
         ApplicationModule knowledge = modules.getModuleByName("knowledge").orElseThrow();
 
         assertThat(knowledge.getAllowedDependencies(modules).stream()
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
-                .toList()).containsExactly("api::lifecycle");
+                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user");
         assertThat(knowledge.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
                 .distinct()
-                .toList()).containsOnly("api");
+                .toList()).containsOnly("api", "auth");
     }
 
     @Test

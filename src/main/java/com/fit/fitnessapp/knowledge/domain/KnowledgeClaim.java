@@ -180,6 +180,31 @@ public final class KnowledgeClaim {
                 aggregateVersion + 1, schemaVersion, contentHash, evidence, createdAt, when);
     }
 
+    public KnowledgeClaim confirmedByUser(Instant when) {
+        return transition(ClaimVerification.SUPPORTED,
+                new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.USER_CONFIRMATION, "1"), when);
+    }
+
+    public KnowledgeClaim disputedAt(Instant when) {
+        return transition(ClaimVerification.DISPUTED, confidenceBasis, when);
+    }
+
+    private KnowledgeClaim transition(
+            ClaimVerification nextVerification,
+            ClaimConfidenceBasis nextConfidenceBasis,
+            Instant when) {
+        if (when == null || when.isBefore(updatedAt)) {
+            throw new IllegalArgumentException("transition time must not precede the last update");
+        }
+        if (temporalStatus != ClaimTemporalStatus.ACTIVE) {
+            throw new IllegalStateException("only an active claim can be transitioned");
+        }
+        return new KnowledgeClaim(
+                id, userId, subject, predicate, value, origin, nextVerification, temporalStatus, source,
+                observedAt, validFrom, validUntil, nextConfidenceBasis, supersedesClaimId,
+                aggregateVersion + 1, schemaVersion, contentHash, evidence, createdAt, when);
+    }
+
     private static String contentHash(
             ClaimSubject subject,
             ClaimPredicate predicate,

@@ -25,6 +25,37 @@ final class KnowledgeClaimCommandFingerprint {
         return hash("DELETE", userId, null, source, expectedVersion, "");
     }
 
+    static String inspect(String command, Long userId, Long claimId, long expectedVersion) {
+        return hashWithoutSource(command, userId, claimId, expectedVersion);
+    }
+
+    static String forget(Long userId, Long claimId, long expectedVersion, String idempotencyKey) {
+        return hashWithoutSource("FORGET", userId, claimId, expectedVersion, idempotencyKey);
+    }
+
+    private static String hashWithoutSource(String command, Long userId, Long claimId, long expectedVersion) {
+        String value = String.join("\u001f", command, String.valueOf(userId), String.valueOf(claimId),
+                Long.toString(expectedVersion));
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private static String hashWithoutSource(
+            String command, Long userId, Long claimId, long expectedVersion, String idempotencyKey) {
+        String value = String.join("\u001f", command, String.valueOf(userId), String.valueOf(claimId),
+                Long.toString(expectedVersion), idempotencyKey);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
     private static String hash(
             String command,
             Long userId,

@@ -2,6 +2,7 @@ package com.fit.fitnessapp.knowledge.application.service;
 
 import com.fit.fitnessapp.knowledge.api.KnowledgeClaimChangedEvent;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimCommandReceiptPort;
+import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimDeletionReceiptPort;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimRepositoryPort;
 import com.fit.fitnessapp.knowledge.domain.ClaimConfidenceBasis;
 import com.fit.fitnessapp.knowledge.domain.ClaimEvidence;
@@ -44,6 +45,7 @@ class KnowledgeClaimServiceTest {
 
     private KnowledgeClaimRepositoryPort claims;
     private KnowledgeClaimCommandReceiptPort receipts;
+    private KnowledgeClaimDeletionReceiptPort deletionReceipts;
     private List<Object> events;
     private MeterRegistry meterRegistry;
     private KnowledgeClaimService service;
@@ -52,6 +54,7 @@ class KnowledgeClaimServiceTest {
     void setUp() {
         claims = mock(KnowledgeClaimRepositoryPort.class);
         receipts = mock(KnowledgeClaimCommandReceiptPort.class);
+        deletionReceipts = mock(KnowledgeClaimDeletionReceiptPort.class);
         events = new ArrayList<>();
         ApplicationEventPublisher publisher = events::add;
         meterRegistry = new SimpleMeterRegistry();
@@ -63,7 +66,8 @@ class KnowledgeClaimServiceTest {
                 receipts,
                 publisher,
                 new KnowledgeMetrics(registryProvider),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                deletionReceipts);
         when(claims.lockOwner(USER_ID)).thenReturn(true);
         when(receipts.findByIdempotencyKey(any(), any())).thenReturn(Optional.empty());
         when(receipts.sourceProgress(any(), any(), any()))

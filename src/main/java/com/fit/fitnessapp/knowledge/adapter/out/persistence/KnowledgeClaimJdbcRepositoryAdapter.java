@@ -1,7 +1,10 @@
 package com.fit.fitnessapp.knowledge.adapter.out.persistence;
 
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimCommandReceiptPort;
+import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimConflictRepositoryPort;
+import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimDeletionReceiptPort;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimRepositoryPort;
+import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimUsageRepositoryPort;
 import com.fit.fitnessapp.knowledge.domain.ClaimConfidenceBasis;
 import com.fit.fitnessapp.knowledge.domain.ClaimEvidence;
 import com.fit.fitnessapp.knowledge.domain.ClaimOrigin;
@@ -10,6 +13,8 @@ import com.fit.fitnessapp.knowledge.domain.ClaimSourceRef;
 import com.fit.fitnessapp.knowledge.domain.ClaimSubject;
 import com.fit.fitnessapp.knowledge.domain.ClaimTemporalStatus;
 import com.fit.fitnessapp.knowledge.domain.ClaimVerification;
+import com.fit.fitnessapp.knowledge.domain.ClaimConflict;
+import com.fit.fitnessapp.knowledge.domain.ClaimUsagePurpose;
 import com.fit.fitnessapp.knowledge.domain.KnowledgeClaim;
 import com.fit.fitnessapp.knowledge.domain.TypedClaimValue;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,7 +29,9 @@ import java.util.Optional;
 
 @Repository
 public class KnowledgeClaimJdbcRepositoryAdapter
-        implements KnowledgeClaimRepositoryPort, KnowledgeClaimCommandReceiptPort {
+        implements KnowledgeClaimRepositoryPort, KnowledgeClaimCommandReceiptPort,
+        KnowledgeClaimDeletionReceiptPort, KnowledgeClaimUsageRepositoryPort,
+        KnowledgeClaimConflictRepositoryPort {
     private final JdbcTemplate jdbc;
 
     public KnowledgeClaimJdbcRepositoryAdapter(JdbcTemplate jdbc) {
@@ -113,6 +120,60 @@ public class KnowledgeClaimJdbcRepositoryAdapter
     }
 
     @Override
+    public List<KnowledgeClaim> findHistory(Long userId, Long claimId) {
+        return jdbc.query("""
+                WITH RECURSIVE lineage(id, user_id, supersedes_claim_id) AS (
+                    SELECT id, user_id, supersedes_claim_id
+                      FROM knowledge_claims
+                     WHERE user_id = ? AND id = ?
+                    UNION
+                    SELECT candidate.id, candidate.user_id, candidate.supersedes_claim_id
+                      FROM knowledge_claims candidate
+                      JOIN lineage current_claim
+                        ON candidate.user_id = current_claim.user_id
+                       AND (candidate.id = current_claim.supersedes_claim_id
+                            OR candidate.supersedes_claim_id = current_claim.id)
+                )
+                SELECT id, user_id, subject, predicate, value ->> 'value' AS value_text, value_type, unit,
+                       origin, verification, temporal_status, confidence_basis, confidence_score, source_type,
+                       source_id, source_version, observed_at, valid_from, valid_until, content_hash,
+                       schema_version, supersedes_claim_id, aggregate_version, created_at, updated_at
+                  FROM knowledge_claims
+                 WHERE user_id = ? AND id IN (SELECT id FROM lineage)
+                 ORDER BY created_at, id
+                """, (resultSet, rowNumber) -> claim(resultSet), userId, claimId, userId);
+    }
+
+    @Override
+    public boolean update(KnowledgeClaim claim, long expectedVersion) {
+        return jdbc.update("""
+                UPDATE knowledge_claims
+                   SET verification = ?, confidence_basis = ?, confidence_score = ?,
+                       aggregate_version = ?, updated_at = ?
+                 WHERE user_id = ? AND id = ? AND aggregate_version = ? AND temporal_status = 'ACTIVE'
+                """, claim.verification().name(), claim.confidenceBasis().type().name(),
+                claim.confidenceBasis().confidence(), claim.aggregateVersion(), timestamp(claim.updatedAt()),
+                claim.userId(), claim.id(), expectedVersion) == 1;
+    }
+
+    @Override
+    public List<KnowledgeClaim> deleteLineage(Long userId, Long claimId) {
+        List<KnowledgeClaim> deleted = findHistory(userId, claimId);
+        for (KnowledgeClaim claim : deleted) {
+            jdbc.update("""
+                    DELETE FROM knowledge_claim_command_receipts
+                     WHERE user_id = ?
+                       AND (result_claim_id = ? OR (source_type = ? AND source_id = ?))
+                    """, userId, claim.id(), claim.source().sourceType(), claim.source().sourceId());
+        }
+        for (KnowledgeClaim claim : deleted) {
+            jdbc.update("DELETE FROM knowledge_claims WHERE user_id = ? AND id = ?",
+                    userId, claim.id());
+        }
+        return deleted;
+    }
+
+    @Override
     public boolean markSuperseded(KnowledgeClaim superseded, long expectedVersion) {
         return jdbc.update("""
                 UPDATE knowledge_claims
@@ -176,6 +237,100 @@ public class KnowledgeClaimJdbcRepositoryAdapter
                 receipt.outcome().name(), receipt.resultClaimId(), receipt.resultVersion(),
                 receipt.source().sourceType(), receipt.source().sourceId(), receipt.source().sourceVersion(),
                 timestamp(receipt.createdAt())) == 1;
+    }
+
+    @Override
+    public boolean insert(Long userId, Long claimId, ClaimUsagePurpose purpose,
+                          String consumerId, Instant usedAt) {
+        return jdbc.update("""
+                INSERT INTO knowledge_claim_usage (user_id, claim_id, purpose, consumer_id, used_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, claim_id, purpose, consumer_id) DO NOTHING
+                """, userId, claimId, purpose.name(), consumerId, timestamp(usedAt)) == 1;
+    }
+
+    @Override
+    public List<ClaimConflict> findOpenByOwner(Long userId) {
+        return jdbc.query("""
+                SELECT id, left_claim_id, right_claim_id, reason, status, created_at
+                  FROM knowledge_claim_conflicts
+                 WHERE user_id = ? AND status = 'OPEN'
+                 ORDER BY created_at, id
+                """, (resultSet, rowNumber) -> new ClaimConflict(
+                resultSet.getLong("id"),
+                resultSet.getLong("left_claim_id"),
+                resultSet.getLong("right_claim_id"),
+                resultSet.getString("reason"),
+                resultSet.getString("status"),
+                instant(resultSet.getTimestamp("created_at"))), userId);
+    }
+
+    @Override
+    public Optional<DeletionReceipt> findByClaim(Long userId, Long claimId) {
+        return jdbc.query("""
+                SELECT owner_id, deleted_claim_id, source_fence_hash, request_fingerprint,
+                       request_key_hash,
+                       deleted_at, schema_version
+                  FROM knowledge_deletion_receipts
+                 WHERE owner_id = ? AND deleted_claim_id = ?
+                """, (resultSet, rowNumber) -> deletionReceipt(resultSet), userId, claimId)
+                .stream().findFirst();
+    }
+
+    @Override
+    public Optional<DeletionReceipt> findByRequestKeyHash(Long userId, String requestKeyHash) {
+        return jdbc.query("""
+                SELECT owner_id, deleted_claim_id, source_fence_hash, request_fingerprint,
+                       request_key_hash, deleted_at, schema_version
+                  FROM knowledge_deletion_receipts
+                 WHERE owner_id = ? AND request_key_hash = ?
+                """, (resultSet, rowNumber) -> deletionReceipt(resultSet), userId, requestKeyHash)
+                .stream().findFirst();
+    }
+
+    @Override
+    public boolean isSourceFenced(Long userId, String sourceFenceHash) {
+        Boolean found = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM knowledge_deletion_receipts
+                     WHERE owner_id = ? AND source_fence_hash = ?)
+                """, Boolean.class, userId, sourceFenceHash);
+        return Boolean.TRUE.equals(found);
+    }
+
+    @Override
+    public boolean insert(DeletionReceipt receipt) {
+        return jdbc.update("""
+                INSERT INTO knowledge_deletion_receipts
+                    (owner_id, deleted_claim_id, source_fence_hash, request_fingerprint,
+                     request_key_hash, deleted_at, schema_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (owner_id, deleted_claim_id) DO NOTHING
+                """, receipt.ownerId(), receipt.deletedClaimId(), receipt.sourceFenceHash(),
+                receipt.requestFingerprint(), receipt.requestKeyHash(), timestamp(receipt.deletedAt()),
+                receipt.schemaVersion()) == 1;
+    }
+
+    @Override
+    public List<DeletionReceipt> findDeletionReceiptsByOwner(Long userId) {
+        return jdbc.query("""
+                SELECT owner_id, deleted_claim_id, source_fence_hash, request_fingerprint,
+                       request_key_hash,
+                       deleted_at, schema_version
+                  FROM knowledge_deletion_receipts
+                 WHERE owner_id = ? ORDER BY deleted_at, id
+                """, (resultSet, rowNumber) -> deletionReceipt(resultSet), userId);
+    }
+
+    private static DeletionReceipt deletionReceipt(ResultSet resultSet) throws SQLException {
+        return new DeletionReceipt(
+                resultSet.getLong("owner_id"),
+                resultSet.getLong("deleted_claim_id"),
+                resultSet.getString("source_fence_hash").trim(),
+                resultSet.getString("request_fingerprint").trim(),
+                resultSet.getString("request_key_hash"),
+                instant(resultSet.getTimestamp("deleted_at")),
+                resultSet.getInt("schema_version"));
     }
 
     private KnowledgeClaim claim(ResultSet resultSet) throws SQLException {

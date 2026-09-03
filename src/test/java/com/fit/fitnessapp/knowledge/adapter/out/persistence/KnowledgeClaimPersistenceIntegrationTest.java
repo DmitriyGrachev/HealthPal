@@ -2,6 +2,14 @@ package com.fit.fitnessapp.knowledge.adapter.out.persistence;
 
 import com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimCommandUseCase;
 import com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimQueryUseCase;
+import com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimInspectorUseCase;
+import com.fit.fitnessapp.knowledge.application.port.in.ClaimUsageRecorder;
+import com.fit.fitnessapp.knowledge.application.port.in.ClaimConflictQueryUseCase;
+import com.fit.fitnessapp.knowledge.application.service.KnowledgeClaimIdempotencyConflictException;
+import com.fit.fitnessapp.knowledge.application.service.KnowledgeClaimNotFoundException;
+import com.fit.fitnessapp.knowledge.application.service.KnowledgeClaimVersionConflictException;
+import com.fit.fitnessapp.knowledge.application.service.KnowledgeClaimOwnerNotFoundException;
+import com.fit.fitnessapp.knowledge.domain.ClaimUsagePurpose;
 import com.fit.fitnessapp.knowledge.domain.ClaimConfidenceBasis;
 import com.fit.fitnessapp.knowledge.domain.ClaimEvidence;
 import com.fit.fitnessapp.knowledge.domain.ClaimOrigin;
@@ -22,6 +30,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class KnowledgeClaimPersistenceIntegrationTest extends AbstractPostgresIntegrationTest {
     private static final Instant NOW = Instant.parse("2026-08-28T10:15:30Z");
@@ -34,6 +43,87 @@ class KnowledgeClaimPersistenceIntegrationTest extends AbstractPostgresIntegrati
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired private KnowledgeClaimInspectorUseCase inspector;
+    @Autowired private ClaimUsageRecorder usage;
+    @Autowired private ClaimConflictQueryUseCase conflicts;
+    @Autowired private KnowledgeUserDataLifecycleParticipant lifecycle;
+
+    @Test
+    void inspectorHistoryUsageAndForgetAreOwnerScopedAndReplaySafe() {
+        long owner = insertUser("inspector");
+        long stranger = insertUser("inspector-other");
+        ClaimSourceRef source = new ClaimSourceRef("MANUAL_NOTE", "inspector-" + owner, 1);
+        KnowledgeClaim candidate = claim(owner, source, TypedClaimValue.text("morning"));
+        try {
+            KnowledgeClaim original = commands.upsert(owner, candidate, 0, "create").orElseThrow();
+            assertThatThrownBy(() -> inspector.confirm(stranger, original.id(), 0, "foreign"))
+                    .isInstanceOf(KnowledgeClaimNotFoundException.class);
+            KnowledgeClaim confirmed = inspector.confirm(owner, original.id(), 0, "confirm");
+            assertThat(confirmed.aggregateVersion()).isEqualTo(1);
+            assertThat(inspector.confirm(owner, original.id(), 0, "confirm").aggregateVersion()).isEqualTo(1);
+            assertThatThrownBy(() -> inspector.dispute(owner, original.id(), 0, "stale"))
+                    .isInstanceOf(KnowledgeClaimVersionConflictException.class);
+            assertThat(inspector.dispute(owner, original.id(), 1, "dispute").verification())
+                    .isEqualTo(ClaimVerification.DISPUTED);
+            KnowledgeClaim corrected = inspector.correctByUser(owner, original.id(),
+                    candidate.subject(), candidate.predicate(), TypedClaimValue.text("evening"),
+                    NOW, null, null, 2, "correct");
+            assertThat(inspector.correctByUser(owner, original.id(), candidate.subject(), candidate.predicate(),
+                    TypedClaimValue.text("evening"), NOW, null, null, 2, "correct").id()).isEqualTo(corrected.id());
+            assertThat(corrected.supersedesClaimId()).isEqualTo(original.id());
+            assertThat(queries.findHistory(owner, original.id())).extracting(c -> c.temporalStatus().name())
+                    .containsExactly("SUPERSEDED", "ACTIVE");
+            assertThat(queries.findHistory(owner, corrected.id())).hasSize(2);
+            assertThatThrownBy(() -> queries.findHistory(stranger, corrected.id()))
+                    .isInstanceOf(KnowledgeClaimNotFoundException.class);
+
+            usage.record(owner, corrected.id(), ClaimUsagePurpose.EXPERIMENT_DECISION, "decision-1");
+            usage.record(owner, corrected.id(), ClaimUsagePurpose.EXPERIMENT_DECISION, "decision-1");
+            usage.record(owner, corrected.id(), ClaimUsagePurpose.AI_ANSWER, "answer-1");
+            assertThat(count("knowledge_claim_usage", "user_id", owner)).isEqualTo(2);
+            assertThatThrownBy(() -> usage.record(stranger, corrected.id(), ClaimUsagePurpose.AI_ANSWER, "answer-2"))
+                    .isInstanceOf(KnowledgeClaimNotFoundException.class);
+            jdbc.update("""
+                    INSERT INTO knowledge_claim_conflicts(user_id, left_claim_id, right_claim_id, reason)
+                    VALUES (?, ?, ?, 'VALUE_CONTRADICTION')
+                    """, owner, original.id(), corrected.id());
+            assertThat(conflicts.findOpen(owner)).hasSize(1);
+            assertThat(conflicts.findOpen(stranger)).isEmpty();
+
+            // Erasing a historical ID must erase the entire connected lineage.
+            inspector.forget(owner, original.id(), 3, "forget");
+            inspector.forget(owner, original.id(), 3, "forget");
+            for (String table : List.of("knowledge_claims", "knowledge_claim_evidence",
+                    "knowledge_claim_usage", "knowledge_claim_conflicts", "knowledge_claim_command_receipts")) {
+                assertThat(count(table, "user_id", owner)).as(table).isZero();
+            }
+            assertThat(count("knowledge_deletion_receipts", "owner_id", owner)).isEqualTo(2);
+            assertThat(commands.upsert(owner, candidate, 0, "create")).isEmpty();
+            assertThat(commands.upsert(owner, claim(owner,
+                    new ClaimSourceRef(source.sourceType(), source.sourceId(), 9), TypedClaimValue.text("replay")),
+                    0, "new-replay")).isEmpty();
+            assertThat(count("knowledge_claim_command_receipts", "user_id", owner)).isZero();
+            assertThat(lifecycle.exportData(owner).values().get("deletionReceipts").toString())
+                    .doesNotContain("source_fence_hash", "request_fingerprint", "request_key_hash", source.sourceId());
+
+            KnowledgeClaim unrelated = commands.upsert(owner, claim(owner,
+                    new ClaimSourceRef("MANUAL_NOTE", "unrelated", 1), TypedClaimValue.text("no change")),
+                    0, "unrelated-create").orElseThrow();
+            assertThatThrownBy(() -> inspector.forget(owner, unrelated.id(), 0, "forget"))
+                    .isInstanceOf(KnowledgeClaimIdempotencyConflictException.class);
+            assertThatThrownBy(() -> inspector.confirm(owner, unrelated.id(), 0, "forget"))
+                    .isInstanceOf(KnowledgeClaimIdempotencyConflictException.class);
+            assertThat(queries.find(owner, unrelated.id())).isPresent();
+
+            jdbc.update("DELETE FROM users WHERE id = ?", owner);
+            assertThat(count("knowledge_deletion_receipts", "owner_id", owner)).isZero();
+            assertThatThrownBy(() -> commands.upsert(owner, candidate, 0, "after-account-delete"))
+                    .isInstanceOf(KnowledgeClaimOwnerNotFoundException.class);
+        } finally {
+            jdbc.update("DELETE FROM users WHERE id IN (?, ?)", owner, stranger);
+        }
+    }
 
     @Test
     void persistsTypedClaimEvidenceWithOwnerIsolationAndOwnerCascade() {

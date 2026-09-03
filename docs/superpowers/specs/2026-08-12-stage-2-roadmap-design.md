@@ -83,6 +83,7 @@ nutrition -> api::evidence-source
 workout   -> api::evidence-source
 experiment -> api::evidence-source
 knowledge -> api::lifecycle
+knowledge -> auth::current-user (Memory Inspector authentication)
 
 experiment -> api only for truly neutral shared contracts
 knowledge  -> api only for truly neutral shared contracts
