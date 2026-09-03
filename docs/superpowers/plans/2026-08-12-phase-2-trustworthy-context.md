@@ -7,10 +7,12 @@
 ## Execution checkpoint — 2026-09-03
 
 - Iteration 2.1 is committed as `49035b1`.
-- Iteration 2.2 is implemented and verified; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
-- Next: Iteration 2.3, purpose-scoped deterministic context assembly. Iterations 2.3–2.6 and the Phase 2 exit gate are not complete.
-- Verification this iteration: 639 default tests; 32 selected PostgreSQL tests (claims, account lifecycle, historical upgrades); 11 architecture tests with one existing intentional skip. After final lock/boundary integration edits, reran 14 focused tests and 19 claim/lifecycle PostgreSQL tests; dependency analysis, privacy scan, and diff check passed.
-- Added 10 core tests, using one implementation subagent and primary integration review. No live AI/provider calls. Graphify rebuilt; its PowerShell parser is unavailable for the privacy hook, which was executed separately. Generated Graphify files remain local and are excluded from the feature commit.
+- Iteration 2.2 is committed as `0420289`; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
+- Iteration 2.3 is implemented and verified inline, with no subagents; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
+- Next: Iteration 2.4, versioned vector projection and atomic rebuild. Iterations 2.4–2.6 and the Phase 2 exit gate are not complete.
+- Verification for 2.3: `mvn verify -Pintegration` passed (643 default tests from fresh reports, 128 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy scan and diff check passed. The integration fork emitted a 30-second post-`System.exit(0)` shutdown warning; Maven exited 0 and all test results passed.
+- Added six core tests. The full gate exposed an old explicit-user-ID/identity-sequence collision in two test fixtures; corrected only those fixture helpers and reran the full gate successfully. No live AI/provider calls. Primary review retained distinct canonical facts from one source while collapsing repeated optional AI evidence.
+- Graphify rebuilt (4595 nodes, 8649 edges); its PowerShell parser is unavailable for the privacy hook, which was executed separately. Generated Graphify files remain local and are excluded from the feature commit.
 
 ## Domain contract
 

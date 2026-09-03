@@ -27,6 +27,9 @@ public class ExperimentCheckInEvidenceSourceQuery implements EvidenceSourceQuery
 
     @Override
     public EvidenceSourceSlice query(EvidenceSourceRequest request) {
+        if (request.subjectId() == null) {
+            return new EvidenceSourceSlice(SOURCE_TYPE, java.util.List.of());
+        }
         return new EvidenceSourceSlice(SOURCE_TYPE, evidence
                 .findCheckInsByUserIdAndExperimentIdAndLocalDateBetween(
                         request.userId(), request.subjectId(),

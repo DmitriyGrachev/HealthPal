@@ -322,6 +322,11 @@ class MemoryPgVectorIntegrationTest extends AbstractPostgresIntegrationTest {
                 VALUES (?, ?, ?, 'pass')
                 ON CONFLICT (id) DO NOTHING
                 """, userId, "memory-user-" + userId, "memory-user-" + userId + "@example.test");
+        // Explicit fixture IDs must not collide with later generated owners in the shared container.
+        jdbcTemplate.queryForObject("""
+                SELECT setval(pg_get_serial_sequence('users', 'id'),
+                    GREATEST((SELECT MAX(id) FROM users), nextval(pg_get_serial_sequence('users', 'id'))))
+                """, Long.class);
     }
 
     private void awaitMemoryCount(String memoryId, long expected) throws InterruptedException {

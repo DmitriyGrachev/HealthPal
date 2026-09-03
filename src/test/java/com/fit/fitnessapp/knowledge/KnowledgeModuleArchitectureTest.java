@@ -2,6 +2,7 @@ package com.fit.fitnessapp.knowledge;
 
 import com.fit.fitnessapp.FitnessAppApplication;
 import com.fit.fitnessapp.knowledge.api.KnowledgeClaimChangedEvent;
+import com.fit.fitnessapp.knowledge.context.UserContextQuery;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModule;
 import org.springframework.modulith.core.ApplicationModules;
@@ -12,17 +13,20 @@ class KnowledgeModuleArchitectureTest {
     private final ApplicationModules modules = ApplicationModules.of(FitnessAppApplication.class);
 
     @Test
-    void knowledgeUsesOnlyLifecycleAndCurrentUserContracts() {
+    void knowledgeUsesOnlyLifecycleCurrentUserAndExperimentQueryContracts() {
         ApplicationModule knowledge = modules.getModuleByName("knowledge").orElseThrow();
 
         assertThat(knowledge.getAllowedDependencies(modules).stream()
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
-                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user");
+                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user", "experiment::query-api");
         assertThat(knowledge.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
                 .distinct()
-                .toList()).containsOnly("api", "auth");
+                .toList()).containsOnly("api", "auth", "experiment");
+        assertThat(modules.getModuleByName("experiment").orElseThrow().getDirectDependencies(modules).stream()
+                .map(dependency -> dependency.getTargetModule().getIdentifier().toString()).toList())
+                .doesNotContain("knowledge");
     }
 
     @Test
@@ -31,7 +35,9 @@ class KnowledgeModuleArchitectureTest {
 
         assertThat(knowledge.getNamedInterfaces().stream()
                 .map(namedInterface -> namedInterface.getName())
-                .toList()).contains("api", "projection-spi");
+                .toList()).contains("api", "projection-spi", "context-api");
+        assertThat(knowledge.getNamedInterfaces().getByName("context-api").orElseThrow()
+                .contains(UserContextQuery.class)).isTrue();
         assertThat(knowledge.getNamedInterfaces().getByName("api").orElseThrow()
                 .contains(KnowledgeClaimChangedEvent.class)).isTrue();
     }

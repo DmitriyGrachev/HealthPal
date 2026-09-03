@@ -124,6 +124,11 @@ class WorkoutJdbcQueryAdapterIntegrationTest extends AbstractPostgresIntegration
                 "user" + userId + "@example.com",
                 "pass"
         );
+        // Explicit fixture IDs must not collide with later generated owners in the shared container.
+        jdbc.queryForObject("""
+                SELECT setval(pg_get_serial_sequence('users', 'id'),
+                    GREATEST((SELECT MAX(id) FROM users), nextval(pg_get_serial_sequence('users', 'id'))))
+                """, Long.class);
     }
 
     private long insertWorkout(long userId, LocalDateTime date) {
