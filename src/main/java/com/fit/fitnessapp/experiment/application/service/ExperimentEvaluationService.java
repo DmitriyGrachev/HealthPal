@@ -6,6 +6,9 @@ import com.fit.fitnessapp.experiment.application.port.out.CommandReceiptPort;
 import com.fit.fitnessapp.experiment.application.port.out.EvidenceRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.ExperimentRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.InvestigationRepositoryPort;
+import com.fit.fitnessapp.experiment.api.ExperimentEvaluationSource;
+import com.fit.fitnessapp.experiment.domain.AdherenceStatus;
+import com.fit.fitnessapp.experiment.domain.ExperimentCheckIn;
 import com.fit.fitnessapp.experiment.domain.AggregateVersionConflictException;
 import com.fit.fitnessapp.experiment.domain.CalculationInput;
 import com.fit.fitnessapp.experiment.domain.CalculationResult;
@@ -19,6 +22,7 @@ import com.fit.fitnessapp.experiment.domain.ExperimentStatus;
 import com.fit.fitnessapp.experiment.domain.IdempotencyConflictException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -40,15 +44,19 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
     private final EvaluationCalculator calculator;
     private final ExperimentMetrics metrics;
     private final Clock clock;
+    private final ExperimentEvaluationSource evaluationSources;
+    private final ApplicationEventPublisher events;
 
     @Autowired
     public ExperimentEvaluationService(ExperimentRepositoryPort experiments,
                                         EvidenceRepositoryPort evidence,
                                         CommandReceiptPort receipts,
                                         InvestigationRepositoryPort investigations,
-                                        ExperimentMetrics metrics) {
+                                        ExperimentMetrics metrics,
+                                        ExperimentEvaluationSource evaluationSources,
+                                        ApplicationEventPublisher events) {
         this(experiments, evidence, receipts, investigations, new EvaluationCalculator(), metrics,
-                Clock.systemUTC());
+                Clock.systemUTC(), evaluationSources, events);
     }
 
     public ExperimentEvaluationService(ExperimentRepositoryPort experiments,
@@ -57,7 +65,9 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
                                         InvestigationRepositoryPort investigations,
                                         EvaluationCalculator calculator,
                                         ExperimentMetrics metrics,
-                                        Clock clock) {
+                                        Clock clock,
+                                        ExperimentEvaluationSource evaluationSources,
+                                        ApplicationEventPublisher events) {
         this.experiments = experiments;
         this.evidence = evidence;
         this.receipts = receipts;
@@ -65,6 +75,8 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
         this.calculator = calculator;
         this.metrics = metrics;
         this.clock = clock;
+        this.evaluationSources = evaluationSources;
+        this.events = events;
     }
 
     @Override
@@ -117,11 +129,16 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
         Instant evaluatedAt = Instant.now(clock);
         LocalDate interventionStart = experiment.baselineEndDate().plusDays(1);
         LocalDate interventionEnd = interventionStart.plusDays(experiment.durationDays() - 1L);
-        EvidenceRepositoryPort.CheckInSummary counts = evidence.countCheckIns(
+        var checkIns = evidence.findCheckInsByUserIdAndExperimentIdAndLocalDateBetween(
                 userId, experimentId, interventionStart, interventionEnd);
+        var countsByStatus = checkIns.stream().collect(java.util.stream.Collectors.groupingBy(
+                ExperimentCheckIn::adherence, java.util.stream.Collectors.counting()));
+        int yes = countsByStatus.getOrDefault(AdherenceStatus.YES, 0L).intValue();
+        int no = countsByStatus.getOrDefault(AdherenceStatus.NO, 0L).intValue();
+        int partial = countsByStatus.getOrDefault(AdherenceStatus.PARTIAL, 0L).intValue();
         CalculationInput input = new CalculationInput(
-                experiment.durationDays(), counts.yesDays(), counts.noDays(), counts.partialDays(),
-                counts.unknownDays(), outcome.baselineValue(), outcome.observedValue(),
+                experiment.durationDays(), yes, no, partial,
+                experiment.durationDays() - yes - no - partial, outcome.baselineValue(), outcome.observedValue(),
                 outcome.baselineSampleCount(), outcome.observedSampleCount(),
                 experiment.outcomeDirection(), experiment.meaningfulChange(), outcome.observedAt(),
                 evaluatedAt, EvaluationCalculator.DEFAULT_MAX_FRESHNESS_DAYS,
@@ -130,6 +147,9 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
         CalculationResult result = calculator.calculate(input);
         Map<String, Object> calculationInputs = new LinkedHashMap<>(result.calculationInputs());
         calculationInputs.put("expectedVersion", expectedVersion);
+        // The calculator and provenance use the same immutable rows, never a later window query.
+        calculationInputs.put("evaluationOutcomeId", outcome.id());
+        calculationInputs.put("evaluationCheckInIds", checkIns.stream().map(ExperimentCheckIn::id).sorted().toList());
         Evaluation evaluation = new Evaluation(null, userId, experimentId, result.formulaVersion(),
                 result.recommendedDecision(), result.dataQuality(), result.observedEffect(),
                 result.confounderAssessment(), result.effectDelta(), result.effectThreshold(),
@@ -146,6 +166,8 @@ public class ExperimentEvaluationService implements ExperimentEvaluationUseCase 
         }
         reserveReceipt(userId, stored.id(), idempotencyKey, expectedVersion, fingerprint, stored.evaluatedAt());
         if (write.status() == EvidenceRepositoryPort.WriteStatus.INSERTED) {
+            events.publishEvent(evaluationSources.find(userId, stored.id())
+                    .orElseThrow(() -> new IllegalStateException("evaluation provenance is unavailable")));
             metrics.evaluated(stored.recommendedDecision());
             metrics.evaluationDecision(stored.recommendedDecision());
             metrics.timeToEvaluation(investigationCreatedAt, stored.evaluatedAt());

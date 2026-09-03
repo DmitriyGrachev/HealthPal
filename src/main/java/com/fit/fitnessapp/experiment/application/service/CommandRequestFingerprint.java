@@ -77,6 +77,15 @@ final class CommandRequestFingerprint {
         return digest("EVALUATION", experimentId, expectedVersion);
     }
 
+    static String evaluationResult(com.fit.fitnessapp.experiment.domain.Evaluation evaluation,
+            List<com.fit.fitnessapp.experiment.api.ExperimentEvaluationCompletedEvent.EvidenceIdentity> evidence) {
+        return digest("EVALUATION_RESULT", evaluation.id(), evaluation.experimentId(), evaluation.formulaVersion(),
+                evaluation.dataQuality(), evaluation.observedEffect(), evaluation.recommendedDecision(),
+                evaluation.confounderAssessment(), canonicalNumber(evaluation.effectDelta()), canonicalNumber(evaluation.effectThreshold()),
+                canonicalNumber(evaluation.coverage()), canonicalNumber(evaluation.adherence()), evaluation.freshnessDays(),
+                canonicalList(evaluation.reasonCodes().stream().toList()), evidence, evaluation.evaluatedAt());
+    }
+
     static String decision(Long experimentId, Long evaluationId,
                            com.fit.fitnessapp.experiment.domain.EvaluationDecision decision,
                            String note) {

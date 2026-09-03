@@ -4,14 +4,16 @@
 
 **Goal:** add a user-visible, explainable personal knowledge layer whose PostgreSQL source of truth survives provider replacement, vector deletion, replay, and account lifecycle operations.
 
-## Execution checkpoint — 2026-09-03
+## Execution checkpoint — 2026-09-04
 
 - Iteration 2.1 is committed as `49035b1`.
 - Iteration 2.2 is committed as `0420289`; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
 - Iteration 2.3 is committed as `6e507eb`; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
 - Iteration 2.4 is committed as `bcf3e7c`: [Versioned memory projections](../../runbooks/versioned-memory-projections.md).
-- Iteration 2.5 is implemented and verified inline, with no subagents: [Claim consistency contract](../../runbooks/claim-consistency.md).
-- Next: Iteration 2.6, Experiment/AI integration and the Phase 2 exit gate. Phase 2 is not yet complete.
+- Iteration 2.5 is committed as `906c3c2`: [Claim consistency contract](../../runbooks/claim-consistency.md).
+- Iteration 2.6 is in progress inline, without subagents. Its first checkpoint is [Evaluation-to-Claim integration](../../runbooks/experiment-result-claims.md); the remaining Decision/AI adapters, metrics/lifecycle audit and final Phase 2 gate are still open.
+- The first checkpoint fixes evidence membership at calculation time and rereads exact immutable source rows before idempotent Claim creation. Historical evaluations without this snapshot are deliberately not backfilled. One additional parameter case covers insufficient data; the existing core workflow also checks late-input stability and forget/account-delete replay.
+- Verification for this 2.6 checkpoint: `mvn verify -Pintegration` passed (650 default and 139 PostgreSQL tests, no failures/errors); architecture 11 tests with one intentional skip; `dependency:analyze-only`, privacy and diff checks passed. The known post-exit fork warning recurred, with Maven exit 0. Awaitility is now explicitly declared as a test dependency at its existing Boot-managed version. Primary inline review checked exact provenance, after-commit processing, source/owner/tombstone fencing and reverse-dependency prohibition. Graphify rebuilt (4867 nodes, 9084 edges); generated artifacts stay excluded. These results do not close the remaining 2.6 requirements or the final Phase gate.
 - Verification for 2.5: `mvn verify -Pintegration` passed (650 fresh default tests, 138 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy and diff checks passed. The known post-`System.exit(0)` integration-fork warning recurred; Maven exited 0.
 - Eight core cases added: three detector tests, three transactional consistency cases, one MockMvc command case and one dirty historical upgrade case. Existing lifecycle tests cover both new tables. Numeric equality was RED before correction (`1` and `1.00`); one context fixture was corrected to model independent predicates rather than accidental contradictions.
 - Primary review confirmed owner/version/idempotency fencing, atomic canonical refresh, read-only context protection despite dismissal, metadata-only exports and enum-only metrics. Source staleness uses registered local high-watermarks, not external polling; wall-clock expiry refresh is paged and eventually consistent. No automatic Claim correction or trust promotion.

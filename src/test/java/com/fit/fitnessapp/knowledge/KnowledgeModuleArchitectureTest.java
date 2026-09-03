@@ -13,13 +13,13 @@ class KnowledgeModuleArchitectureTest {
     private final ApplicationModules modules = ApplicationModules.of(FitnessAppApplication.class);
 
     @Test
-    void knowledgeUsesOnlyLifecycleCurrentUserAndExperimentQueryContracts() {
+    void knowledgeUsesOnlyDeclaredLifecycleCurrentUserExperimentAndJobContracts() {
         ApplicationModule knowledge = modules.getModuleByName("knowledge").orElseThrow();
 
         assertThat(knowledge.getAllowedDependencies(modules).stream()
                 .map(Object::toString)
                 .map(value -> value.replace(" ", ""))
-                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user", "experiment::query-api", "job");
+                .toList()).containsExactlyInAnyOrder("api::lifecycle", "auth::current-user", "experiment::query-api", "experiment::api", "job");
         assertThat(knowledge.getDirectDependencies(modules).stream()
                 .map(dependency -> dependency.getTargetModule().getIdentifier().toString())
                 .distinct()

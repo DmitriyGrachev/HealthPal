@@ -13,7 +13,8 @@ import com.fit.fitnessapp.experiment.domain.GoalStatus;
 import com.fit.fitnessapp.experiment.domain.InvestigationStatus;
 import com.fit.fitnessapp.support.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -25,7 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@TestPropertySource(properties = "app.ai.experiment-draft-enabled=false")
+@TestPropertySource(properties = {"app.ai.experiment-draft-enabled=false", "app.memory.knowledge-events-enabled=false"})
 class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
@@ -51,14 +52,20 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
 
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired private com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimRepositoryPort knowledge;
+    @Autowired private com.fit.fitnessapp.experiment.api.ExperimentEvaluationSource evaluationSources;
+    @Autowired private com.fit.fitnessapp.knowledge.application.service.ExperimentResultClaimService resultClaims;
+    @Autowired private com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimInspectorUseCase inspector;
 
     @AfterEach
     void removeFixtureUsers() {
         jdbc.update("DELETE FROM users WHERE username LIKE 'debugger-alpha-%'");
     }
 
-    @Test
-    void completesManualAlphaWorkflowWithAiDisabled() {
+    @ParameterizedTest
+    @CsvSource({"6, KEEP, SUFFICIENT, SUPPORTED", "3, INCONCLUSIVE, INSUFFICIENT, PROPOSED"})
+    void completesManualAlphaWorkflowWithAiDisabled(int checkInDays, String recommendation,
+                                                   String quality, String verification) {
         assertThat(aiProperties.experimentDraftEnabled()).isFalse();
         assertThat(aiProperties.allowSensitiveExternalEgress()).isFalse();
 
@@ -116,7 +123,7 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
 
         LocalDate interventionStart = baselineEnd.plusDays(1);
         assertThat(interventionStart.plusDays(6)).isEqualTo(today);
-        for (int day = 0; day < 7; day++) {
+        for (int day = 0; day < checkInDays; day++) {
             DebuggerWorkflowUseCase.EvidenceResult checkIn = workflow.recordCheckIn(
                     userId,
                     new DebuggerWorkflowUseCase.CheckInDraft(
@@ -138,8 +145,27 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
                 userId, draft.experimentId(), active.aggregateVersion(), "COMPLETED", "alpha-experiment-completed");
         DebuggerWorkflowUseCase.EvaluationResult evaluation = workflow.evaluate(
                 userId, draft.experimentId(), completed.aggregateVersion(), "alpha-evaluation");
-        assertThat(evaluation.recommendedDecision()).isEqualTo(EvaluationDecision.KEEP.name());
-        assertThat(evaluation.dataQuality()).isEqualTo("SUFFICIENT");
+        assertThat(evaluation.recommendedDecision()).isEqualTo(recommendation);
+        assertThat(evaluation.dataQuality()).isEqualTo(quality);
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(knowledge.findAllByOwner(userId)).hasSize(1));
+        var resultClaim = knowledge.findAllByOwner(userId).getFirst();
+        assertThat(resultClaim.origin()).isEqualTo(com.fit.fitnessapp.knowledge.domain.ClaimOrigin.EXPERIMENT_RESULT);
+        assertThat(resultClaim.verification().name()).isEqualTo(verification);
+        assertThat(resultClaim.value().canonicalValue()).isEqualTo("POSITIVE");
+        assertThat(resultClaim.evidence()).hasSize(checkInDays + 2); // evaluation, outcome, calculated check-ins
+        var resultEvent = evaluationSources.find(userId, evaluation.evaluationId()).orElseThrow();
+        for (int day = checkInDays; day < 7; day++) {
+            workflow.recordCheckIn(userId, new DebuggerWorkflowUseCase.CheckInDraft(
+                    draft.experimentId(), interventionStart.plusDays(day), "UTC", "YES",
+                    null, null, null, null, null), "late-check-in-" + day);
+        }
+        assertThat(evaluationSources.find(userId, evaluation.evaluationId())).contains(resultEvent);
+        resultClaims.project(resultEvent);
+        assertThat(knowledge.findAllByOwner(userId)).hasSize(1);
+        inspector.forget(userId, resultClaim.id(), resultClaim.aggregateVersion(), "forget-result");
+        resultClaims.project(resultEvent);
+        assertThat(knowledge.findAllByOwner(userId)).isEmpty();
 
         var decision = decisions.decide(
                 userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
@@ -166,6 +192,9 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
         assertThat(count("experiment_outcomes", userId, draft.experimentId())).isOne();
         assertThat(count("experiment_evaluations", userId, draft.experimentId())).isOne();
         assertThat(count("experiment_decisions", userId, draft.experimentId())).isOne();
+        jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        resultClaims.project(resultEvent);
+        assertThat(knowledge.findAllByOwner(userId)).isEmpty();
     }
 
     private long insertFixtureUser() {

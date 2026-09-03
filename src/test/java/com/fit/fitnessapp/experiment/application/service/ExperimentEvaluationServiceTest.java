@@ -4,6 +4,10 @@ import com.fit.fitnessapp.experiment.application.port.out.CommandReceiptPort;
 import com.fit.fitnessapp.experiment.application.port.out.EvidenceRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.ExperimentRepositoryPort;
 import com.fit.fitnessapp.experiment.application.port.out.InvestigationRepositoryPort;
+import com.fit.fitnessapp.experiment.domain.AdherenceStatus;
+import com.fit.fitnessapp.experiment.domain.CheckInSource;
+import com.fit.fitnessapp.experiment.domain.ExperimentCheckIn;
+import org.springframework.context.ApplicationEventPublisher;
 import com.fit.fitnessapp.experiment.domain.ConfounderAssessment;
 import com.fit.fitnessapp.experiment.domain.Evaluation;
 import com.fit.fitnessapp.experiment.domain.EvaluationCalculator;
@@ -47,6 +51,7 @@ class ExperimentEvaluationServiceTest {
     private CommandReceiptPort receipts;
     private ExperimentMetrics metrics;
     private ExperimentEvaluationService service;
+    private ApplicationEventPublisher events;
 
     @BeforeEach
     void setUp() {
@@ -55,8 +60,10 @@ class ExperimentEvaluationServiceTest {
         evidence = mock(EvidenceRepositoryPort.class);
         receipts = mock(CommandReceiptPort.class);
         metrics = mock(ExperimentMetrics.class);
+        events = mock(ApplicationEventPublisher.class);
         service = new ExperimentEvaluationService(experiments, evidence, receipts, investigations,
-                new EvaluationCalculator(), metrics, Clock.fixed(NOW, ZoneOffset.UTC));
+                new EvaluationCalculator(), metrics, Clock.fixed(NOW, ZoneOffset.UTC),
+                new ExperimentEvaluationSourceService(evidence, experiments), events);
         when(receipts.find(any(), any(), any())).thenReturn(Optional.empty());
         when(receipts.insert(any(), any(), any(), any(), anyLong(), any(), any())).thenReturn(true);
     }
@@ -88,18 +95,26 @@ class ExperimentEvaluationServiceTest {
     @Test
     void persistsDeterministicInputsAndRecordsMetricsOnlyForNewEvaluation() {
         Experiment completed = experiment(ExperimentStatus.COMPLETED, 4L);
-        Outcome outcome = new Outcome(null, 42L, 7L, "weight", BigDecimal.valueOf(100),
+        Outcome outcome = new Outcome(8L, 42L, 7L, "weight", BigDecimal.valueOf(100),
                 BigDecimal.valueOf(102), "kg", 2, 2, NOW.minusSeconds(86_400),
                 OutcomeSource.MANUAL, null, NOW);
         when(experiments.findExperimentByUserIdAndIdForUpdate(42L, 7L)).thenReturn(Optional.of(completed));
         when(evidence.findPrimaryOutcomeByUserIdAndExperimentId(42L, 7L)).thenReturn(Optional.of(outcome));
+        when(evidence.findOutcomeByUserIdAndId(42L, 8L)).thenReturn(Optional.of(outcome));
+        when(experiments.findExperimentByUserIdAndId(42L, 7L)).thenReturn(Optional.of(completed));
         when(investigations.findByUserIdAndId(42L, 11L)).thenReturn(
                 Optional.of(new com.fit.fitnessapp.experiment.domain.Investigation(
                         11L, 42L, "test", "test problem",
                         com.fit.fitnessapp.experiment.domain.InvestigationStatus.OPEN, 0L, NOW, NOW)));
         when(evidence.confounderAssessment(42L, 7L)).thenReturn(ConfounderAssessment.NONE);
-        when(evidence.countCheckIns(eq(42L), eq(7L), any(), any()))
-                .thenReturn(new EvidenceRepositoryPort.CheckInSummary(8, 1, 1, 0));
+        var checkIns = java.util.stream.IntStream.range(0, 10).mapToObj(day -> new ExperimentCheckIn(
+                20L + day, 42L, 7L, completed.baselineEndDate().plusDays(day + 1L), ZoneOffset.UTC,
+                null, null, day < 8 ? AdherenceStatus.YES : day == 8 ? AdherenceStatus.NO : AdherenceStatus.PARTIAL,
+                null, null, null, null, null, null, CheckInSource.MANUAL, NOW, NOW)).toList();
+        when(evidence.findCheckInsByUserIdAndExperimentIdAndLocalDateBetween(eq(42L), eq(7L), any(), any()))
+                .thenReturn(checkIns);
+        checkIns.forEach(checkIn -> when(evidence.findCheckInByUserIdAndId(42L, checkIn.id()))
+                .thenReturn(Optional.of(checkIn)));
         when(evidence.insertEvaluation(any())).thenAnswer(invocation -> {
             Evaluation requested = invocation.getArgument(0);
             Evaluation stored = new Evaluation(9L, requested.userId(), requested.experimentId(),
@@ -108,6 +123,7 @@ class ExperimentEvaluationServiceTest {
                     requested.effectThreshold(), requested.coverage(), requested.adherence(),
                     requested.freshnessDays(), requested.calculationInputs(), requested.reasonCodes(),
                     requested.evaluatedAt());
+            when(evidence.findEvaluationByUserIdAndId(42L, 9L)).thenReturn(Optional.of(stored));
             return new EvidenceRepositoryPort.EvaluationWriteResult(
                     EvidenceRepositoryPort.WriteStatus.INSERTED, stored);
         });
@@ -116,6 +132,9 @@ class ExperimentEvaluationServiceTest {
 
         assertThat(evaluation.recommendedDecision().name()).isEqualTo("KEEP");
         assertThat(evaluation.calculationInputs()).containsEntry("expectedVersion", 4L);
+        assertThat(evaluation.calculationInputs()).containsEntry("evaluationOutcomeId", 8L)
+                .containsEntry("evaluationCheckInIds", checkIns.stream().map(ExperimentCheckIn::id).toList());
+        verify(events).publishEvent(any(com.fit.fitnessapp.experiment.api.ExperimentEvaluationCompletedEvent.class));
         verify(metrics).evaluated(evaluation.recommendedDecision());
         verify(metrics).evaluationDecision(evaluation.recommendedDecision());
         verify(metrics).timeToEvaluation(NOW, evaluation.evaluatedAt());
