@@ -109,7 +109,7 @@ public class ExperimentEvidenceController {
         String key = resolveIdempotencyKey(request.idempotencyKey(), headerKey);
         EvidenceCommandResult<com.fit.fitnessapp.experiment.domain.UserDecision> result =
                 decisions.decideWithStatus(userId, experimentId, request.evaluationId(), request.decision(),
-                        request.note(), key);
+                        request.note(), request.claimsUsed(), key);
         ExperimentDecisionResponse response = ExperimentDecisionResponse.from(result.value());
         return response(result.created(), "/api/v1/experiments/" + experimentId
                 + "/decision/" + response.id(), response);

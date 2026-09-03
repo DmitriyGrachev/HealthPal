@@ -22,7 +22,7 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
 
     @Override
     public int exportSchemaVersion() {
-        return 4;
+        return 5;
     }
 
     @Override
@@ -48,7 +48,7 @@ public class KnowledgeUserDataLifecycleParticipant implements UserDataLifecycleP
                           FROM knowledge_claim_command_receipts WHERE user_id = ? ORDER BY id
                         """, userId),
                 "claimUsage", jdbc.queryForList("""
-                        SELECT id, claim_id, purpose, consumer_id, used_at
+                        SELECT id, claim_id, claim_version, claim_content_hash, purpose, consumer_id, used_at
                           FROM knowledge_claim_usage WHERE user_id = ? ORDER BY id
                         """, userId),
                 "claimConflicts", jdbc.queryForList("""

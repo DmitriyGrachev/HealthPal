@@ -110,6 +110,12 @@ public class ExperimentExceptionHandler {
                 "The Experiment is not completed", request);
     }
 
+    @ExceptionHandler(com.fit.fitnessapp.experiment.api.DecisionContextRejectedException.class)
+    ResponseEntity<ExperimentApiError> decisionContextRejected(HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "DECISION_CONTEXT_REJECTED",
+                "Decision context is unavailable, stale, unconfirmed or conflicting; refresh and review it", request);
+    }
+
     @ExceptionHandler(EvaluationInsufficientEvidenceException.class)
     ResponseEntity<ExperimentApiError> evaluationInsufficientEvidence(HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, "EVALUATION_INSUFFICIENT_EVIDENCE",

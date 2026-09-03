@@ -5,6 +5,7 @@ import java.util.Optional;
 
 public interface CommandReceiptPort {
     Optional<CommandReceipt> find(Long userId, String aggregateType, String idempotencyKey);
+    Optional<String> findFingerprintByAggregate(Long userId, String aggregateType, Long aggregateId);
     boolean insert(Long userId, String aggregateType, Long aggregateId, String idempotencyKey, long resultVersion,
                    String requestFingerprint, Instant createdAt);
 

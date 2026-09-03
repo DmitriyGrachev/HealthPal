@@ -9,5 +9,9 @@ public record ExperimentDecisionRequest(
         @NotNull @Positive Long evaluationId,
         @NotNull EvaluationDecision decision,
         @Size(max = 500) String note,
-        @Size(max = 128) String idempotencyKey) {
+        @Size(max = 128) String idempotencyKey,
+        java.util.List<com.fit.fitnessapp.experiment.api.DecisionClaimReference> claimsUsed) {
+    public ExperimentDecisionRequest {
+        claimsUsed = com.fit.fitnessapp.experiment.api.DecisionClaimReference.canonicalize(claimsUsed);
+    }
 }

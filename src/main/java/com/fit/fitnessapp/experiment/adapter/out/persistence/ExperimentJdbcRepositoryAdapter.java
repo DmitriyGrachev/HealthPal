@@ -507,6 +507,15 @@ public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryP
                 .stream().findFirst();
     }
 
+    @Override
+    public Optional<String> findFingerprintByAggregate(Long userId, String aggregateType, Long aggregateId) {
+        return jdbc.query("""
+                SELECT request_fingerprint FROM experiment_command_receipts
+                 WHERE user_id = ? AND aggregate_type = ? AND aggregate_id = ?
+                 ORDER BY created_at, idempotency_key LIMIT 1
+                """, (rs, rowNum) -> rs.getString(1), userId, aggregateType, aggregateId).stream().findFirst();
+    }
+
     /** A false result deterministically identifies a duplicate owner/aggregate/key command. */
     @Override
     public boolean insert(Long userId, String aggregateType, Long aggregateId, String idempotencyKey,

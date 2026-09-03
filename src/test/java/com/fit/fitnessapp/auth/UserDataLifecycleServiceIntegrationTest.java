@@ -210,7 +210,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 .filter(module -> module.moduleKey().equals("knowledge"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(knowledgeModule.schemaVersion()).isEqualTo(4);
+        assertThat(knowledgeModule.schemaVersion()).isEqualTo(5);
         @SuppressWarnings("unchecked")
         var exportedConflictReceipts = (List<Map<String, Object>>) knowledgeModule.data().get("conflictCommandReceipts");
         assertThat(exportedConflictReceipts).hasSize(1).allSatisfy(row -> assertThat(row)
@@ -251,7 +251,7 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
         List<Map<String, Object>> exportedDeletionReceipts = (List<Map<String, Object>>)
                 knowledgeModule.data().get("deletionReceipts");
         assertThat(exportedClaimUsage).singleElement().satisfies(usage -> assertThat(usage)
-                .containsKeys("id", "claim_id", "purpose", "consumer_id", "used_at")
+                .containsKeys("id", "claim_id", "claim_version", "claim_content_hash", "purpose", "consumer_id", "used_at")
                 .doesNotContainKeys("user_id", "userId"));
         assertThat(exportedClaimConflicts).singleElement().satisfies(conflict -> assertThat(conflict)
                 .containsKeys("id", "left_claim_id", "right_claim_id", "reason", "status", "created_at")
@@ -1241,9 +1241,10 @@ class UserDataLifecycleServiceIntegrationTest extends AbstractPostgresIntegratio
                 """, Long.class, userId, "conflicting-claim-" + userId,
                 "lifecycle-conflict-" + userId);
         jdbc.update("""
-                INSERT INTO knowledge_claim_usage (user_id, claim_id, purpose, consumer_id)
-                VALUES (?, ?, 'AI_ANSWER', ?)
-                """, userId, claimId, "answer-" + userId);
+                INSERT INTO knowledge_claim_usage (user_id, claim_id, purpose, consumer_id, claim_version, claim_content_hash)
+                SELECT user_id, id, 'AI_ANSWER', ?, aggregate_version, content_hash
+                  FROM knowledge_claims WHERE user_id = ? AND id = ?
+                """, "answer-" + userId, userId, claimId);
         jdbc.update("""
                 INSERT INTO knowledge_claim_conflicts
                     (user_id, left_claim_id, right_claim_id, reason, status)

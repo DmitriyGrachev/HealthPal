@@ -696,7 +696,7 @@ class HistoricalUpgradeIntegrationTest {
         assertThat(count("fatsecret_day", "TRUE")).isZero();
         assertThat(count("fatsecret_food", "TRUE")).isZero();
         assertThat(jdbc.queryForObject("SELECT version FROM " + table("flyway_schema_history")
-                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("40");
+                + " WHERE success ORDER BY installed_rank DESC LIMIT 1", String.class)).isEqualTo("41");
     }
 
     @Test
@@ -733,11 +733,18 @@ class HistoricalUpgradeIntegrationTest {
         jdbc.update("INSERT INTO " + table("knowledge_claim_conflicts")
                         + " (user_id, left_claim_id, right_claim_id, reason, status) VALUES (?, ?, ?, 'VALUE_CONTRADICTION', 'DISMISSED'), (?, ?, ?, 'VALUE_CONTRADICTION', 'OPEN')",
                 owner, ids.get(1), ids.get(0), owner, ids.get(0), ids.get(1));
+        jdbc.update("INSERT INTO " + table("knowledge_claim_usage")
+                + " (user_id, claim_id, purpose, consumer_id) VALUES (?, ?, 'EXPERIMENT_DECISION', 'legacy-decision')",
+                owner, ids.get(0));
         migrateToLatest();
         assertThat(count("knowledge_claims", "TRUE")).isEqualTo(2);
         var conflict = jdbc.queryForMap("SELECT left_claim_id, right_claim_id, status, aggregate_version FROM " + table("knowledge_claim_conflicts"));
         assertThat(conflict).containsEntry("left_claim_id", ids.get(0)).containsEntry("right_claim_id", ids.get(1))
                 .containsEntry("status", "OPEN").containsEntry("aggregate_version", 0L);
+        assertThat(jdbc.queryForMap("SELECT claim_version, claim_content_hash FROM " + table("knowledge_claim_usage")))
+                .containsEntry("claim_version", null).containsEntry("claim_content_hash", null);
+        assertThatThrownBy(() -> jdbc.update("UPDATE " + table("knowledge_claim_usage") + " SET claim_version = 0"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("INSERT INTO " + table("knowledge_claim_conflicts")
                 + " (user_id,left_claim_id,right_claim_id,reason) VALUES (?, ?, ?, 'VALUE_CONTRADICTION')", owner, ids.get(0), ids.get(1)))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);

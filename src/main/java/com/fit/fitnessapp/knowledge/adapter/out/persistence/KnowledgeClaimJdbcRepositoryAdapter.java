@@ -240,10 +240,12 @@ public class KnowledgeClaimJdbcRepositoryAdapter
     public boolean insert(Long userId, Long claimId, ClaimUsagePurpose purpose,
                           String consumerId, Instant usedAt) {
         return jdbc.update("""
-                INSERT INTO knowledge_claim_usage (user_id, claim_id, purpose, consumer_id, used_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO knowledge_claim_usage
+                    (user_id, claim_id, purpose, consumer_id, used_at, claim_version, claim_content_hash)
+                SELECT user_id, id, ?, ?, ?, aggregate_version, content_hash
+                  FROM knowledge_claims WHERE user_id = ? AND id = ?
                 ON CONFLICT (user_id, claim_id, purpose, consumer_id) DO NOTHING
-                """, userId, claimId, purpose.name(), consumerId, timestamp(usedAt)) == 1;
+                """, purpose.name(), consumerId, timestamp(usedAt), userId, claimId) == 1;
     }
 
     @Override

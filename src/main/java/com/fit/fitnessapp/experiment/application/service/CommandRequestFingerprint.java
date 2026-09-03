@@ -93,6 +93,14 @@ final class CommandRequestFingerprint {
                 canonicalText(note));
     }
 
+    static String decision(Long experimentId, Long evaluationId,
+                           com.fit.fitnessapp.experiment.domain.EvaluationDecision decision, String note,
+                           List<com.fit.fitnessapp.experiment.api.DecisionClaimReference> references) {
+        String base = decision(experimentId, evaluationId, decision, note);
+        var canonical = com.fit.fitnessapp.experiment.api.DecisionClaimReference.canonicalize(references);
+        return canonical.isEmpty() ? base : digest("DECISION_WITH_CONTEXT", base, canonical);
+    }
+
     private static String digest(Object... values) {
         StringBuilder canonical = new StringBuilder();
         for (Object value : values) {

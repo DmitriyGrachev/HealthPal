@@ -169,7 +169,7 @@ class ExperimentEvidenceControllerTest {
         when(evaluations.evaluateWithStatus(eq(USER_ID), eq(7L), eq(2L), eq("evaluation-1")))
                 .thenReturn(new EvidenceCommandResult<>(evaluation, false));
         when(decisions.decideWithStatus(eq(USER_ID), eq(7L), eq(11L), eq(EvaluationDecision.MODIFY),
-                eq("confirm"), eq("decision-1")))
+                eq("confirm"), eq(List.of()), eq("decision-1")))
                 .thenReturn(new EvidenceCommandResult<>(decision, true));
 
         mockMvc.perform(post("/api/v1/experiments/7/outcomes").with(user("me").roles("USER"))
@@ -202,7 +202,20 @@ class ExperimentEvidenceControllerTest {
         org.assertj.core.api.Assertions.assertThat(outcomeCaptor.getValue().experimentId()).isEqualTo(7L);
         verify(evaluations).evaluateWithStatus(eq(USER_ID), eq(7L), eq(2L), eq("evaluation-1"));
         verify(decisions).decideWithStatus(eq(USER_ID), eq(7L), eq(11L), eq(EvaluationDecision.MODIFY),
-                eq("confirm"), eq("decision-1"));
+                eq("confirm"), eq(List.of()), eq("decision-1"));
+
+        var reference = new com.fit.fitnessapp.experiment.api.DecisionClaimReference(101L, 1, "a".repeat(64));
+        when(decisions.decideWithStatus(USER_ID, 7L, 11L, EvaluationDecision.MODIFY,
+                null, List.of(reference), "disputed-context"))
+                .thenThrow(new com.fit.fitnessapp.experiment.api.DecisionContextRejectedException());
+        mockMvc.perform(post("/api/v1/experiments/7/decision").with(user("me").roles("USER"))
+                        .header("Idempotency-Key", "disputed-context").contentType("application/json")
+                        .content("""
+                                {"evaluationId":11,"decision":"MODIFY",
+                                 "claimsUsed":[{"claimId":101,"version":1,"contentHash":"%s"}]}
+                                """.formatted(reference.contentHash())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DECISION_CONTEXT_REJECTED"));
     }
 
     @Test

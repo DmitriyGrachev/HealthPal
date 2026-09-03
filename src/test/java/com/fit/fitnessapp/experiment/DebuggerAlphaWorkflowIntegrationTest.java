@@ -56,6 +56,7 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
     @Autowired private com.fit.fitnessapp.experiment.api.ExperimentEvaluationSource evaluationSources;
     @Autowired private com.fit.fitnessapp.knowledge.application.service.ExperimentResultClaimService resultClaims;
     @Autowired private com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimInspectorUseCase inspector;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
 
     @AfterEach
     void removeFixtureUsers() {
@@ -163,14 +164,49 @@ class DebuggerAlphaWorkflowIntegrationTest extends AbstractPostgresIntegrationTe
         assertThat(evaluationSources.find(userId, evaluation.evaluationId())).contains(resultEvent);
         resultClaims.project(resultEvent);
         assertThat(knowledge.findAllByOwner(userId)).hasSize(1);
+
+        if (verification.equals("PROPOSED")) {
+            var proposedRef = new com.fit.fitnessapp.experiment.api.DecisionClaimReference(
+                    resultClaim.id(), resultClaim.aggregateVersion(), resultClaim.contentHash());
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> decisions.decideWithStatus(
+                    userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                    "Keep the intervention", java.util.List.of(proposedRef), "unverified-decision"))
+                    .isInstanceOf(com.fit.fitnessapp.experiment.api.DecisionContextRejectedException.class);
+            resultClaim = inspector.confirm(userId, resultClaim.id(), resultClaim.aggregateVersion(), "confirm-result");
+        }
+        var usedRef = new com.fit.fitnessapp.experiment.api.DecisionClaimReference(
+                resultClaim.id(), resultClaim.aggregateVersion(), resultClaim.contentHash());
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status -> {
+            decisions.decideWithStatus(userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                    "Keep the intervention", java.util.List.of(usedRef), "rollback-decision");
+            status.setRollbackOnly();
+        });
+        assertThat(count("experiment_decisions", userId, draft.experimentId())).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, userId)).isZero();
+
+        var decision = decisions.decideWithStatus(
+                userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                "Keep the intervention", java.util.List.of(usedRef), "alpha-decision").value();
+        assertThat(decision.decision()).isEqualTo(EvaluationDecision.KEEP);
+        assertThat(jdbc.queryForMap("""
+                SELECT claim_id, claim_version, claim_content_hash, consumer_id
+                  FROM knowledge_claim_usage WHERE user_id = ?
+                """, userId)).containsEntry("claim_id", usedRef.claimId())
+                .containsEntry("claim_version", usedRef.version())
+                .containsEntry("claim_content_hash", usedRef.contentHash())
+                .containsEntry("consumer_id", "experiment-decision:" + decision.id());
+        assertThat(decisions.decideWithStatus(userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                "Keep the intervention", java.util.List.of(usedRef), "alpha-decision-alias").created()).isFalse();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> decisions.decideWithStatus(
+                userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                "Keep the intervention", java.util.List.of(), "alpha-decision"))
+                .isInstanceOf(com.fit.fitnessapp.experiment.domain.IdempotencyConflictException.class);
         inspector.forget(userId, resultClaim.id(), resultClaim.aggregateVersion(), "forget-result");
         resultClaims.project(resultEvent);
         assertThat(knowledge.findAllByOwner(userId)).isEmpty();
-
-        var decision = decisions.decide(
-                userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
-                "Keep the intervention", "alpha-decision");
-        assertThat(decision.decision()).isEqualTo(EvaluationDecision.KEEP);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, userId)).isZero();
+        assertThat(decisions.decideWithStatus(userId, draft.experimentId(), evaluation.evaluationId(), EvaluationDecision.KEEP,
+                "Keep the intervention", java.util.List.of(usedRef), "alpha-decision").created()).isFalse();
 
         var evaluated = workflow.transitionExperiment(
                 userId, draft.experimentId(), completed.aggregateVersion(), "EVALUATED", "alpha-experiment-evaluated");
