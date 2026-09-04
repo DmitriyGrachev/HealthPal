@@ -7,6 +7,8 @@ import com.fit.fitnessapp.ai.AiPromptRenderer;
 import com.fit.fitnessapp.ai.AiProperties;
 import com.fit.fitnessapp.ai.ClassifiedAiPrompt;
 import com.fit.fitnessapp.ai.application.service.AiSafetyService;
+import com.fit.fitnessapp.ai.application.service.AiContextService;
+import com.fit.fitnessapp.knowledge.context.*;
 import com.fit.fitnessapp.experiment.spi.ExperimentDraft;
 import com.fit.fitnessapp.experiment.spi.ExperimentDraftGenerator;
 import com.fit.fitnessapp.experiment.spi.ExperimentDraftRequest;
@@ -25,9 +27,9 @@ import java.util.Optional;
 
 /** Optional, grounded AI proposal adapter. The manual experiment flow does not depend on this bean. */
 @Component
-public final class AiExperimentDraftGenerator implements ExperimentDraftGenerator {
+public class AiExperimentDraftGenerator implements ExperimentDraftGenerator {
 
-    private static final String PROMPT_TEMPLATE = "experiment-proposal-v1.md";
+    private static final String PROMPT_TEMPLATE = "experiment-proposal-v2.md";
     private static final int RESERVED_ATTEMPTS = 1;
     private static final BeanOutputConverter<AiExperimentDraftValidator.Candidate> OUTPUT_CONVERTER =
             new BeanOutputConverter<>(AiExperimentDraftValidator.Candidate.class);
@@ -39,6 +41,8 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
     private final AiExecutionGuard executionGuard;
     private final AiExperimentDraftValidator validator;
     private final DraftModelOperation modelOperation;
+    private final AiContextService contexts;
+    private final AiHypothesisWriter hypotheses;
 
     @Autowired
     public AiExperimentDraftGenerator(
@@ -48,9 +52,9 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
             AiEgressPolicy egressPolicy,
             AiExecutionGuard executionGuard,
             @Qualifier("openRouterChatClient") ChatClient chatClient,
-            AiExperimentDraftValidator validator) {
+            AiExperimentDraftValidator validator, AiContextService contexts, AiHypothesisWriter hypotheses) {
         this(properties.experimentDraftEnabled(), promptRenderer, safetyService, egressPolicy,
-                executionGuard, validator, modelOperation(chatClient, properties.QUICK_ANALYSIS_MODEL()));
+                executionGuard, validator, modelOperation(chatClient, properties.QUICK_ANALYSIS_MODEL()), contexts, hypotheses);
     }
 
     /** Package-private seam for offline tests; it never creates a provider client. */
@@ -61,7 +65,7 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
             AiEgressPolicy egressPolicy,
             AiExecutionGuard executionGuard,
             AiExperimentDraftValidator validator,
-            DraftModelOperation modelOperation) {
+            DraftModelOperation modelOperation, AiContextService contexts, AiHypothesisWriter hypotheses) {
         this.enabled = enabled;
         this.promptRenderer = Objects.requireNonNull(promptRenderer, "promptRenderer is required");
         this.safetyService = Objects.requireNonNull(safetyService, "safetyService is required");
@@ -69,9 +73,12 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
         this.executionGuard = Objects.requireNonNull(executionGuard, "executionGuard is required");
         this.validator = Objects.requireNonNull(validator, "validator is required");
         this.modelOperation = Objects.requireNonNull(modelOperation, "modelOperation is required");
+        this.contexts = Objects.requireNonNull(contexts, "contexts is required");
+        this.hypotheses = Objects.requireNonNull(hypotheses, "hypotheses is required");
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public Optional<ExperimentDraft> generate(ExperimentDraftRequest request) {
         Objects.requireNonNull(request, "request is required");
         if (!enabled || !request.sufficientForDraft()) {
@@ -84,11 +91,33 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
         String wrappedQuestion = safetyService.wrapUntrusted(
                 AiSafetyService.UntrustedDataType.USER_QUESTION,
                 request.untrustedProblemText());
-        String prompt = promptRenderer.render(PROMPT_TEMPLATE, promptVariables(request, wrappedQuestion))
-                + "\n\n" + OUTPUT_CONVERTER.getFormat();
-
-        // This check intentionally precedes the execution guard and provider call.
-        egressPolicy.validate(new ClassifiedAiPrompt(prompt, AiDataClass.SENSITIVE));
+        // Permission precedes optional context embeddings as well as the draft provider.
+        egressPolicy.validate(new ClassifiedAiPrompt(wrappedQuestion, AiDataClass.SENSITIVE));
+        AiContextService.PreparedExperimentContext prepared;
+        try {
+            prepared = contexts.prepareExperimentContext(new UserContextRequest(request.userId(), ContextPurpose.EXPERIMENT_DRAFT,
+                    request.baselineStartDate(), request.baselineEndDate().plusDays(request.durationDays()),
+                    request.goalId(), request.experimentId(), 3, 2_000));
+        } catch (RuntimeException unavailable) {
+            return Optional.empty();
+        }
+        var context = prepared.context();
+        if (context.experiment() == null || context.experiment().version() != request.experimentVersion()
+                || !context.experiment().id().equals(request.experimentId())
+                || !context.experiment().goalId().equals(request.goalId())
+                || !context.experiment().baselineStart().equals(request.baselineStartDate())
+                || !context.experiment().baselineEnd().equals(request.baselineEndDate())
+                || context.experiment().durationDays() != request.durationDays()
+                || !context.experiment().primaryMetric().equals(request.primaryMetric())
+                || !context.experiment().hypothesis().equals(request.currentHypothesis())
+                || context.goals().stream().noneMatch(g -> g.id().equals(request.goalId())
+                        && g.status().equals("ACTIVE") && g.name().equals(request.goalName()))
+                || context.metadata().rejectedClaims().stream().anyMatch(c -> c.reason().equals("OPEN_CONFLICT") || c.reason().equals("DISPUTED"))) {
+            return Optional.empty();
+        }
+        var variables = promptVariables(request, wrappedQuestion);
+        variables.put("knowledgeContext", prepared.text());
+        String prompt = promptRenderer.render(PROMPT_TEMPLATE, variables) + "\n\n" + OUTPUT_CONVERTER.getFormat();
 
         AiExperimentDraftValidator.Candidate candidate;
         try {
@@ -102,7 +131,14 @@ public final class AiExperimentDraftGenerator implements ExperimentDraftGenerato
         if (candidate == null) {
             return Optional.empty();
         }
-        return Optional.of(validator.validate(request, candidate));
+        var draft = validator.validate(request, candidate);
+        try {
+            var evidence = draft.evidenceRefs().stream().map(ref -> new ContextSlices.Source(
+                    ref.sourceType(), ref.sourceId(), ref.sourceVersion(), ref.contentHash())).toList();
+            return hypotheses.record(request.userId(), context, draft.hypothesis(), evidence) ? Optional.of(draft) : Optional.empty();
+        } catch (RuntimeException staleOrUnavailable) {
+            return Optional.empty();
+        }
     }
 
     private Map<String, Object> promptVariables(ExperimentDraftRequest request, String wrappedQuestion) {

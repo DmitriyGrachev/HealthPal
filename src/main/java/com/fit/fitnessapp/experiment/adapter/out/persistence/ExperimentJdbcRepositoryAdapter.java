@@ -52,13 +52,25 @@ import java.util.Optional;
 /** JDBC adapters for the V34-V36 experiment aggregates and generic command receipts. */
 @Repository
 public class ExperimentJdbcRepositoryAdapter implements InvestigationRepositoryPort, GoalRepositoryPort,
-        ExperimentRepositoryPort, CommandReceiptPort, EvidenceRepositoryPort {
+        ExperimentRepositoryPort, CommandReceiptPort, EvidenceRepositoryPort,
+        com.fit.fitnessapp.experiment.api.ExperimentDraftSource {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ExperimentJdbcRepositoryAdapter(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public boolean lockCurrent(Long owner, Long experimentId, long experimentVersion, Long goalId, long goalVersion) {
+        return !jdbc.query("""
+                SELECT e.id FROM experiments e JOIN goals g ON g.id = e.goal_id AND g.user_id = e.user_id
+                 WHERE e.user_id = ? AND e.id = ? AND e.aggregate_version = ?
+                   AND g.id = ? AND g.aggregate_version = ? AND g.status = 'ACTIVE'
+                 FOR SHARE OF e, g
+                """, (rs, row) -> rs.getLong(1), owner, experimentId, experimentVersion, goalId, goalVersion).isEmpty();
     }
 
     @Override

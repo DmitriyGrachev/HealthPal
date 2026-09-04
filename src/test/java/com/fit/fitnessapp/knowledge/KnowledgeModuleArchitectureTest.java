@@ -40,6 +40,10 @@ class KnowledgeModuleArchitectureTest {
                 .contains(UserContextQuery.class)).isTrue();
         assertThat(knowledge.getNamedInterfaces().getByName("context-api").orElseThrow()
                 .contains(com.fit.fitnessapp.knowledge.context.AnswerClaimUsage.class)).isTrue();
+        assertThat(knowledge.getNamedInterfaces().getByName("context-api").orElseThrow()
+                .contains(com.fit.fitnessapp.knowledge.context.AiHypothesisWriter.class)).isTrue();
+        assertThat(modules.getModuleByName("experiment").orElseThrow().getNamedInterfaces().getByName("api").orElseThrow()
+                .contains(com.fit.fitnessapp.experiment.api.ExperimentDraftSource.class)).isTrue();
         assertThat(modules.getModuleByName("api").orElseThrow().getNamedInterfaces().getByName("delivery").orElseThrow()
                 .contains(com.fit.fitnessapp.api.delivery.OwnedMessageOutbox.class)).isTrue();
         assertThat(knowledge.getNamedInterfaces().getByName("api").orElseThrow()

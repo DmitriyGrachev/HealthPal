@@ -39,6 +39,8 @@ class AiExperimentDraftGeneratorTest {
 
     @Mock private AiEgressPolicy egressPolicy;
     @Mock private AiExecutionGuard executionGuard;
+    @Mock private com.fit.fitnessapp.ai.application.service.AiContextService contexts;
+    @Mock private com.fit.fitnessapp.knowledge.context.AiHypothesisWriter hypotheses;
 
     private final AiPromptRenderer promptRenderer = new AiPromptRenderer();
     private final AiSafetyService safetyService = new AiSafetyService();
@@ -50,6 +52,20 @@ class AiExperimentDraftGeneratorTest {
                 .thenReturn(AiDataClass.SENSITIVE);
         lenient().doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get())
                 .when(executionGuard).execute(anyLong(), anyString(), anyInt(), any());
+        var request = AiExperimentDraftValidatorTest.request();
+        var now = java.time.Instant.now();
+        var context = new com.fit.fitnessapp.knowledge.context.UserContext.ExperimentDraft(
+                new com.fit.fitnessapp.knowledge.context.ContextMetadata(now, java.util.List.of(), java.util.List.of(), java.util.List.of(), false, false),
+                java.util.List.of(new com.fit.fitnessapp.knowledge.context.ContextSlices.GoalContext(request.goalId(), request.goalName(),
+                        request.primaryMetric(), null, null, null, "ACTIVE", 1, null, 1, now)),
+                new com.fit.fitnessapp.knowledge.context.ContextSlices.ExperimentContext(
+                        request.experimentId(), request.goalId(), "PROPOSED", request.experimentVersion(), request.currentHypothesis(),
+                        request.currentIntervention().action(), request.currentIntervention().protocol(), request.primaryMetric(),
+                        request.baselineStartDate(), request.baselineEndDate(), request.durationDays(), java.util.List.of(), now),
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
+        lenient().when(contexts.prepareExperimentContext(any())).thenReturn(
+                new com.fit.fitnessapp.ai.application.service.AiContextService.PreparedExperimentContext("UNCONFIRMED NARRATIVES", context));
+        lenient().when(hypotheses.record(anyLong(), any(), anyString(), any())).thenReturn(true);
     }
 
     @Test
@@ -71,6 +87,7 @@ class AiExperimentDraftGeneratorTest {
         assertThat(providerCalls).hasValue(1);
         verify(egressPolicy).validate(any(ClassifiedAiPrompt.class));
         verify(executionGuard).execute(anyLong(), anyString(), anyInt(), any());
+        verifyNoInteractions(hypotheses);
     }
 
     @Test
@@ -87,6 +104,7 @@ class AiExperimentDraftGeneratorTest {
                 .isInstanceOf(AiEgressDeniedException.class);
 
         verifyNoInteractions(executionGuard);
+        verifyNoInteractions(contexts, hypotheses);
         assertThat(providerCalls).hasValue(0);
     }
 
@@ -105,6 +123,7 @@ class AiExperimentDraftGeneratorTest {
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().sourceExperimentVersion()).isEqualTo(7L);
         assertThat(providerPrompt.get())
+                .contains("UNCONFIRMED NARRATIVES")
                 .contains("<user_question data-trust=\"untrusted\">")
                 .contains("&lt;/user_question&gt;")
                 .contains("<user_note data-trust=\"untrusted\">")
@@ -113,12 +132,18 @@ class AiExperimentDraftGeneratorTest {
         InOrder order = inOrder(egressPolicy, executionGuard);
         order.verify(egressPolicy).validate(any(ClassifiedAiPrompt.class));
         order.verify(executionGuard).execute(anyLong(), anyString(), anyInt(), any());
+        verify(contexts).prepareExperimentContext(new com.fit.fitnessapp.knowledge.context.UserContextRequest(
+                request.userId(), com.fit.fitnessapp.knowledge.context.ContextPurpose.EXPERIMENT_DRAFT,
+                request.baselineStartDate(), request.baselineEndDate().plusDays(request.durationDays()),
+                request.goalId(), request.experimentId(), 3, 2_000));
+        verify(hypotheses).record(org.mockito.ArgumentMatchers.eq(request.userId()), any(),
+                org.mockito.ArgumentMatchers.eq(result.orElseThrow().hypothesis()), any());
     }
 
     private AiExperimentDraftGenerator generator(
             boolean enabled, AiExperimentDraftGenerator.DraftModelOperation operation) {
         return new AiExperimentDraftGenerator(
                 enabled, promptRenderer, safetyService, egressPolicy,
-                executionGuard, validator, operation);
+                executionGuard, validator, operation, contexts, hypotheses);
     }
 }

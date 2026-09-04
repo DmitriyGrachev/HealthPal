@@ -50,6 +50,24 @@ public class AiContextService {
         return new PreparedContext(text.toString(), available, warning);
     }
 
+    public PreparedExperimentContext prepareExperimentContext(UserContextRequest request) {
+        if (request.purpose() != ContextPurpose.EXPERIMENT_DRAFT) throw new IllegalArgumentException("draft context required");
+        egressGuard.validateSensitiveEgress();
+        var context = (UserContext.ExperimentDraft) userContextQuery.assemble(request);
+        var text = new StringBuilder("EXPERIMENT DRAFT CONTEXT:\n");
+        var available = new ArrayList<ContextSlices.Claim>();
+        appendClaims(text, "VERIFIED CONSTRAINTS", context.verifiedConstraints(), available);
+        appendClaims(text, "SUPPORTED CLAIMS (not permanent truths)", context.facts(), available);
+        appendClaims(text, "UNCONFIRMED NARRATIVES (hypotheses only)", context.narratives(), available);
+        text.append("PRIOR EVALUATIONS:\n");
+        context.priorEvaluations().forEach(e -> appendMemory(text, "formula=" + e.formulaVersion()
+                + " decision=" + e.decision() + " quality=" + e.dataQuality() + " effect=" + e.observedEffect()
+                + " delta=" + e.effectDelta() + " coverage=" + e.coverage() + " reasons=" + e.reasonCodes()));
+        return new PreparedExperimentContext(text.toString(), context);
+    }
+
+    public record PreparedExperimentContext(String text, UserContext.ExperimentDraft context) { }
+
     private void appendClaims(StringBuilder text, String label, List<ContextSlices.Claim> claims,
                               List<ContextSlices.Claim> available) {
         text.append(label).append(":\n");
