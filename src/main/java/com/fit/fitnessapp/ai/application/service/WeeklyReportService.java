@@ -52,12 +52,11 @@ public class WeeklyReportService {
             return;
         }
 
-        String prompt = promptRenderer.render("weekly-report-v1.md", Map.ofEntries(
+        var context = aiContextService.prepareTelegramContext(event.userId());
+        String prompt = promptRenderer.render("weekly-report-v2.md", Map.ofEntries(
                 Map.entry("weekStart", event.weekStart()),
                 Map.entry("weekEnd", event.weekEnd()),
-                Map.entry("memoriesText", aiContextService.buildMemoryContext(event.userId(),
-                        String.format("weekly report calories %.0f protein %.1f",
-                                event.nutrition().avgCalories(), event.nutrition().avgProtein()))),
+                Map.entry("memoriesText", context.text()),
                 Map.entry("recentInsights", aiContextService.getRecentInsightsSummary(event.userId(), InsightType.WEEKLY)),
                 Map.entry("userContext", getUserContext(event.userId(), event.weekStart(), event.weekEnd())),
                 Map.entry("totalCalories", event.nutrition().totalCalories()),
@@ -98,7 +97,7 @@ public class WeeklyReportService {
             insight.setMetadata(reportMetadata(snapshotHash, event.weekStart(), event.weekEnd()));
             persistenceService.saveAndPublish(insight, new InsightGeneratedEvent(
                     event.userId(), event.weekStart(), InsightType.WEEKLY,
-                    response.summary(), response.telegramSummary(), snapshotHash));
+                    response.summary(), response.telegramSummary(), snapshotHash), context);
         } catch (Exception e) {
             logAiCall(event.userId(), startedAt, "error",
                     e instanceof AiEgressDeniedException denied ? denied.code() : e.getClass().getSimpleName());

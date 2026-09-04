@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai;
 
+import com.fit.fitnessapp.knowledge.context.AnswerClaimUsage;
 import tools.jackson.databind.ObjectMapper;
 import com.fit.fitnessapp.ai.application.service.AiContextService;
 import com.fit.fitnessapp.ai.application.service.AiInsightPersistenceService;
@@ -89,10 +90,14 @@ class FitnessAiServiceReportFreshnessTest {
     @Mock
     private WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
 
+    @Mock private AnswerClaimUsage claimUsage;
+
     private FitnessAiService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(claimUsage.validateAndLock(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AnswerClaimUsage.Warnings(false, false));
         service = new FitnessAiService(
                 dailyInsightService,
                 telegramAskAiService,
@@ -103,7 +108,7 @@ class FitnessAiServiceReportFreshnessTest {
                         aiContextService,
                         moeOrchestrator,
                         insightRepository,
-                        new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock),
+                        new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock, null, null, null, claimUsage),
                         userNoteUseCase,
                         profileUseCase,
                         weightHistoryUseCase,
@@ -113,7 +118,7 @@ class FitnessAiServiceReportFreshnessTest {
                         aiContextService,
                         moeOrchestrator,
                         insightRepository,
-                        new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock),
+                        new AiInsightPersistenceService(insightRepository, eventPublisher, insightSourceLock, null, null, null, claimUsage),
                         userNoteUseCase,
                         profileUseCase,
                         weightHistoryUseCase,
@@ -130,7 +135,7 @@ class FitnessAiServiceReportFreshnessTest {
         stubReportContext();
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.empty());
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt");
         when(moeOrchestrator.route(42L, classified("weekly prompt"), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
                         event.weekStart(), event.weekEnd(), "Weekly summary", "Weekly telegram"));
@@ -167,7 +172,7 @@ class FitnessAiServiceReportFreshnessTest {
         stubReportContext();
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.of(existing));
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt");
         when(moeOrchestrator.route(42L, classified("weekly prompt"), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
                         event.weekStart(), event.weekEnd(), "Updated weekly", "Updated weekly telegram"));
@@ -198,7 +203,7 @@ class FitnessAiServiceReportFreshnessTest {
         stubReportContext();
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, firstEvent.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.empty());
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt");
         when(moeOrchestrator.route(42L, classified("weekly prompt"), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
                         firstEvent.weekStart(), firstEvent.weekEnd(), "Weekly summary", "Weekly telegram"));
@@ -213,7 +218,7 @@ class FitnessAiServiceReportFreshnessTest {
         WeeklyReportRequestedEvent cardioChanged = weeklyEvent(2100, 2, 3600, 640.0);
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, cardioChanged.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.of(existing));
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt after cardio");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt after cardio");
         when(moeOrchestrator.route(42L, classified("weekly prompt after cardio"), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenReturn(response(NutritionInsightResponse.ReportType.WEEKLY,
                         cardioChanged.weekStart(), cardioChanged.weekEnd(),
@@ -237,7 +242,7 @@ class FitnessAiServiceReportFreshnessTest {
         stubReportContext();
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.monthStart(), InsightType.MONTHLY))
                 .thenReturn(Optional.of(existing));
-        when(promptRenderer.render(eq("monthly-report-v1.md"), any())).thenReturn("monthly prompt");
+        when(promptRenderer.render(eq("monthly-report-v2.md"), any())).thenReturn("monthly prompt");
         when(moeOrchestrator.route(42L, classified("monthly prompt"), MoeOrchestrator.AiTaskType.MONTHLY_REPORT))
                 .thenReturn(response(NutritionInsightResponse.ReportType.MONTHLY,
                         event.monthStart(), event.monthEnd(), "Updated monthly", "Updated monthly telegram"));
@@ -270,7 +275,7 @@ class FitnessAiServiceReportFreshnessTest {
         stubReportContext();
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, event.weekStart(), InsightType.WEEKLY))
                 .thenReturn(Optional.empty());
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt");
         when(moeOrchestrator.route(42L, classified("weekly prompt"), MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenReturn(response(
                         NutritionInsightResponse.ReportType.WEEKLY,
@@ -287,7 +292,7 @@ class FitnessAiServiceReportFreshnessTest {
         when(userNoteUseCase.getNotesByUserIdAndDateRange(any(), any(), any())).thenReturn(List.of());
         when(profileUseCase.getProfileByUserId(42L)).thenReturn(Optional.empty());
         when(weightHistoryUseCase.getWeightHistoryByUserId(42L)).thenReturn(List.of());
-        when(aiContextService.buildMemoryContext(eq(42L), any())).thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(42L)).thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
         when(aiContextService.getRecentInsightsSummary(eq(42L), any())).thenReturn("recent insights");
     }
 

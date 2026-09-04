@@ -22,9 +22,9 @@ class AiPromptRendererTest {
 
     @Test
     void rendersDailyInsightPromptWithFixtureContext() {
-        String prompt = renderer.render("daily-insight-v1.md", Map.ofEntries(
+        String prompt = renderer.render("daily-insight-v2.md", Map.ofEntries(
                 entry("date", "2026-03-16"),
-                entry("memoriesText", "PERMANENT USER FACTS:\n- lactose intolerance"),
+                entry("memoriesText", "SUPPORTED CLAIMS:\n- lactose intolerance"),
                 entry("recentInsights", "No previous insights."),
                 entry("sourceCoverage", "nutrition_workout"),
                 entry("totalCalories", 2_100),
@@ -40,7 +40,7 @@ class AiPromptRendererTest {
 
         assertThat(prompt)
                 .contains("name: daily-insight")
-                .contains("version: v1")
+                .contains("version: v2", "citedClaimIds", "untrusted data")
                 .contains("lactose intolerance")
                 .contains("Report date: 2026-03-16")
                 .contains("Calories: 2100")
@@ -53,7 +53,7 @@ class AiPromptRendererTest {
 
     @Test
     void rendersWeeklyReportPromptWithFixtureContext() {
-        String prompt = renderer.render("weekly-report-v1.md", Map.ofEntries(
+        String prompt = renderer.render("weekly-report-v2.md", Map.ofEntries(
                 entry("weekStart", "2026-03-09"),
                 entry("weekEnd", "2026-03-15"),
                 entry("memoriesText", "PATTERNS AND HISTORY:\n- low sleep reduces training volume"),
@@ -75,7 +75,7 @@ class AiPromptRendererTest {
 
         assertThat(prompt)
                 .contains("name: weekly-report")
-                .contains("version: v1")
+                .contains("version: v2", "citedClaimIds", "untrusted data")
                 .contains("2026-03-09 - 2026-03-15")
                 .contains("low sleep reduces training volume")
                 .contains("strength sessions: 4")
@@ -85,10 +85,10 @@ class AiPromptRendererTest {
 
     @Test
     void rendersMonthlyReportPromptWithFixtureContext() {
-        String prompt = renderer.render("monthly-report-v1.md", Map.ofEntries(
+        String prompt = renderer.render("monthly-report-v2.md", Map.ofEntries(
                 entry("monthStart", "2026-03-01"),
                 entry("monthEnd", "2026-03-31"),
-                entry("memoriesText", "PERMANENT USER FACTS:\n- prefers morning workouts"),
+                entry("memoriesText", "SUPPORTED CLAIMS:\n- prefers morning workouts"),
                 entry("recentInsights", "[WEEKLY 2026-03-22] Volume improved"),
                 entry("userContext", "- Profile: data not found"),
                 entry("totalCalories", 62_000),
@@ -109,7 +109,7 @@ class AiPromptRendererTest {
 
         assertThat(prompt)
                 .contains("name: monthly-report")
-                .contains("version: v1")
+                .contains("version: v2", "citedClaimIds", "untrusted data")
                 .contains("2026-03-01 - 2026-03-31")
                 .contains("prefers morning workouts")
                 .contains("Total sessions: 16")

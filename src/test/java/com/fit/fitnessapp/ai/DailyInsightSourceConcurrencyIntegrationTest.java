@@ -80,7 +80,7 @@ class DailyInsightSourceConcurrencyIntegrationTest extends AbstractPostgresInteg
                 stale,
                 new InsightGeneratedEvent(
                         userId, date, InsightType.DAILY, "stale projection", null, "stale-snapshot"),
-                expectation))
+                expectation, new com.fit.fitnessapp.ai.application.service.AiContextService.PreparedContext("", java.util.List.of(), false)))
                 .isInstanceOf(StaleDailyInsightProjectionException.class);
 
         assertThat(insightCount(userId)).isZero();
@@ -203,7 +203,7 @@ class DailyInsightSourceConcurrencyIntegrationTest extends AbstractPostgresInteg
                 insight(userId, date, "deleted owner"),
                 new InsightGeneratedEvent(
                         userId, date, InsightType.DAILY, "deleted owner", null, "deleted-snapshot"),
-                expectation))
+                expectation, new com.fit.fitnessapp.ai.application.service.AiContextService.PreparedContext("", java.util.List.of(), false)))
                 .isInstanceOf(StaleDailyInsightProjectionException.class);
 
         assertThat(userCount(userId)).isZero();

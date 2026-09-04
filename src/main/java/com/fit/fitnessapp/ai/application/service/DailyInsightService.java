@@ -94,21 +94,12 @@ public class DailyInsightService {
         String model = null;
         long startedAt = System.nanoTime();
         try {
-            String memoriesText = aiContextService.buildMemoryContext(userId,
-                    String.format(Locale.ROOT,
-                            "nutrition %d calories %.1f protein workout %d sessions %.1f kg volume cardio %d sessions %d seconds %.1f kcal",
-                            snapshot.totalCalories(),
-                            snapshot.protein(),
-                            snapshot.workoutSessions(),
-                            snapshot.workoutVolumeKg(),
-                            snapshot.cardioSessions(),
-                            snapshot.cardioDurationSeconds(),
-                            snapshot.cardioCalories()));
+            var context = aiContextService.prepareTelegramContext(userId);
             String recentInsights = aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY);
 
-            String prompt = promptRenderer.render("daily-insight-v1.md", Map.ofEntries(
+            String prompt = promptRenderer.render("daily-insight-v2.md", Map.ofEntries(
                     Map.entry("date", date),
-                    Map.entry("memoriesText", memoriesText),
+                    Map.entry("memoriesText", context.text()),
                     Map.entry("recentInsights", recentInsights),
                     Map.entry("totalCalories", snapshot.totalCalories()),
                     Map.entry("protein", oneDecimal(snapshot.protein())),
@@ -167,7 +158,7 @@ public class DailyInsightService {
                     aiResponse.summary(),
                     aiResponse.telegramSummary(),
                     snapshotHash
-            ), snapshot.sourceExpectation());
+            ), snapshot.sourceExpectation(), context);
             return DailyInsightResult.generated();
         } catch (StaleDailyInsightProjectionException e) {
             log.info("Skipping stale daily insight projection for user {} on {}.", userId, date);

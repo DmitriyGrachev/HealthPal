@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai.application.service;
 
+import com.fit.fitnessapp.knowledge.context.AnswerClaimUsage;
 import com.fit.fitnessapp.ai.AiInsightEntity;
 import com.fit.fitnessapp.ai.AiInsightRepository;
 import com.fit.fitnessapp.ai.AiPromptRenderer;
@@ -80,10 +81,14 @@ class DailyInsightServiceTest {
     @Mock
     private AiSafetyService aiSafetyService;
 
+    @Mock private AnswerClaimUsage claimUsage;
+
     private DailyInsightService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(claimUsage.validateAndLock(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AnswerClaimUsage.Warnings(false, false));
         lenient().when(aiSafetyService.isValidNutritionInsightResponse(
                 any(),
                 eq(NutritionInsightResponse.ReportType.DAILY),
@@ -106,7 +111,7 @@ class DailyInsightServiceTest {
                         insightSourceLock,
                         userDateTransactionLock,
                         nutritionSourceStateQueryPort,
-                        workoutSourceStateQueryPort),
+                        workoutSourceStateQueryPort, claimUsage),
                 aiProperties,
                 promptRenderer,
                 aiContextService,
@@ -122,11 +127,11 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
-                .thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(userId))
+                .thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
-        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(promptRenderer.render(eq("daily-insight-v2.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
         when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Daily summary", "Telegram summary"));
@@ -137,7 +142,7 @@ class DailyInsightServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> promptContextCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(promptRenderer).render(eq("daily-insight-v1.md"), promptContextCaptor.capture());
+        verify(promptRenderer).render(eq("daily-insight-v2.md"), promptContextCaptor.capture());
         assertThat(promptContextCaptor.getValue())
                 .containsEntry("date", date)
                 .containsEntry("totalCalories", 850)
@@ -252,11 +257,11 @@ class DailyInsightServiceTest {
                 .thenReturn(Optional.of(existing));
         when(snapshotService.build(userId, date))
                 .thenReturn(snapshot(userId, date, "new", 900, 70.0, 20.0, 100.0, 2, 2500.0));
-        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
-                .thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(userId))
+                .thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
-        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(promptRenderer.render(eq("daily-insight-v2.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
         when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenReturn(response("Updated summary", "Updated telegram"));
@@ -306,11 +311,11 @@ class DailyInsightServiceTest {
         when(snapshotService.build(userId, date)).thenReturn(snapshot(
                 userId, date, "captured", 850, 65.0, 17.0, 95.0, 1, 1250.0,
                 Optional.of(captured), Optional.empty()));
-        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
-                .thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(userId))
+                .thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
-        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(promptRenderer.render(eq("daily-insight-v2.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
         when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenAnswer(invocation -> {
@@ -400,11 +405,11 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
-                .thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(userId))
+                .thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
         when(aiContextService.getRecentInsightsSummary(userId, InsightType.DAILY))
                 .thenReturn("recent insights");
-        when(promptRenderer.render(eq("daily-insight-v1.md"), any())).thenReturn("daily prompt");
+        when(promptRenderer.render(eq("daily-insight-v2.md"), any())).thenReturn("daily prompt");
         when(aiProperties.DAILY_INSIGHT_MODEL()).thenReturn("daily-model");
         when(moeOrchestrator.route(42L, classified("daily prompt"), MoeOrchestrator.AiTaskType.DAILY_INSIGHT))
                 .thenThrow(new IllegalStateException("provider down"));
@@ -425,7 +430,7 @@ class DailyInsightServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(userId, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
         when(snapshotService.build(userId, date)).thenReturn(snapshot);
-        when(aiContextService.buildMemoryContext(eq(userId), anyString()))
+        when(aiContextService.prepareTelegramContext(userId))
                 .thenThrow(new IllegalStateException("context down"));
 
         DailyInsightResult result = service.generateOrPublishExisting(userId, date);

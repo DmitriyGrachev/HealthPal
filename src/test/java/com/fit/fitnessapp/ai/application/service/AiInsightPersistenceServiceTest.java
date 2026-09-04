@@ -1,5 +1,6 @@
 package com.fit.fitnessapp.ai.application.service;
 
+import com.fit.fitnessapp.knowledge.context.AnswerClaimUsage;
 import com.fit.fitnessapp.ai.AiInsightEntity;
 import com.fit.fitnessapp.ai.AiInsightRepository;
 import com.fit.fitnessapp.api.DomainSourceState;
@@ -48,6 +49,14 @@ class AiInsightPersistenceServiceTest {
     @Mock
     private WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
 
+    @Mock private AnswerClaimUsage claimUsage;
+
+    @org.junit.jupiter.api.BeforeEach
+    void allowUncontestedContext() {
+        org.mockito.Mockito.lenient().when(claimUsage.validateAndLock(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AnswerClaimUsage.Warnings(false, false));
+    }
+
     @Test
     void saveRevalidatesExactFencedSourceExpectationBeforeWriteAndPublication() {
         LocalDate date = LocalDate.of(2026, 7, 6);
@@ -67,7 +76,7 @@ class AiInsightPersistenceServiceTest {
                 insightSourceLock,
                 userDateTransactionLock,
                 nutritionSourceStateQueryPort,
-                workoutSourceStateQueryPort);
+                workoutSourceStateQueryPort, claimUsage);
         when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, date))
                 .thenReturn(Optional.of(nutrition.lifecycleEpoch()));
         when(nutritionSourceStateQueryPort.findCurrent(42L, date)).thenReturn(Optional.of(nutrition));
@@ -75,7 +84,7 @@ class AiInsightPersistenceServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, date, InsightType.DAILY))
                 .thenReturn(Optional.empty());
 
-        service.saveDailyAndPublish(insight, event, expectation);
+        service.saveDailyAndPublish(insight, event, expectation, new AiContextService.PreparedContext("", java.util.List.of(), false));
 
         InOrder order = inOrder(
                 insightSourceLock,
@@ -110,7 +119,7 @@ class AiInsightPersistenceServiceTest {
                 insightSourceLock,
                 userDateTransactionLock,
                 nutritionSourceStateQueryPort,
-                workoutSourceStateQueryPort);
+                workoutSourceStateQueryPort, claimUsage);
         when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, date))
                 .thenReturn(Optional.of(tombstone.lifecycleEpoch()));
         when(nutritionSourceStateQueryPort.findCurrent(42L, date)).thenReturn(Optional.of(tombstone));
@@ -154,13 +163,13 @@ class AiInsightPersistenceServiceTest {
                 insightSourceLock,
                 userDateTransactionLock,
                 nutritionSourceStateQueryPort,
-                workoutSourceStateQueryPort);
+                workoutSourceStateQueryPort, claimUsage);
         when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, date))
                 .thenReturn(Optional.of(newlyPresent.lifecycleEpoch()));
         when(nutritionSourceStateQueryPort.findCurrent(42L, date)).thenReturn(Optional.empty());
         when(workoutSourceStateQueryPort.findCurrent(42L, date)).thenReturn(Optional.of(newlyPresent));
 
-        assertThatThrownBy(() -> service.saveDailyAndPublish(insight, event, expectation))
+        assertThatThrownBy(() -> service.saveDailyAndPublish(insight, event, expectation, new AiContextService.PreparedContext("", java.util.List.of(), false)))
                 .isInstanceOf(StaleDailyInsightProjectionException.class);
 
         verify(insightRepository, never()).save(insight);
@@ -196,7 +205,7 @@ class AiInsightPersistenceServiceTest {
                 insightSourceLock,
                 userDateTransactionLock,
                 nutritionSourceStateQueryPort,
-                workoutSourceStateQueryPort);
+                workoutSourceStateQueryPort, claimUsage);
         when(userDateTransactionLock.lockAndReadLifecycleEpoch(42L, date))
                 .thenReturn(Optional.of(nutrition.lifecycleEpoch()));
         when(nutritionSourceStateQueryPort.findCurrent(42L, date)).thenReturn(Optional.of(nutrition));
@@ -204,7 +213,7 @@ class AiInsightPersistenceServiceTest {
         when(insightRepository.findByUserIdAndDateAndInsightType(42L, date, InsightType.DAILY))
                 .thenReturn(Optional.of(concurrent));
 
-        service.saveDailyAndPublish(incoming, event, expectation);
+        service.saveDailyAndPublish(incoming, event, expectation, new AiContextService.PreparedContext("", java.util.List.of(), false));
 
         verify(insightRepository).save(concurrent);
         org.assertj.core.api.Assertions.assertThat(concurrent.getInsightText())

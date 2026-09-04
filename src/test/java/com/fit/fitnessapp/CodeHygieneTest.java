@@ -200,10 +200,10 @@ class CodeHygieneTest {
         String fitnessAiService = Files.readString(Path.of(
                 "src/main/java/com/fit/fitnessapp/ai/FitnessAiService.java"));
         List<Path> promptFiles = List.of(
-                Path.of("src/main/resources/ai/prompts/daily-insight-v1.md"),
-                Path.of("src/main/resources/ai/prompts/weekly-report-v1.md"),
-                Path.of("src/main/resources/ai/prompts/monthly-report-v1.md"),
-                Path.of("src/main/resources/ai/prompts/telegram-ask-v1.md")
+                Path.of("src/main/resources/ai/prompts/daily-insight-v2.md"),
+                Path.of("src/main/resources/ai/prompts/weekly-report-v2.md"),
+                Path.of("src/main/resources/ai/prompts/monthly-report-v2.md"),
+                Path.of("src/main/resources/ai/prompts/telegram-ask-v2.md")
         );
 
         assertThat(fitnessAiService)
@@ -215,7 +215,7 @@ class CodeHygieneTest {
             String prompt = Files.readString(promptFile);
             assertThat(prompt)
                     .contains("name:")
-                    .contains("version: v1");
+                    .contains("version: v2");
         }
     }
 

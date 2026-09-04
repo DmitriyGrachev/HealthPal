@@ -7,12 +7,19 @@ import com.fit.fitnessapp.api.InsightGeneratedEvent;
 import com.fit.fitnessapp.api.UserDateTransactionLock;
 import com.fit.fitnessapp.nutrition.application.port.in.NutritionSourceStateQueryPort;
 import com.fit.fitnessapp.workout.application.port.in.WorkoutSourceStateQueryPort;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.fit.fitnessapp.knowledge.context.AnswerClaimUsage;
+import com.fit.fitnessapp.knowledge.context.ClaimUseReference;
+import com.fit.fitnessapp.knowledge.context.ContextUseRejectedException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
+import java.util.List;
+import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class AiInsightPersistenceService {
 
     private final AiInsightRepository insightRepository;
@@ -21,35 +28,12 @@ public class AiInsightPersistenceService {
     private final UserDateTransactionLock userDateTransactionLock;
     private final NutritionSourceStateQueryPort nutritionSourceStateQueryPort;
     private final WorkoutSourceStateQueryPort workoutSourceStateQueryPort;
-
-    @Autowired
-    public AiInsightPersistenceService(
-            AiInsightRepository insightRepository,
-            ApplicationEventPublisher eventPublisher,
-            InsightSourceLock insightSourceLock,
-            UserDateTransactionLock userDateTransactionLock,
-            NutritionSourceStateQueryPort nutritionSourceStateQueryPort,
-            WorkoutSourceStateQueryPort workoutSourceStateQueryPort) {
-        this.insightRepository = insightRepository;
-        this.eventPublisher = eventPublisher;
-        this.insightSourceLock = insightSourceLock;
-        this.userDateTransactionLock = userDateTransactionLock;
-        this.nutritionSourceStateQueryPort = nutritionSourceStateQueryPort;
-        this.workoutSourceStateQueryPort = workoutSourceStateQueryPort;
-    }
-
-    public AiInsightPersistenceService(
-            AiInsightRepository insightRepository,
-            ApplicationEventPublisher eventPublisher,
-            InsightSourceLock insightSourceLock) {
-        this(insightRepository, eventPublisher, insightSourceLock, null, null, null);
-    }
+    private final AnswerClaimUsage claimUsage;
 
     @Transactional
-    public void saveAndPublish(AiInsightEntity insight, InsightGeneratedEvent event) {
+    public void saveAndPublish(AiInsightEntity insight, InsightGeneratedEvent event, AiContextService.PreparedContext context) {
         insightSourceLock.lock(insight.getUserId(), insight.getInsightType(), insight.getDate());
-        insightRepository.save(insight);
-        eventPublisher.publishEvent(event);
+        saveWithUsage(insight, event, context);
     }
 
     @Transactional
@@ -63,13 +47,31 @@ public class AiInsightPersistenceService {
     public void saveDailyAndPublish(
             AiInsightEntity insight,
             InsightGeneratedEvent event,
-            DailyInsightSourceExpectation expectation) {
+            DailyInsightSourceExpectation expectation,
+            AiContextService.PreparedContext context) {
         lockAndRevalidate(insight, expectation);
         AiInsightEntity target = insightRepository.findByUserIdAndDateAndInsightType(
                         insight.getUserId(), insight.getDate(), insight.getInsightType())
                 .map(current -> copyProjection(insight, current))
                 .orElse(insight);
-        insightRepository.save(target);
+        saveWithUsage(target, event, context);
+    }
+
+    private void saveWithUsage(AiInsightEntity insight, InsightGeneratedEvent event, AiContextService.PreparedContext context) {
+        List<ClaimUseReference> references = context.referencesFor(insight.getStructuredResponse() == null
+                ? List.of() : insight.getStructuredResponse().citedClaimIds());
+        var warnings = claimUsage.validateAndLock(insight.getUserId(), references);
+        // Reports abstain; interactive answers can instead carry explicit warnings.
+        if (context.conflictWarning() || warnings.conflict() || warnings.unconfirmedHypothesis()) {
+            throw new ContextUseRejectedException();
+        }
+        String consumer = "ai-insight:" + UUID.randomUUID();
+        var metadata = new HashMap<String, Object>();
+        if (insight.getMetadata() != null) metadata.putAll(insight.getMetadata());
+        metadata.put("claim_usage_consumer", consumer);
+        insight.setMetadata(metadata);
+        insightRepository.save(insight);
+        claimUsage.record(insight.getUserId(), consumer, references);
         eventPublisher.publishEvent(event);
     }
 

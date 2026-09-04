@@ -21,7 +21,7 @@ class AiContextServiceTest {
         doThrow(new IllegalStateException("denied")).when(guard).validateSensitiveEgress();
         AiContextService service = new AiContextService(memoryQueries, insights, safety, guard, java.time.Clock.systemUTC());
 
-        assertThatThrownBy(() -> service.buildMemoryContext(42L, "private question"))
+        assertThatThrownBy(() -> service.prepareTelegramContext(42L))
                 .isInstanceOf(IllegalStateException.class);
 
         verifyNoInteractions(memoryQueries, insights, safety);

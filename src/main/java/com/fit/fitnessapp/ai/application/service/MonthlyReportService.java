@@ -52,12 +52,11 @@ public class MonthlyReportService {
             return;
         }
 
-        String prompt = promptRenderer.render("monthly-report-v1.md", Map.ofEntries(
+        var context = aiContextService.prepareTelegramContext(event.userId());
+        String prompt = promptRenderer.render("monthly-report-v2.md", Map.ofEntries(
                 Map.entry("monthStart", event.monthStart()),
                 Map.entry("monthEnd", event.monthEnd()),
-                Map.entry("memoriesText", aiContextService.buildMemoryContext(event.userId(),
-                        String.format("monthly progress calories %.0f protein %.1f",
-                                event.nutrition().avgCalories(), event.nutrition().avgProtein()))),
+                Map.entry("memoriesText", context.text()),
                 Map.entry("recentInsights", aiContextService.getRecentInsightsSummary(event.userId(), InsightType.MONTHLY)),
                 Map.entry("userContext", getUserContext(event.userId(), event.monthStart(), event.monthEnd())),
                 Map.entry("totalCalories", event.nutrition().totalCalories()),
@@ -101,7 +100,7 @@ public class MonthlyReportService {
             insight.setMetadata(reportMetadata(snapshotHash, event.monthStart(), event.monthEnd()));
             persistenceService.saveAndPublish(insight, new InsightGeneratedEvent(
                     event.userId(), event.monthStart(), InsightType.MONTHLY,
-                    response.summary(), response.telegramSummary(), snapshotHash));
+                    response.summary(), response.telegramSummary(), snapshotHash), context);
         } catch (Exception e) {
             logAiCall(event.userId(), startedAt, "error",
                     e instanceof AiEgressDeniedException denied ? denied.code() : e.getClass().getSimpleName());

@@ -63,6 +63,7 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
     @Autowired private com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimInspectorUseCase inspector;
     @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired private io.micrometer.core.instrument.MeterRegistry meters;
+    @Autowired private com.fit.fitnessapp.ai.application.service.AiInsightPersistenceService reportPersistence;
 
     @Test
     void answerQueuesExactUsageAtomicallyAndRefusesStaleOrRevokedContext() {
@@ -87,6 +88,15 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
                             "AI_DRAFT", "answer-fixture", 1, claim.contentHash()), null, null,
                     com.fit.fitnessapp.knowledge.context.ContextFreshness.of(now, now, 30), List.of());
             var context = new AiContextService.PreparedContext("bounded context", List.of(view), true);
+            var unconfirmedReport = AiInsightEntity.builder().userId(owner).date(LocalDate.of(2026, 7, 6))
+                    .insightType(com.fit.fitnessapp.api.InsightType.WEEKLY)
+                    .structuredResponse(validResponse(LocalDate.of(2026, 7, 6), LocalDate.of(2026, 7, 12), List.of(claim.id())))
+                    .build();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> reportPersistence.saveAndPublish(unconfirmedReport,
+                            new com.fit.fitnessapp.api.InsightGeneratedEvent(owner, unconfirmedReport.getDate(), unconfirmedReport.getInsightType(), "Tentative report", null, "tentative"),
+                            new AiContextService.PreparedContext("", List.of(view), false)))
+                    .isInstanceOf(com.fit.fitnessapp.knowledge.context.ContextUseRejectedException.class);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_insights WHERE user_id = ?", Long.class, owner)).isZero();
             when(aiContextService.prepareTelegramContext(owner)).thenReturn(context);
             when(promptRenderer.render(eq("telegram-ask-v2.md"), any())).thenReturn("bounded question");
             AtomicBoolean providerInTransaction = new AtomicBoolean(true);
@@ -145,21 +155,38 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
     void aiProviderRunsOutsideTransactionAndResultPersists() {
         long userId = insertUser();
         WeeklyReportRequestedEvent event = weeklyEvent(userId);
+        var now = java.time.Instant.now();
+        var claim = claimCommands.upsert(userId, com.fit.fitnessapp.knowledge.domain.KnowledgeClaim.create(userId,
+                new com.fit.fitnessapp.knowledge.domain.ClaimSubject("user"),
+                new com.fit.fitnessapp.knowledge.domain.ClaimPredicate("preference"),
+                com.fit.fitnessapp.knowledge.domain.TypedClaimValue.text("morning workouts"),
+                com.fit.fitnessapp.knowledge.domain.ClaimOrigin.USER_DECLARED,
+                com.fit.fitnessapp.knowledge.domain.ClaimVerification.SUPPORTED,
+                new com.fit.fitnessapp.knowledge.domain.ClaimSourceRef("USER_NOTE", "report-fixture", 1),
+                now, null, null, new com.fit.fitnessapp.knowledge.domain.ClaimConfidenceBasis(
+                        com.fit.fitnessapp.knowledge.domain.ClaimConfidenceBasis.Type.USER_CONFIRMATION, "1"),
+                List.of(), now), 0, "report-claim").orElseThrow();
+        var view = new com.fit.fitnessapp.knowledge.context.ContextSlices.Claim(claim.id(), claim.aggregateVersion(),
+                "user", "preference", "TEXT", claim.value().canonicalValue(), null, "USER_DECLARED", "SUPPORTED",
+                "USER_CONFIRMATION", claim.confidenceBasis().confidence(), new com.fit.fitnessapp.knowledge.context.ContextSlices.Source(
+                        "USER_NOTE", "report-fixture", 1, claim.contentHash()), null, null,
+                com.fit.fitnessapp.knowledge.context.ContextFreshness.of(now, now, 30), List.of());
+        var context = new AiContextService.PreparedContext("memory context", List.of(view), false);
         AtomicBoolean transactionActiveAtProvider = new AtomicBoolean(true);
         when(userNoteUseCase.getNotesByUserIdAndDateRange(eq(userId), any(), any())).thenReturn(List.of());
         when(profileUseCase.getProfileByUserId(userId)).thenReturn(Optional.empty());
         when(weightHistoryUseCase.getWeightHistoryByUserId(userId)).thenReturn(List.of());
-        when(aiContextService.buildMemoryContext(eq(userId), anyString())).thenReturn("memory context");
+        when(aiContextService.prepareTelegramContext(userId)).thenReturn(context);
         when(aiContextService.getRecentInsightsSummary(userId, com.fit.fitnessapp.api.InsightType.WEEKLY))
                 .thenReturn("recent insights");
-        when(promptRenderer.render(eq("weekly-report-v1.md"), any())).thenReturn("weekly prompt");
+        when(promptRenderer.render(eq("weekly-report-v2.md"), any())).thenReturn("weekly prompt");
         when(moeOrchestrator.route(userId,
                 new ClassifiedAiPrompt("weekly prompt", AiDataClass.SENSITIVE),
                 MoeOrchestrator.AiTaskType.WEEKLY_REPORT))
                 .thenAnswer(invocation -> {
                     transactionActiveAtProvider.set(
                             TransactionSynchronizationManager.isActualTransactionActive());
-                    return validResponse(event.weekStart(), event.weekEnd());
+                    return validResponse(event.weekStart(), event.weekEnd(), List.of(claim.id()));
                 });
 
         service.generateWeeklyReport(event);
@@ -169,6 +196,36 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
                 "SELECT COUNT(*) FROM ai_insights WHERE user_id = ? AND insight_type = 'WEEKLY'",
                 Long.class,
                 userId)).isOne();
+        var recorded = jdbc.queryForMap("SELECT claim_id, claim_version, claim_content_hash, consumer_id FROM knowledge_claim_usage WHERE user_id = ?", userId);
+        assertThat(recorded).containsEntry("claim_id", claim.id()).containsEntry("claim_version", claim.aggregateVersion())
+                .containsEntry("claim_content_hash", claim.contentHash());
+        assertThat(jdbc.queryForObject("SELECT metadata->>'claim_usage_consumer' FROM ai_insights WHERE user_id = ?", String.class, userId))
+                .isEqualTo(recorded.get("consumer_id"));
+        service.generateWeeklyReport(event);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, userId)).isOne();
+
+        var next = AiInsightEntity.builder().userId(userId).insightType(com.fit.fitnessapp.api.InsightType.WEEKLY)
+                .date(event.weekStart().plusWeeks(1)).insightText("Next report")
+                .structuredResponse(validResponse(event.weekStart().plusWeeks(1), event.weekEnd().plusWeeks(1), List.of(claim.id())))
+                .build();
+        var nextEvent = new com.fit.fitnessapp.api.InsightGeneratedEvent(userId, next.getDate(), next.getInsightType(), "Next report", null, "next");
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status -> {
+            reportPersistence.saveAndPublish(next, nextEvent, context);
+            status.setRollbackOnly();
+        });
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_insights WHERE user_id = ?", Long.class, userId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, userId)).isOne();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reportPersistence.saveAndPublish(next, nextEvent,
+                        new AiContextService.PreparedContext("", List.of(), false))).isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reportPersistence.saveAndPublish(next, nextEvent,
+                        new AiContextService.PreparedContext("", List.of(view), true)))
+                .isInstanceOf(com.fit.fitnessapp.knowledge.context.ContextUseRejectedException.class);
+        inspector.dispute(userId, claim.id(), claim.aggregateVersion(), "report-source-disputed");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reportPersistence.saveAndPublish(next, nextEvent, context))
+                .isInstanceOf(com.fit.fitnessapp.knowledge.context.ContextUseRejectedException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_insights WHERE user_id = ?", Long.class, userId)).isOne();
+        jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, userId)).isZero();
     }
 
     private long insertUser() {
@@ -196,7 +253,7 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
                         Map.of(start.toString(), 4_000.0)));
     }
 
-    private NutritionInsightResponse validResponse(LocalDate start, LocalDate end) {
+    private NutritionInsightResponse validResponse(LocalDate start, LocalDate end, List<Long> citations) {
         return new NutritionInsightResponse(
                 NutritionInsightResponse.ReportType.WEEKLY,
                 new NutritionInsightResponse.Period(start, end),
@@ -211,6 +268,6 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
                 List.of(),
                 List.of(),
                 0.8f,
-                0.9f);
+                0.9f, citations);
     }
 }

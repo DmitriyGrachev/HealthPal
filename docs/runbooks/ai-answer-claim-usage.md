@@ -1,6 +1,6 @@
-# Purpose-scoped Telegram answers and exact Claim usage
+# Purpose-scoped AI answers and exact Claim usage
 
-Iteration 2.6, third checkpoint. AI experiment drafts and the final Phase 2 audit remain open.
+Iteration 2.6, Telegram and report checkpoints. The final Phase 2 audit remains open.
 
 `AiContextService` reads `knowledge::context-api` instead of legacy vector memories as facts.
 Telegram context requests the last 30 UTC dates with `TELEGRAM_ANSWER`, three optional narratives
@@ -9,11 +9,10 @@ Canonical constraints, supported Claims and unconfirmed narratives retain separa
 Claim/goal text is wrapped as untrusted data. Rejected conflicting/disputed content is omitted.
 Sensitive-egress permission is checked before assembly can request optional embeddings.
 
-The compatibility `buildMemoryContext` method also supplies this current supplementary context
-to daily/weekly/monthly reports; report-period observations still come from their existing event
-snapshots. Its legacy semantic-query argument no longer drives vector retrieval. Narrative search
-uses the existing purpose-scoped query, not the user's question. Reports have not acquired the
-Telegram exact-citation/atomic-delivery contract in this checkpoint.
+Daily/weekly/monthly reports retain the same prepared context and its canonical Claim identities;
+the obsolete string-only `buildMemoryContext` compatibility method was removed. Report-period
+measurements still come from their existing source snapshots, not the current 30-day supplementary
+context. Narrative search uses the existing purpose-scoped query, not the user's question.
 
 ## Output contract
 
@@ -49,9 +48,39 @@ a permanent answer archive. Forgetting a Claim removes its usage, not previously
 that text follows existing outbox retention. Account deletion removes owned queue rows and usage.
 Existing lifecycle exports cover both categories.
 
+## Daily, weekly and monthly reports
+
+The three v2 report prompts request the same exact `citedClaimIds` contract. Previous AI outputs
+are explicitly not evidence; associations must not be presented as demonstrated causation.
+All three report services pass their prepared context into the existing transactional
+`AiInsightPersistenceService`, which reuses `AnswerClaimUsage` after the source lock (and, for
+daily reports, the existing exact source-state fence).
+
+Reports use abstention rather than adding a warning: unknown/stale/deleted citations, cited
+unconfirmed Claims, or conflicts known at assembly/save reject the write and event publication.
+The previous report, if any, is preserved. Empty citations can still describe period measurements
+when there is no known conflict. As with interactive answers, omitted model citations cannot be
+reliably detected, and retrieved Claims are never automatically counted as used.
+
+One transaction saves the report, its random `ai-insight:<UUID>` output revision in
+`metadata.claim_usage_consumer`, exact `AI_ANSWER` usage, and the existing event publication.
+The revision distinguishes successive outputs even when the report row is overwritten. A fresh
+snapshot replay skips generation and creates no new usage; rolled-back output creates none.
+This records a durably saved report, not successful Telegram delivery. Subsequent delivery uses
+the existing event/outbox workflow, without recording a second use.
+
+Existing reports are historical outputs, not continuously revalidated current advice. Their
+retention/export rules are unchanged; no usage is backfilled for legacy reports. Replacing/deleting
+a report may leave historical usage without retained answer text. Forgetting a Claim removes its
+usage but does not redact old report text; account deletion removes both. No new table or provider
+call is introduced by the usage commit.
+
 ## Core verification
 
 The existing provider-transaction integration suite covers queued output and exact usage, rollback,
 late conflict warning, unknown/stale citations, link revocation and owner deletion. Focused unit
 checks cover egress denial, scoped assembly, prompt rendering and Telegram success/fallback paths.
 Providers and embeddings are mocked; no live AI or Telegram requests are needed.
+The same PostgreSQL suite also checks report output/usage atomicity, replay, rollback, source
+dispute, unknown citations, conflict abstention, unconfirmed-AI rejection and deletion. Existing
+daily source-concurrency tests retain their original source-change and deleted-owner fences.

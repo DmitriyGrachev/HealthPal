@@ -26,11 +26,7 @@ public class AiContextService {
     private final SensitiveAiEgressGuard egressGuard;
     private final Clock clock;
 
-    /** Current supplementary context; report-period measurements come from the report's own snapshot. */
-    public String buildMemoryContext(Long userId, String semanticQuery) {
-        return prepareTelegramContext(userId).text();
-    }
-
+    /** Current supplementary answer context; report-period measurements use their own source snapshots. */
     public PreparedContext prepareTelegramContext(Long userId) {
         egressGuard.validateSensitiveEgress();
         LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
