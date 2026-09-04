@@ -1,6 +1,8 @@
 # FitnessApp Context
 
-FitnessApp helps a User combine nutrition, workout, personal notes, Telegram interactions, and AI-generated guidance into a private fitness record.
+FitnessApp helps a User investigate progress, run a controlled Experiment, evaluate evidence and retain
+explainable personal knowledge. The deterministic workflow works without AI. The approved engineering
+scope and execution order are in `docs/superpowers/specs/2026-08-12-stage-2-roadmap-design.md`.
 
 ## Language
 
@@ -20,6 +22,7 @@ _Avoid_: Tier, plan.
 
 **User Note**:
 A dated piece of personal context supplied by a User, such as a goal, preference, allergy, illness, travel, injury, or mood note.
+An old goal-shaped note is narrative context, not a canonical Goal or automatically verified constraint.
 _Avoid_: Memo, journal entry.
 
 ### Nutrition
@@ -37,7 +40,8 @@ A User's nutrition aggregate for a calendar month, including day-level breakdown
 _Avoid_: Monthly diet, report.
 
 **Nutrition Sync**:
-The act of importing or refreshing nutrition and weight data for a User from FatSecret.
+An explicit refresh of permitted identifiers for the current FatSecret Connection. Restricted provider
+nutrition and weight content is not imported into durable canonical data; immediate provider reads are ephemeral.
 _Avoid_: Scrape, fetch job.
 
 ### Workout
@@ -54,7 +58,41 @@ _Avoid_: Upload, migration.
 An aggregate view of a User's Workout Sessions over a period, such as weekly volume or session count.
 _Avoid_: Analytics, stats.
 
-### Memory
+### Investigation and Experiment
+
+**Investigation**: a bounded progress problem workspace; not the future broader research Topic.
+
+**Goal**: an owned, versioned target with a metric, target range and lifecycle. Only one primary Goal
+can be ACTIVE per User. A note mentioning a goal does not create one.
+
+**Experiment**: one controlled intervention with a hypothesis, baseline, duration, primary metric
+and stop conditions. ACCEPTED, ACTIVE and PAUSED share the User's single in-flight slot.
+
+**Check-in**: adherence (`YES`, `NO`, `PARTIAL`, `UNKNOWN`) and optional bounded context for an
+Experiment date. A missing check-in is unknown, not non-adherence.
+
+**EvidenceRef**: an owned source identity with version, content hash and observation time; not copied
+provider content or a model's confidence score.
+
+**Evaluation**: a deterministic result with calculation inputs, coverage, adherence, freshness and
+confounder reason codes. Its recommendation is `KEEP`, `MODIFY`, `DROP` or `INCONCLUSIVE`.
+
+**Decision**: the User's explicit choice following Evaluation. AI never makes the lifecycle transition
+or final Decision. Optional cited Claims are checked and recorded with their exact versions/hashes.
+
+### Knowledge and Memory
+
+**KnowledgeClaim**: a typed, owned assertion with provenance, observation/validity time, verification,
+temporal status and supersession history. PostgreSQL is canonical; an AI hypothesis starts PROPOSED.
+
+**Claim usage**: a record of the exact Claim version/hash declared used by a durable Decision or AI
+output. Retrieval alone is not usage; a model citation is not proof of its internal reasoning.
+
+**Context**: purpose-specific canonical slices with missingness, freshness and trust labels. Optional
+semantic narratives cannot override constraints or promote hypotheses into verified facts.
+
+**Memory projection**: a rebuildable semantic search representation of canonical Claims. An ACTIVE
+projection generation is a search index, not another source of truth.
 
 **User Memory**:
 Retained personal context for one User that can be retrieved later to improve AI guidance.

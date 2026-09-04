@@ -2,7 +2,8 @@
 
 > **Статус:** review завершён на уровне направления; Stage 2 принят к исполнению
 > 2026-08-12; Phase 0 Truth and Recovery реализована и прошла exit gate
-> 2026-08-23; следующий engineering scope — Phase 1 Debugger Alpha.
+> 2026-08-23; Phase 1 engineering-ready зафиксирован 2026-08-28. Реализация Phase 2
+> и полный engineering gate завершены (2026-09-04). Product validation остаётся OPEN.
 >
 > **Дата:** 2026-08-09
 >
@@ -118,9 +119,9 @@
 | Scope | Decision IDs | Статус реализации | Что означает |
 |---|---|---|---|
 | Phase 0 — Truth and Recovery | `FND-001`–`FND-006` | ✅ Complete, 2026-08-23 | Код, V27–V33, lifecycle/replay, dirty upgrades, privacy, operations и supported Spring baseline прошли полный technical gate |
-| Phase 1 — Debugger Alpha engineering | `PRD-001`–`PRD-006`, `MET-002` | ⏭ Next; not implemented | Выполняется по canonical Phase 1 plan, начиная с `Investigation` |
+| Phase 1 — Debugger Alpha engineering | `PRD-001`–`PRD-006`, `MET-002` | ✅ Engineering-ready, 2026-08-28 | `49db314`; полный AI-disabled цикл, lifecycle и метрики; текущие gates повторно подтверждают работу |
 | Phase 1 — product validation | `PRD-007`, `VAL-001`, `VAL-002` | ⏳ Not proven | Требует реальных завершённых циклов и внешних target Users; тестами не закрывается |
-| Phase 2 — Trustworthy Personal Context | `KNO-001`–`KNO-005` | Planned; not implemented | Начинается после Phase 1 engineering-ready gate |
+| Phase 2 — Trustworthy Personal Context | `KNO-001`–`KNO-005`, Stage 2 часть `MET-003` | ✅ Engineering complete, 2026-09-04 | Typed Claims, Inspector, purpose-scoped context, exact usage, rebuild, conflicts/drift; 654 unit + 141 PostgreSQL tests и все gates green |
 | Phase 3+ | `AGT-*`, `SIG-*`, поздние UX/metrics | Deferred | Не входит в текущий Stage 2 execution scope |
 
 Phase 0 evidence by decision:
@@ -133,6 +134,11 @@ Phase 0 evidence by decision:
 | `FND-004` | ✅ Complete | V29/V30: owner + monotonic lease generation, guarded outcomes, terminal durable recovery и Telegram `DELIVERY_UNKNOWN` |
 | `FND-005` | ✅ Complete | Historical and dirty upgrade fixtures cover immutable migrations through V33 on PostgreSQL |
 | `FND-006` | ✅ Complete | Boot 4.1.0, Spring AI 2.0.0, Modulith 2.1.0; dependency analysis and all Maven/privacy gates green |
+
+Подробная сверка всех итераций и реализованных границ — в разделе 11
+[canonical roadmap](2026-08-12-stage-2-roadmap-design.md). Более широкие идеи исходного review
+(поведенческий drift, wearables, автономные агенты и продуктовые метрики реальных пользователей)
+не считаются реализованными только потому, что engineering scope Stage 2 закрывается.
 
 Документ большой намеренно, но его необязательно заполнять за один проход:
 

@@ -1,6 +1,7 @@
 # Purpose-scoped AI answers and exact Claim usage
 
-Iteration 2.6, Telegram and report checkpoints. The final Phase 2 audit remains open.
+Iteration 2.6, Telegram and report contracts. Final audit and gate evidence are in the
+[Phase 2 plan](../superpowers/plans/2026-08-12-phase-2-trustworthy-context.md).
 
 `AiContextService` reads `knowledge::context-api` instead of legacy vector memories as facts.
 Telegram context requests the last 30 UTC dates with `TELEGRAM_ANSWER`, three optional narratives

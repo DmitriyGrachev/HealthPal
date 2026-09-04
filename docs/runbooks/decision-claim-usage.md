@@ -1,6 +1,8 @@
 # Exact Claim usage for Experiment Decisions
 
-Iteration 2.6, second checkpoint. AI consumer integration and the final Phase 2 gate remain open.
+Iteration 2.6, Decision contract. AI consumer integration is documented in
+[ai-answer-claim-usage.md](ai-answer-claim-usage.md); current gate evidence is in the
+[Phase 2 plan](../superpowers/plans/2026-08-12-phase-2-trustworthy-context.md).
 
 ## Request contract
 

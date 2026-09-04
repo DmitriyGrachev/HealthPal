@@ -4,7 +4,7 @@
 
 1. Provide the production variables documented in `src/main/resources/application.properties`.
 2. Start the application with the default profile. Flyway must migrate a clean
-   PostgreSQL database through V33 before the application accepts traffic.
+   PostgreSQL database through the current V41 before the application accepts traffic.
 3. For local development use `SPRING_PROFILES_ACTIVE=dev`; the dev profile must point to PostgreSQL and keep `spring.jpa.hibernate.ddl-auto=validate`.
 4. Verify `GET /actuator/health` before enabling scheduled workers.
 
@@ -17,13 +17,17 @@ The verified production baseline as of 2026-08-23 is:
 - Spring AI 2.0.0;
 - Spring Modulith 2.1.0 with the current JDBC publication structure;
 - Telegram Bots 10.2.0 on its long-polling/client APIs;
-- Flyway schema V33 on PostgreSQL/pgvector;
+- Phase 0 ended at Flyway V33; the current Stage 2 schema is V41 on PostgreSQL/pgvector;
 - Jackson 3 for application JSON. Jackson 2 is restricted to the JJWT
   compatibility boundary and must not appear in application imports.
 
 Before accepting a platform change, run the effective-POM/dependency-tree
 inspection and all gates in `TESTING.md`. Do not deploy a mixed Boot 3 /
 Spring Framework 6 graph under the Boot 4 application.
+
+Stage 2 adds V34–V36 Experiment state and V37–V41 canonical knowledge, usage and projections.
+The historical cutover instructions below retain their original version boundaries. For current
+projection recovery and erasure guarantees, use [knowledge-rebuild.md](knowledge-rebuild.md).
 
 ## Scheduled Work
 

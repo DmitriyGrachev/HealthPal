@@ -54,7 +54,7 @@ and changed/deleted claims. Claim mutation invalidates every generation synchron
 forget and account deletion cascade to vectors. This does not depend on eventual event delivery.
 Expiry is also enforced at retrieval and on rebuild; no new expiry sweeper is added.
 
-Knowledge export schema 3 includes generation metadata without embeddings, job leases
+Knowledge export schema 5 includes generation metadata without embeddings, job leases
 or claim text in that metadata. Memory export schema 2 includes existing text/metadata
 and source/generation identifiers, never embedding arrays. Account lifecycle deletes
 generations and vectors; external-account disconnect retains the existing vector-clearing
@@ -68,4 +68,6 @@ embedding, and concurrent activation. Historical-upgrade and lifecycle cases cov
 cleanup, opaque legacy metadata compatibility, export and owner isolation.
 
 Run `mvn verify -Pintegration` and `mvn test -Parchitecture` for this cross-module schema change.
-No claim-usage writes or durable consumer integration are introduced here; those remain 2.6.
+Claim-usage writes belong to durable consumers, never projection retrieval/rebuild. Iteration 2.6
+integrates those consumers; see [AI answer usage](ai-answer-claim-usage.md),
+[Decision usage](decision-claim-usage.md) and the current [recovery runbook](knowledge-rebuild.md).

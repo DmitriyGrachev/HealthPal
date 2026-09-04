@@ -45,5 +45,5 @@ before conflict detection or narrative selection. Supported AI-origin Claims wit
 are excluded. These checks are not a lock held across a model call: durable consumers still revalidate.
 Local receipts can prove only changes known to this system, not arbitrary unobserved external changes.
 
-Final Phase 2 completion still requires the projection/lifecycle audit, rebuild operational
-runbook, roadmap/diagrams and the complete phase gate.
+Projection/lifecycle audit and operations are documented in [knowledge-rebuild.md](knowledge-rebuild.md).
+Final Phase 2 evidence is recorded in the [phase plan](../superpowers/plans/2026-08-12-phase-2-trustworthy-context.md).

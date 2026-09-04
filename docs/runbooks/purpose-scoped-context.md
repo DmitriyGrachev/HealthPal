@@ -1,7 +1,7 @@
 # Purpose-scoped personal context (V1)
 
 Iteration 2.3 exposes the internal `knowledge::context-api` `UserContextQuery`.
-Iteration 2.6 connects Telegram answers, Experiment Decisions and optional AI drafts.
+Iteration 2.6 connects Telegram answers, periodic reports, Experiment Decisions and optional AI drafts.
 Callers resolve the owner at their authenticated
 boundary, never from AI output or a client-supplied owner field.
 

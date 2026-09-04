@@ -1,6 +1,6 @@
 # FitnessApp Stage 2 — canonical roadmap and design decisions
 
-**Status:** approved for execution
+**Status:** Phase 0, Phase 1 engineering and Phase 2 engineering complete (2026-09-04); product validation OPEN
 **Date:** 2026-08-12
 **Scope:** Phase 0 Truth and Recovery, Phase 1 Debugger Alpha, Phase 2 Trustworthy Personal Context
 
@@ -84,12 +84,37 @@ workout   -> api::evidence-source
 experiment -> api::evidence-source
 knowledge -> api::lifecycle
 knowledge -> auth::current-user (Memory Inspector authentication)
+knowledge -> job (fenced projection rebuild)
+ai        -> api::delivery (owned durable answer queue)
 
 experiment -> api only for truly neutral shared contracts
 knowledge  -> api only for truly neutral shared contracts
 ```
 
 There is no `experiment -> knowledge`, `experiment -> ai`, `knowledge -> ai`, or `knowledge -> memory` implementation dependency. The consuming module owns the adapter: knowledge calls an exposed experiment query through a knowledge-side adapter; AI implements the exposed experiment draft SPI; memory implements the exposed knowledge projection SPI. Domain-specific identifiers-only events live in the owning module's exposed `api` named interface; the top-level `api` module is reserved for genuinely neutral contracts. The evidence contracts live in `api/evidence/` with `@NamedInterface("evidence-source")`; consumers depend on `api::evidence-source`, not broad `api`. `package-info.java` files declare `@ApplicationModule(allowedDependencies=...)` and `@NamedInterface` surfaces; architecture tests assert both allowed arrows and forbidden reverse edges before integration code is added.
+
+### Implemented transaction flow
+
+```text
+Experiment Evaluation + evidence snapshot --commit--> identifiers-only event
+  -> knowledge rereads owned Evaluation -> idempotent result Claim
+
+Canonical purpose-scoped context -> optional retrieval -> canonical refresh -> AI call (no DB transaction)
+  -> validated draft: PROPOSED hypothesis only, never an Experiment transition
+  -> Telegram answer: owner/current Claim check + owned outbox + exact usage --commit
+  -> periodic report: owner/current Claim check + report + exact usage + event --commit
+
+Explicit user Decision -> experiment-owned API seam
+  -> knowledge checks exact references -> Decision + exact usage + receipt --commit
+
+Canonical Claims -> guarded embeddings -> BUILDING vectors
+  -> current owner/lease/source manifest/base generation -> atomic ACTIVE swap
+```
+
+Report/Decision guards abstain on unacceptable context; interactive answers can carry explicit
+server warnings for unconfirmed non-constraint narratives. Claim usage means durable output,
+not vector retrieval or confirmed Telegram delivery. The current recovery contract is
+[knowledge-rebuild.md](../../runbooks/knowledge-rebuild.md).
 
 ## 5. Alternatives considered
 
@@ -245,3 +270,50 @@ No phase is declared complete from static inspection alone.
 ## 10. Terminology reconciliation
 
 The product-review item `PRD-001` used `Topic` for a debugger problem workspace. The owner's note and `PROJECT_VISION.md` use Topics for broader living research areas in the future personal knowledge model. Stage 2 therefore names the bounded debugger workspace `Investigation` and reserves `Topic` for the later research/knowledge concept. This is a naming correction, not removal of the `PRD-001` behavior.
+
+## 11. Engineering completion audit — 2026-09-04
+
+This preserves the complete approved scope, rather than treating only the final AI changes as Stage 2.
+Current production revision: `e9709e4`; the closing commit changes documentation only. Full current
+verification is recorded in the [Phase 2 plan](../plans/2026-08-12-phase-2-trustworthy-context.md).
+The rows below map requirements to implemented artifacts and executable evidence, not just commit titles.
+
+| Iteration | Implemented boundary / artifact | Current verification evidence |
+|---|---|---|
+| 0.1 | This roadmap, three phase plans, ADR-0015 policy/platform decisions | Committed authority/order and policy references |
+| 0.2 | Four `db/upgrade/pre-v*` bridges, ADR-0004, historical operations checkpoints | `HistoricalUpgradeIntegrationTest`: dirty keys/DST/invariants/owner metadata/publications, repeat bridges, DDL+DML rollback |
+| 0.3 | Module lifecycle SPI, export manifest, `/api/v2/user/me/export`; V1 retained | Manifest/controller tests and `UserDataLifecycleServiceIntegrationTest`: order, disclosures, owner isolation, no secrets |
+| 0.4 | V29, claimed DTO, heartbeat, owner/generation guarded job outcomes and terminal recovery | `DurableJobLeaseConcurrencyIntegrationTest`, worker/service/scheduler tests |
+| 0.5 | V30, just-in-time outbox claim, `DELIVERY_UNKNOWN`, unlink/delete fencing | Outbox concurrency/retention tests, mocked provider and timeout classification |
+| 0.6 | V31 source versions/lifecycle epochs, short commit services, identifiers-only durable events, ADR-0016 | Nutrition/workout atomic-publication, domain-replay and daily-source-concurrency tests |
+| 0.7 | V32 identifier whitelist/connection epoch; no durable restricted FatSecret content; ADR-0015 | `FatSecretRetentionIntegrationTest`, provider unit tests and lifecycle/disconnect replay tests; no optional persistent cache |
+| 0.8 | Dirty current-state normalization and bridge matrix through latest schema | Historical-upgrade and durable-ownership migration suites |
+| 0.9–0.10 | Bridge commit `21ab663`, target `eaa9fd0`; Boot 4.1 / AI 2.0 / Modulith 2.1, V33, Jackson 3 | Current effective POM/tree and dependency analysis; smoke/replay/upgrade suites; no mixed Boot 3 runtime |
+| 0.11 | `bff400d`, TESTING, operations, Stable Base separation and decision register | Phase 0 remains covered by the full current regression gate |
+| 1.1 | V34, Investigation/Goal/receipts, owned REST, primary-active Goal uniqueness, lifecycle | Domain/controller/ownership tests and module architecture |
+| 1.2 | V35, Experiment state machine, one intervention and one in-flight slot, versioned transitions | Experiment domain/service/controller and concurrency tests |
+| 1.3 | V36 check-ins/outcomes/evaluations/decisions/evidence; deterministic insufficiency/adherence/confounders | Evaluation/evidence/controller tests; primary outcome required; missing check-in stays UNKNOWN |
+| 1.4 | Neutral evidence API, version/hash identity, deterministic Alpha context | `AlphaExperimentContextIntegrationTest`, context/evidence unit tests; no AI dependency |
+| 1.5 | Normalized command kernel and owned `/goal`, `/experiment`, `/checkin`, `/outcome`, `/evaluate` workflow | Product handler/kernel/private-link/replay tests and outbox concurrency |
+| 1.6 | Default-off draft SPI, egress/grounding/output validator, versioned proposal templates | Draft/egress offline tests; invalid evidence, unsafe/multiple interventions and ungrounded output rejected |
+| 1.7 | `49db314`, enum-only cycle metrics, complete lifecycle and debugger dogfood runbook | AI-disabled `DebuggerAlphaWorkflowIntegrationTest`, metrics and lifecycle tests; product ledger stays OPEN |
+| 2.1 | V37 typed Claims/evidence/receipts, provenance and separate trust/status axes | Claim/value/service/persistence tests: canonical hashes, ownership, monotonic replay and supersession |
+| 2.2 | V38 Memory Inspector, correction lineage, confirm/dispute/forget, usage and hashed deletion fences | Inspector web/persistence tests: current-user scope, conflicts, history, replay after forget/delete |
+| 2.3 | Purpose-specific UserContext, deterministic SQL, optional narrative search, dedup/trust/budgets | Ranking/assembler/PostgreSQL tests: source refresh, missingness, stale/foreign IDs and provider outage |
+| 2.4 | V39 generation schema/DB fences, guarded projection/rebuild, lifecycle coverage | Projection/rebuild/upgrade tests: exact manifest, failure preservation, concurrent activation and owner deletion |
+| 2.5 | V40 contradiction/drift and versioned notification actions, no automatic truth changes | Detector, consistency concurrency, MockMvc and historical-upgrade tests |
+| 2.6 | Evaluation Claims, exact Decision/AI usage (V41), PROPOSED drafts, quality metrics, lifecycle/rebuild docs and diagrams | AI-disabled workflow, UserContext and external-I/O PostgreSQL suites; complete Maven/architecture/dependency/privacy gate |
+
+Final lifecycle review matched V37–V41 tables against the knowledge participant's nine export/erasure
+categories; generation/vector metadata excludes embeddings and lease details. Jobs and Modulith
+publications remain separately module-owned and owner-cascaded. V34–V36 tables retain their complete
+Experiment export/deletion coverage. Existing migrations were not edited during Phase 2.
+
+Review was performed inline under the owner's no-subagent instruction; it is not represented as an
+independent second-agent review. No new tests were added by this final documentation audit. Required
+existing regression suites were run in full. Local Graphify artifacts are excluded from commits.
+
+Engineering completion does **not** assert product validation, deployment, provider-side erasure,
+global truth, model-citation completeness, orphan-generation garbage collection or autonomous action.
+The [product-validation ledger](../../validation/debugger-alpha-product-gate.md) requires real observed
+cycles/users and stays OPEN. Those observations and Phase 3+ are not silently marked implemented.

@@ -1,6 +1,6 @@
 # FitnessApp Testing Strategy
 
-Last verified: 2026-08-23
+Last verified: 2026-09-04
 
 This document is the source of truth for test selection and release gates. The
 Maven configuration in `pom.xml` and `.github/workflows/ci.yml` implement these
@@ -22,7 +22,20 @@ For a Phase or release gate, run all five commands. For code changes, also run
 plan. A focused test command may shorten the RED/GREEN loop, but never replaces
 the relevant final gate.
 
-Verified Phase 0 snapshot on 2026-08-23:
+Verified Stage 2 snapshot on 2026-09-04 (production revision `e9709e4`):
+
+- default: 654 tests, 0 failures/errors/skips;
+- integration: 654 default plus 141 PostgreSQL tests, 0 failures/errors/skips;
+- architecture: 11 tests, 0 failures/errors, one intentional documentation-generation skip;
+- dependency analysis: no dependency problems; effective POM/tree verified;
+- final command logs and operational checks: [Phase 2 plan](docs/superpowers/plans/2026-08-12-phase-2-trustworthy-context.md).
+
+The integration fork emitted the known post-`System.exit(0)` shutdown warning; Maven exited 0,
+Failsafe reported no failures/errors/flakes and no timeout. Do not describe that as a clean JVM shutdown.
+The final audit added no tests; it ran the existing full suites. New checks should cover core risks,
+not duplicate existing coverage.
+
+Historical Phase 0 snapshot on 2026-08-23:
 
 - default: 362 tests, 0 failures/errors;
 - integration: 362 default tests plus 114 PostgreSQL integration tests, 0 failures/errors;

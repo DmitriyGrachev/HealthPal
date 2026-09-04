@@ -6,26 +6,45 @@
 
 ## Execution checkpoint — 2026-09-04
 
-- Iteration 2.1 is committed as `49035b1`.
-- Iteration 2.2 is committed as `0420289`; API contract: [Memory Inspector runbook](../../runbooks/memory-inspector.md).
-- Iteration 2.3 is committed as `6e507eb`; contract and policy: [Purpose-scoped context runbook](../../runbooks/purpose-scoped-context.md).
-- Iteration 2.4 is committed as `bcf3e7c`: [Versioned memory projections](../../runbooks/versioned-memory-projections.md).
-- Iteration 2.5 is committed as `906c3c2`: [Claim consistency contract](../../runbooks/claim-consistency.md).
-- Iteration 2.6 is in progress inline, without subagents. Its first checkpoint is [Evaluation-to-Claim integration](../../runbooks/experiment-result-claims.md); AI adapters, the final metrics/lifecycle audit and Phase 2 exit gate remain open.
-- First 2.6 checkpoint is committed as `20348cc`. The second checkpoint adds [exact Decision Claim usage](../../runbooks/decision-claim-usage.md): explicit references, current trust/source/conflict checks and atomic usage after Decision insertion, without a reverse module dependency. V41 adds usage identity snapshots; legacy versions remain unknown and export schema advances to 5. AI integration and the final Phase 2 audit are still pending.
-- Second-checkpoint verification: `mvn verify -Pintegration` passed (651 default, 139 PostgreSQL tests, zero failures/errors); architecture 11 tests/one intentional skip; dependency analysis, privacy and diff checks passed. The known post-exit fork warning recurred; Maven exited 0. One new guard test; existing workflow/web/lifecycle/upgrade tests were extended. Primary inline review covered owner-lock ordering, transactional rollback, exact usage identity, current source fencing, replay after forget, and legacy compatibility. Graphify rebuilt (4889 nodes, 9122 edges); generated files stay excluded. No live provider calls or subagents.
-- The first checkpoint fixes evidence membership at calculation time and rereads exact immutable source rows before idempotent Claim creation. Historical evaluations without this snapshot are deliberately not backfilled. One additional parameter case covers insufficient data; the existing core workflow also checks late-input stability and forget/account-delete replay.
-- Verification for this 2.6 checkpoint: `mvn verify -Pintegration` passed (650 default and 139 PostgreSQL tests, no failures/errors); architecture 11 tests with one intentional skip; `dependency:analyze-only`, privacy and diff checks passed. The known post-exit fork warning recurred, with Maven exit 0. Awaitility is now explicitly declared as a test dependency at its existing Boot-managed version. Primary inline review checked exact provenance, after-commit processing, source/owner/tombstone fencing and reverse-dependency prohibition. Graphify rebuilt (4867 nodes, 9084 edges); generated artifacts stay excluded. These results do not close the remaining 2.6 requirements or the final Phase gate.
-- Verification for 2.5: `mvn verify -Pintegration` passed (650 fresh default tests, 138 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy and diff checks passed. The known post-`System.exit(0)` integration-fork warning recurred; Maven exited 0.
-- Eight core cases added: three detector tests, three transactional consistency cases, one MockMvc command case and one dirty historical upgrade case. Existing lifecycle tests cover both new tables. Numeric equality was RED before correction (`1` and `1.00`); one context fixture was corrected to model independent predicates rather than accidental contradictions.
-- Primary review confirmed owner/version/idempotency fencing, atomic canonical refresh, read-only context protection despite dismissal, metadata-only exports and enum-only metrics. Source staleness uses registered local high-watermarks, not external polling; wall-clock expiry refresh is paged and eventually consistent. No automatic Claim correction or trust promotion.
-- Graphify rebuilt for 2.5 (4791 nodes, 8955 edges); generated artifacts remain excluded. The privacy hook was run separately because Graphify's PowerShell parser is unavailable.
-- Verification for 2.4: `mvn test` and `mvn verify -Pintegration` passed (646 fresh default tests, 134 PostgreSQL tests); `mvn test -Parchitecture` passed (11 tests, one intentional skip). Dependency analysis, privacy scan and diff check passed. The known integration-fork shutdown warning recurred after all tests passed; Maven exited 0.
-- Added nine core test cases (including one extra parameterized case); existing lifecycle/lease tests were extended. Primary inline review checked lease/source fencing, active-generation reads, egress outside transactions, owner deletion, migration compatibility and module boundaries. No live provider calls. Orphan crash-time BUILDING retention is explicitly documented, not claimed solved.
-- Graphify rebuilt for 2.4 (4674 nodes, 8776 edges); generated files remain local and excluded. Its unavailable PowerShell parser does not replace the separately executed privacy hook.
-- Verification for 2.3: `mvn verify -Pintegration` passed (643 default tests from fresh reports, 128 PostgreSQL tests); architecture 11 tests with one intentional skip; dependency analysis, privacy scan and diff check passed. The integration fork emitted a 30-second post-`System.exit(0)` shutdown warning; Maven exited 0 and all test results passed.
-- Added six core tests. The full gate exposed an old explicit-user-ID/identity-sequence collision in two test fixtures; corrected only those fixture helpers and reran the full gate successfully. No live AI/provider calls. Primary review retained distinct canonical facts from one source while collapsing repeated optional AI evidence.
-- Graphify rebuilt (4595 nodes, 8649 edges); its PowerShell parser is unavailable for the privacy hook, which was executed separately. Generated Graphify files remain local and are excluded from the feature commit.
+`PHASE_2_ENGINEERING_COMPLETE: GREEN`. Implementation and final documentation/privacy/link checks passed. The original
+Phase 0/1/2 scope is reconciled in the [canonical roadmap](../specs/2026-08-12-stage-2-roadmap-design.md).
+No subagents or live providers were used in the final inline checkpoints; existing core tests were extended.
+
+| Iteration | Commit(s) | Contract |
+|---|---|---|
+| 2.1 | `49035b1` | Canonical typed Claims, provenance, ownership and replay |
+| 2.2 | `0420289` | [Memory Inspector](../../runbooks/memory-inspector.md), lineage forget and usage |
+| 2.3 | `6e507eb` | [Purpose-scoped context](../../runbooks/purpose-scoped-context.md) |
+| 2.4 | `bcf3e7c` | [Versioned projections](../../runbooks/versioned-memory-projections.md) |
+| 2.5 | `906c3c2` | [Conflict/drift consistency](../../runbooks/claim-consistency.md) |
+| 2.6 evaluation/decision | `20348cc`, `670f592` | [Result Claims](../../runbooks/experiment-result-claims.md), [exact Decision usage](../../runbooks/decision-claim-usage.md) |
+| 2.6 AI/quality | `28321e9`, `ff7b038`, `2e4253c`, `e9709e4` | [AI answers/reports](../../runbooks/ai-answer-claim-usage.md), [proposed hypotheses](../../runbooks/ai-experiment-hypotheses.md), [quality metrics](../../runbooks/knowledge-quality.md) |
+| 2.6 final fixation | This documentation commit | [Rebuild operations](../../runbooks/knowledge-rebuild.md), lifecycle audit, roadmap and diagrams |
+
+Fresh gate on production revision `e9709e4` (only documentation changes follow):
+
+| Command | Evidence |
+|---|---|
+| `mvn test` | Exit 0, 654 default tests; `target/phase2-final-unit.log` |
+| `mvn verify -Pintegration` | Exit 0, 654 default + 141 PostgreSQL tests, no failures/errors/skips; `target/phase2-final-integration.log` |
+| `mvn test -Parchitecture` | Exit 0, 11 tests, one intentional documentation-generation skip; `target/phase2-final-architecture.log` |
+| `mvn dependency:analyze` | Exit 0, no dependency problems; effective POM/tree also checked; `target/phase2-final-dependencies.log` |
+| Privacy, Graphify, link/path and whitespace checks | Exit 0; 13 documentation files' relative links resolve; Graphify 4976 nodes/9357 edges; generated artifacts excluded |
+
+The known post-`System.exit(0)` integration-fork shutdown warning recurred; Maven and Failsafe
+completed successfully (141 tests, zero failures/errors/flakes, timeout=false). This is not a claim
+of clean JVM shutdown. Logs/reports are local build artifacts, not committed evidence substitutes.
+
+Final inline review traced owner/lease/source fencing, current trust/conflicts, durable usage,
+default-off AI drafts, model I/O outside transactions, nine knowledge lifecycle categories,
+generation/vector/job deletion, immutable migrations and forbidden reverse dependencies.
+No new tables or production code were needed by the final audit. A source update supersedes the
+old Claim; source deletion/forget removes it and database fences reject delayed projection writes.
+
+Known limits are explicit: local source freshness cannot detect unobserved external changes;
+model citations are declarations, not proof of reasoning; abandoned crash-time BUILDING generations
+have no sweeper; historical answers are not retroactively redacted by Claim forget. Product validation
+requires observed users and remains open; this engineering gate does not close it.
 
 ## Domain contract
 
@@ -193,7 +212,7 @@ Add:
 
 Place the experiment read adapter in `knowledge/adapter/out/experiment/`; it imports only the `experiment::query-api` named interface. Expose `UserContextQuery` through `knowledge::context-api` for AI callers and keep `experiment` free of knowledge imports. Add `KnowledgeModuleArchitectureTest` asserting the allowed `knowledge -> experiment::query-api` edge and forbidding reverse `experiment -> knowledge` plus `knowledge -> ai|memory` edges.
 
-The assembler runs canonical SQL reads first. Semantic retrieval is an optional last step only for permitted narratives and past patterns. Its absence returns a valid bundle with a projection-availability flag.
+The assembler runs canonical SQL reads first. Semantic retrieval is optional and only selects permitted narratives and past patterns; canonical state is refreshed after external lookup before identities are accepted. Its absence returns a valid bundle with a projection-availability flag.
 
 Record Claim usage only after the consuming Decision/answer is durably committed. The usage record includes purpose and consumer ID, not prompt text.
 

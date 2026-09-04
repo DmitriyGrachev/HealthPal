@@ -1,7 +1,8 @@
 # Experiment result Claims
 
 Iteration 2.6, first checkpoint: deterministic Evaluation to Knowledge integration.
-The remaining AI/Decision integration and Phase 2 exit gate are not complete.
+AI/Decision integration is now implemented; final gate evidence is in the
+[Phase 2 plan](../superpowers/plans/2026-08-12-phase-2-trustworthy-context.md).
 
 ## Source and trust
 
