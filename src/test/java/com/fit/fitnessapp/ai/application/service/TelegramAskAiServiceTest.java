@@ -44,6 +44,7 @@ class TelegramAskAiServiceTest {
 
     @Mock
     private AiContextService aiContextService;
+    @Mock private AiAnswerDeliveryService answerDelivery;
 
     private final AiSafetyService aiSafetyService = new AiSafetyService();
 
@@ -57,36 +58,35 @@ class TelegramAskAiServiceTest {
                 aiProperties,
                 promptRenderer,
                 aiContextService,
-                aiSafetyService
+                aiSafetyService,
+                answerDelivery
         );
     }
 
     @Test
-    void publishesTelegramAiResponseWithoutLoggingQuestionOrSummary(CapturedOutput output) {
+    void queuesTelegramAiResponseWithoutLoggingQuestionOrSummary(CapturedOutput output) {
         TelegramAskRequestedEvent event = new TelegramAskRequestedEvent(
                 42L,
                 100L,
                 "I had 3200 calories today"
         );
-        when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
-        when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
+        var context = new AiContextService.PreparedContext("memory context", List.of(), false);
+        when(aiContextService.prepareTelegramContext(event.userId())).thenReturn(context);
+        when(promptRenderer.render(eq("telegram-ask-v2.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
         when(moeOrchestrator.route(42L, classified("ask prompt"), MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenReturn(response("Your daily overview show a calorie increase"));
+        when(answerDelivery.deliver(42L, 100L, "Your daily overview show a calorie increase", context, List.of())).thenReturn(true);
 
         service.answer(event);
 
-        ArgumentCaptor<TelegramAiResponseEvent> eventCaptor = ArgumentCaptor.forClass(TelegramAiResponseEvent.class);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-        assertThat(eventCaptor.getValue()).isEqualTo(new TelegramAiResponseEvent(
-                42L,
-                100L,
-                "Your daily overview show a calorie increase"
-        ));
+        verify(answerDelivery).deliver(42L, 100L, "Your daily overview show a calorie increase", context, List.of());
+        verifyNoInteractions(eventPublisher);
         assertThat(output)
                 .contains("userId=42")
                 .contains("taskType=QUICK_ANALYSIS")
-                .contains("status=success");
+                .contains("status=success")
+                .doesNotContain(event.question(), "Your daily overview show a calorie increase");
     }
 
     @Test
@@ -120,8 +120,9 @@ class TelegramAskAiServiceTest {
     @Test
     void publishesFallbackMessageWhenAiCallFails() {
         TelegramAskRequestedEvent event = new TelegramAskRequestedEvent(42L, 100L, "How was today?");
-        when(aiContextService.buildMemoryContext(event.userId(), event.question())).thenReturn("memory context");
-        when(promptRenderer.render(eq("telegram-ask-v1.md"), anyMap())).thenReturn("ask prompt");
+        when(aiContextService.prepareTelegramContext(event.userId()))
+                .thenReturn(new AiContextService.PreparedContext("memory context", List.of(), false));
+        when(promptRenderer.render(eq("telegram-ask-v2.md"), anyMap())).thenReturn("ask prompt");
         when(aiProperties.QUICK_ANALYSIS_MODEL()).thenReturn("quick-model");
         when(moeOrchestrator.route(42L, classified("ask prompt"), MoeOrchestrator.AiTaskType.QUICK_ANALYSIS))
                 .thenThrow(new IllegalStateException("provider down"));

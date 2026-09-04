@@ -38,6 +38,10 @@ class KnowledgeModuleArchitectureTest {
                 .toList()).contains("api", "projection-spi", "context-api");
         assertThat(knowledge.getNamedInterfaces().getByName("context-api").orElseThrow()
                 .contains(UserContextQuery.class)).isTrue();
+        assertThat(knowledge.getNamedInterfaces().getByName("context-api").orElseThrow()
+                .contains(com.fit.fitnessapp.knowledge.context.AnswerClaimUsage.class)).isTrue();
+        assertThat(modules.getModuleByName("api").orElseThrow().getNamedInterfaces().getByName("delivery").orElseThrow()
+                .contains(com.fit.fitnessapp.api.delivery.OwnedMessageOutbox.class)).isTrue();
         assertThat(knowledge.getNamedInterfaces().getByName("api").orElseThrow()
                 .contains(KnowledgeClaimChangedEvent.class)).isTrue();
     }

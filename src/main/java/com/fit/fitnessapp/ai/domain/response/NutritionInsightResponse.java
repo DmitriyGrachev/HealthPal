@@ -26,8 +26,21 @@ public record NutritionInsightResponse(
     
     // Analysis Metadata
     float goalAlignment,      // 0.0 - 1.0 score
-    float confidenceScore     // 0.0 - 1.0 score for MoE routing logic
+    float confidenceScore,    // 0.0 - 1.0 score for MoE routing logic
+    List<Long> citedClaimIds   // Explicit model-declared sources, validated against the supplied context.
 ) {
+    public NutritionInsightResponse {
+        citedClaimIds = citedClaimIds == null ? List.of() : List.copyOf(citedClaimIds);
+    }
+
+    public NutritionInsightResponse(ReportType reportType, Period periodCovered, String summary,
+                                    String telegramSummary, MacroAnalysis macroAnalysis, WeightTrend weightTrend,
+                                    List<Anomaly> anomalies, List<ActionableItem> recommendations,
+                                    List<String> followUpQuestions, float goalAlignment, float confidenceScore) {
+        this(reportType, periodCovered, summary, telegramSummary, macroAnalysis, weightTrend, anomalies,
+                recommendations, followUpQuestions, goalAlignment, confidenceScore, List.of());
+    }
+
     public enum ReportType { DAILY, WEEKLY, MONTHLY }
     
     public record Period(LocalDate start, LocalDate end) {}

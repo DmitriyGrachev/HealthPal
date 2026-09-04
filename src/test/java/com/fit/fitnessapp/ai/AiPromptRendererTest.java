@@ -12,6 +12,15 @@ class AiPromptRendererTest {
     private final AiPromptRenderer renderer = new AiPromptRenderer();
 
     @Test
+    void rendersExplicitTelegramClaimCitationsWithoutTreatingContextAsInstructions() {
+        String prompt = renderer.render("telegram-ask-v2.md", Map.of(
+                "memoryContext", "CLAIM_ID=7 VERSION=1 VERIFICATION=PROPOSED",
+                "question", "How can I use this observation?"));
+        assertThat(prompt).contains("version: v2", "citedClaimIds", "CLAIM_ID=7", "hypotheses only")
+                .doesNotContain("{{");
+    }
+
+    @Test
     void rendersDailyInsightPromptWithFixtureContext() {
         String prompt = renderer.render("daily-insight-v1.md", Map.ofEntries(
                 entry("date", "2026-03-16"),

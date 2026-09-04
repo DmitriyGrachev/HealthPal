@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
-public class TelegramBotService {
+public class TelegramBotService implements com.fit.fitnessapp.api.delivery.OwnedMessageOutbox {
 
     static final String RATE_LIMIT_RETRY_CODE = "TELEGRAM_RATE_LIMIT_RETRY";
     static final String RATE_LIMIT_EXHAUSTED_CODE = "TELEGRAM_RATE_LIMIT_EXHAUSTED";
@@ -182,11 +182,18 @@ public class TelegramBotService {
     /** Queues private delivery only while the exact user-to-chat link is active. */
     @Transactional
     public boolean enqueueOwnedMessage(Long userId, Long chatId, String text) {
+        return !enqueue(userId, chatId, text).isEmpty();
+    }
+
+    @Override
+    @Transactional
+    public List<Long> enqueue(Long userId, Long chatId, String text) {
         if (userId == null || chatId == null || text == null || text.isBlank()) {
-            return false;
+            return List.of();
         }
+        var ids = new ArrayList<Long>();
         for (String chunk : chunkText(text, MAX_TELEGRAM_MESSAGE_LENGTH)) {
-            int inserted = jdbcTemplate.update("""
+            var inserted = jdbcTemplate.query("""
                     INSERT INTO telegram_delivery_outbox
                         (user_id, chat_id, text, status, attempts, created_at)
                     SELECT active_link.user_id, active_link.chat_id, ?, 'PENDING', 0, NOW()
@@ -194,13 +201,16 @@ public class TelegramBotService {
                      WHERE active_link.user_id = ?
                        AND active_link.chat_id = ?
                     FOR KEY SHARE OF active_link
-                    """, chunk, userId, chatId);
-            if (inserted == 0) {
+                    RETURNING id
+                    """, (rs, rowNum) -> rs.getLong(1), chunk, userId, chatId);
+            if (inserted.isEmpty()) {
                 log.info("Skipped owned Telegram enqueue errorCode={}", LINK_REVOKED_CODE);
-                return false;
+                if (!ids.isEmpty()) throw new IllegalStateException("owned response enqueue was interrupted");
+                return List.of();
             }
+            ids.addAll(inserted);
         }
-        return true;
+        return List.copyOf(ids);
     }
 
     private void sendSingleChunk(Long chatId, String text, ReplyKeyboard keyboard) {
