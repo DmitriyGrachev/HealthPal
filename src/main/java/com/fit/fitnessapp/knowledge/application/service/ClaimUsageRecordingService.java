@@ -41,9 +41,9 @@ public class ClaimUsageRecordingService implements ClaimUsageRecorder {
         if (!claims.lockOwner(userId)) {
             throw new KnowledgeClaimOwnerNotFoundException();
         }
-        claims.findByOwnerAndId(userId, claimId).orElseThrow(KnowledgeClaimNotFoundException::new);
+        var claim = claims.findByOwnerAndId(userId, claimId).orElseThrow(KnowledgeClaimNotFoundException::new);
         if (usage.insert(userId, claimId, purpose, consumerId, clock.instant())) {
-            metrics.claimUsage(purpose);
+            metrics.claimUsage(purpose, claim);
         }
     }
 

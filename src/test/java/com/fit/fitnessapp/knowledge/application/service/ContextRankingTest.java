@@ -25,11 +25,15 @@ class ContextRankingTest {
                 TypedClaimValue.text("old"), ClaimOrigin.USER_DECLARED, ClaimVerification.SUPPORTED,
                 new ClaimSourceRef("NOTE", "3", 1), NOW.minusSeconds(200), null, NOW.minusSeconds(1),
                 new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.USER_ASSERTION, "0.5"), List.of(), NOW).withId(3L);
-        var result = new ContextPolicy().select(List.of(expired, disputed, supported), Set.of(1L), REQUEST, NOW);
+        var aiWithoutConfirmation = KnowledgeClaim.create(1L, supported.subject(), supported.predicate(), TypedClaimValue.text("AI suggestion"),
+                ClaimOrigin.AI_HYPOTHESIS, ClaimVerification.SUPPORTED, new ClaimSourceRef("AI_OUTPUT", "legacy", 1),
+                NOW.minusSeconds(60), null, null, new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.USER_ASSERTION, "1"),
+                List.of(), NOW).withId(4L);
+        var result = new ContextPolicy().select(List.of(expired, disputed, supported, aiWithoutConfirmation), Set.of(1L), REQUEST, NOW);
 
         assertThat(result.facts()).isEmpty();
         assertThat(result.rejected()).extracting(item -> item.reason())
-                .containsExactlyInAnyOrder("OPEN_CONFLICT", "DISPUTED", "EXPIRED");
+                .containsExactlyInAnyOrder("OPEN_CONFLICT", "DISPUTED", "EXPIRED", "UNCONFIRMED_AI");
     }
 
     @Test

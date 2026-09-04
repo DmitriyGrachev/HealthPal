@@ -62,6 +62,7 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
     @Autowired private com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimCommandUseCase claimCommands;
     @Autowired private com.fit.fitnessapp.knowledge.application.port.in.KnowledgeClaimInspectorUseCase inspector;
     @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
+    @Autowired private io.micrometer.core.instrument.MeterRegistry meters;
 
     @Test
     void answerQueuesExactUsageAtomicallyAndRefusesStaleOrRevokedContext() {
@@ -105,6 +106,9 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
                     .containsEntry("claim_id", claim.id()).containsEntry("claim_version", claim.aggregateVersion())
                     .containsEntry("claim_content_hash", claim.contentHash())
                     .containsEntry("consumer_id", "telegram-answer:" + queued.get("id"));
+            var usageMetric = meters.get("fitnessapp.knowledge.claim.usage.trust")
+                    .tags("purpose", "AI_ANSWER", "origin", "AI_HYPOTHESIS", "verification", "PROPOSED", "aiTrust", "UNCONFIRMED").counter();
+            double committedUses = usageMetric.count();
             new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status -> {
                 answerDelivery.deliver(owner, chat, "Rollback answer", context, List.of(claim.id()));
                 var contradictory = com.fit.fitnessapp.knowledge.domain.KnowledgeClaim.create(owner,
@@ -122,6 +126,7 @@ class AiExternalIoTransactionBoundaryIntegrationTest extends AbstractPostgresInt
             });
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM telegram_delivery_outbox WHERE user_id = ?", Long.class, owner)).isOne();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM knowledge_claim_usage WHERE user_id = ?", Long.class, owner)).isOne();
+            assertThat(usageMetric.count()).isEqualTo(committedUses);
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> answerDelivery.deliver(owner, chat, "Unknown source", context, List.of(claim.id() + 1000)))
                     .isInstanceOf(IllegalArgumentException.class);
             inspector.dispute(owner, claim.id(), claim.aggregateVersion(), "dispute-answer-source");

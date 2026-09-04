@@ -15,8 +15,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class MemoryProjectionRebuildIntegrationTest extends ProjectionIntegrationSupport {
+    @org.springframework.beans.factory.annotation.Autowired io.micrometer.core.instrument.MeterRegistry meters;
     @Test
     void failurePreservesPreviousGenerationAndSuccessfulRebuildMatchesCanonicalSources() {
+        var success = meters.counter("fitnessapp.knowledge.rebuild.converged");
+        var failure = meters.counter("fitnessapp.knowledge.rebuild.failed", "reason", "WRITE_FAILED");
+        double successesBefore = success.count(), failuresBefore = failure.count();
         var first = claim("first");
         projection.project(event(first));
         var previous = active();
@@ -27,15 +31,21 @@ class MemoryProjectionRebuildIntegrationTest extends ProjectionIntegrationSuppor
                     if (writes.incrementAndGet() == 2) throw new IllegalStateException("provider unavailable");
                     return vectors(call.<List<Document>>getArgument(0));
                 });
-        assertThatThrownBy(() -> rebuild.rebuild(execution())).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> rebuild.rebuild(execution())).isInstanceOfSatisfying(
+                com.fit.fitnessapp.knowledge.spi.ProjectionFailureException.class,
+                error -> assertThat(error.code()).isEqualTo(com.fit.fitnessapp.knowledge.spi.ProjectionFailureException.Code.WRITE_FAILED));
+        assertThat(writes).hasValue(2);
         assertThat(active()).isEqualTo(previous);
         assertThat(countVectors()).isOne();
         assertThat(claims.findAllByOwner(owner)).hasSize(2);
+        assertThat(failure.count()).isEqualTo(failuresBefore + 1);
+        assertThat(success.count()).isEqualTo(successesBefore);
 
         when(embeddings.embed(anyList(), any(EmbeddingOptions.class), any(BatchingStrategy.class)))
                 .thenAnswer(call -> vectors(call.<List<Document>>getArgument(0)));
         var next = rebuild.rebuild(execution());
         assertThat(active()).isEqualTo(next).isNotEqualTo(previous);
+        assertThat(success.count()).isEqualTo(successesBefore + 1);
         assertThat(countVectors()).isEqualTo(2);
         assertThat(jdbc.queryForList("SELECT projection_content_hash FROM user_memory WHERE user_id = ? ORDER BY projection_claim_id",
                 String.class, owner)).containsExactly(first.contentHash(), second.contentHash());

@@ -53,6 +53,11 @@ class ClaimUsageRecordingServiceTest {
         verify(claims, times(2)).lockOwner(USER_ID);
         assertThat(meterRegistry.get("fitnessapp.knowledge.claim.usage")
                 .tag("purpose", "AI_ANSWER").counter().count()).isOne();
+        assertThat(meterRegistry.get("fitnessapp.knowledge.claim.usage.trust")
+                .tags("purpose", "AI_ANSWER", "origin", "AI_HYPOTHESIS", "verification", "PROPOSED", "aiTrust", "UNCONFIRMED")
+                .counter().count()).isOne();
+        assertThat(meterRegistry.getMeters()).allSatisfy(meter -> assertThat(meter.getId().getTags())
+                .extracting(tag -> tag.getKey()).doesNotContain("userId", "claimId", "consumerId", "value", "sourceId"));
     }
 
     @Test
@@ -68,9 +73,9 @@ class ClaimUsageRecordingServiceTest {
 
     private static KnowledgeClaim claim() {
         return KnowledgeClaim.create(USER_ID, new ClaimSubject("subject"), new ClaimPredicate("predicate"),
-                TypedClaimValue.text("value"), ClaimOrigin.USER_DECLARED, ClaimVerification.SUPPORTED,
+                TypedClaimValue.text("value"), ClaimOrigin.AI_HYPOTHESIS, ClaimVerification.PROPOSED,
                 new ClaimSourceRef("USER_NOTE", "note-1", 1), Instant.EPOCH, null, null,
-                new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.USER_ASSERTION, "1"), List.of(), Instant.EPOCH)
+                new ClaimConfidenceBasis(ClaimConfidenceBasis.Type.AI_MODEL, "1"), List.of(), Instant.EPOCH)
                 .withId(CLAIM_ID);
     }
 }

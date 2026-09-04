@@ -120,6 +120,8 @@ public final class ContextPolicy {
         if (claim.verification() == ClaimVerification.DISPUTED || claim.verification() == ClaimVerification.REFUTED) {
             return claim.verification().name();
         }
+        if (claim.origin() == ClaimOrigin.AI_HYPOTHESIS && claim.verification() == ClaimVerification.SUPPORTED
+                && claim.confidenceBasis().type() != ClaimConfidenceBasis.Type.USER_CONFIRMATION) return "UNCONFIRMED_AI";
         return null;
     }
 

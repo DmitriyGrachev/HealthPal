@@ -1,6 +1,6 @@
 package com.fit.fitnessapp.knowledge.application.service;
 
-import com.fit.fitnessapp.knowledge.application.port.in.ClaimConflictQueryUseCase;
+import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimCommandReceiptPort;
 import com.fit.fitnessapp.knowledge.application.port.out.CanonicalContextSource;
 import com.fit.fitnessapp.knowledge.application.port.out.KnowledgeClaimRepositoryPort;
 import com.fit.fitnessapp.knowledge.context.*;
@@ -21,15 +21,18 @@ import java.util.stream.Collectors;
 public class UserContextAssembler implements UserContextQuery {
     private final CanonicalContextSource canonical;
     private final KnowledgeClaimRepositoryPort claims;
-    private final ClaimConflictQueryUseCase conflicts;
+    private final KnowledgeClaimCommandReceiptPort sources;
     private final List<ContextNarrativeSearch> searches;
     private final Clock clock;
+    private final KnowledgeMetrics metrics;
     private final ContextPolicy policy = new ContextPolicy();
 
     public UserContextAssembler(CanonicalContextSource canonical, KnowledgeClaimRepositoryPort claims,
-                                ClaimConflictQueryUseCase conflicts, List<ContextNarrativeSearch> searches, Clock clock) {
-        this.canonical = canonical; this.claims = claims; this.conflicts = conflicts;
+                                KnowledgeClaimCommandReceiptPort sources, List<ContextNarrativeSearch> searches, Clock clock,
+                                KnowledgeMetrics metrics) {
+        this.canonical = canonical; this.claims = claims; this.sources = sources;
         this.searches = List.copyOf(searches); this.clock = clock;
+        this.metrics = metrics;
     }
 
     /** Read-only assembly does not record usage; the durable consumer owns that later write. */
@@ -37,15 +40,42 @@ public class UserContextAssembler implements UserContextQuery {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UserContext assemble(UserContextRequest request) {
         Objects.requireNonNull(request, "request");
-        Instant asOf = clock.instant();
+        // Validate owned targets before optional external work, then refresh after that work.
         var snapshot = canonical.read(request);
+        List<ContextNarrativeSearch.Candidate> candidates = new ArrayList<>();
+        boolean available = false;
+        if (request.permitsNarratives() && !searches.isEmpty()) {
+            for (ContextNarrativeSearch search : searches) {
+                try {
+                    var response = search.search(request);
+                    if (!response.available()) continue;
+                    available = true;
+                    candidates.addAll(response.candidates());
+                } catch (RuntimeException unavailable) {
+                    // Canonical context remains usable; never log provider messages or private content.
+                }
+            }
+            snapshot = canonical.read(request);
+        }
+        Instant asOf = clock.instant();
         List<KnowledgeClaim> allClaims = claims.findAllByOwner(request.userId());
+        var progress = new HashMap<Map.Entry<String, String>, KnowledgeClaimCommandReceiptPort.SourceProgress>();
+        List<KnowledgeClaim> currentClaims = new ArrayList<>();
+        List<ContextSlices.RejectedClaim> rejected = new ArrayList<>();
+        for (var claim : allClaims) {
+            var source = claim.source();
+            var known = progress.computeIfAbsent(Map.entry(source.sourceType(), source.sourceId()),
+                    key -> sources.sourceProgress(request.userId(), key.getKey(), key.getValue()));
+            if (known.deleted()) rejected.add(new ContextSlices.RejectedClaim(claim.id(), "SOURCE_DELETED"));
+            else if (known.highestVersion() > source.sourceVersion()) rejected.add(new ContextSlices.RejectedClaim(claim.id(), "SOURCE_STALE"));
+            else currentClaims.add(claim);
+        }
         Set<Long> conflicted = new HashSet<>();
-        conflicts.findOpen(request.userId()).forEach(c -> { conflicted.add(c.leftClaimId()); conflicted.add(c.rightClaimId()); });
-        // Notification dismissal must not settle truth, even before an asynchronous refresh.
-        new com.fit.fitnessapp.knowledge.domain.ClaimConflictDetector().detect(allClaims, asOf)
+        // Notification status never settles truth; stale sources must not create spurious conflicts either.
+        new com.fit.fitnessapp.knowledge.domain.ClaimConflictDetector().detect(currentClaims, asOf)
                 .forEach(c -> { conflicted.add(c.leftClaimId()); conflicted.add(c.rightClaimId()); });
-        var selection = policy.select(allClaims, conflicted, request, asOf);
+        var selection = policy.select(currentClaims, conflicted, request, asOf);
+        rejected.addAll(selection.rejected());
         var observations = snapshot.observations().stream()
                 .filter(o -> !o.observedAt().isAfter(asOf) && !o.sourceDate().isBefore(request.fromInclusive())
                         && !o.sourceDate().isAfter(request.toInclusive()))
@@ -55,27 +85,14 @@ public class UserContextAssembler implements UserContextQuery {
                 .collect(Collectors.toMap(o -> o.sourceType() + ":" + o.sourceId(), Function.identity(),
                         (first, duplicate) -> first, LinkedHashMap::new)).values().stream().toList();
 
-        // Canonical reads finish before any optional projection lookup. A projection returns identities, never facts.
-        List<Long> matches = new ArrayList<>();
-        boolean available = false;
-        if (request.permitsNarratives()) {
-            Map<Long, KnowledgeClaim> eligible = selection.candidates().stream()
-                    .collect(Collectors.toMap(KnowledgeClaim::id, Function.identity()));
-            for (ContextNarrativeSearch search : searches) {
-                try {
-                    var response = search.search(request);
-                    if (!response.available()) continue;
-                    available = true;
-                    for (var candidate : response.candidates()) {
-                        KnowledgeClaim claim = eligible.get(candidate.claimId());
-                        if (claim != null && claim.aggregateVersion() == candidate.aggregateVersion()
-                                && claim.contentHash().equals(candidate.contentHash())) matches.add(claim.id());
-                    }
-                } catch (RuntimeException unavailable) {
-                    // No provider messages, prompts or claim content are logged. Canonical context remains usable.
-                }
-            }
-        }
+        // Projection identities are revalidated against canonical state read after the external lookup.
+        Map<Long, KnowledgeClaim> eligible = selection.candidates().stream()
+                .collect(Collectors.toMap(KnowledgeClaim::id, Function.identity()));
+        var matches = candidates.stream().filter(candidate -> {
+            var claim = eligible.get(candidate.claimId());
+            return claim != null && claim.aggregateVersion() == candidate.aggregateVersion()
+                    && claim.contentHash().equals(candidate.contentHash());
+        }).map(ContextNarrativeSearch.Candidate::claimId).toList();
         var narratives = policy.narratives(selection, matches, request, asOf);
         List<String> missing = new ArrayList<>();
         if (snapshot.goals().isEmpty()) missing.add("ACTIVE_GOALS");
@@ -83,8 +100,10 @@ public class UserContextAssembler implements UserContextQuery {
         if (observations.isEmpty()) missing.add("OBSERVATIONS");
         if (request.purpose() != ContextPurpose.TELEGRAM_ANSWER && snapshot.evaluations().isEmpty()) missing.add("PRIOR_EVALUATIONS");
         if (request.permitsNarratives() && !available) missing.add("NARRATIVE_PROJECTION");
-        var metadata = new ContextMetadata(asOf, coverage(observations, request, asOf), selection.rejected(), missing,
+        var metadata = new ContextMetadata(asOf, coverage(observations, request, asOf), rejected, missing,
                 available, narratives.truncated());
+        metrics.contextAssembled(request.purpose(), rejected.stream()
+                .anyMatch(c -> c.reason().equals("OPEN_CONFLICT") || c.reason().equals("DISPUTED")));
         return switch (request.purpose()) {
             case EXPERIMENT_DRAFT -> new UserContext.ExperimentDraft(metadata, snapshot.goals(), snapshot.experiment(),
                     selection.constraints(), selection.facts(), observations, snapshot.evaluations(), narratives.items());

@@ -1,8 +1,8 @@
 # Purpose-scoped personal context (V1)
 
 Iteration 2.3 exposes the internal `knowledge::context-api` `UserContextQuery`.
-It does not yet change a Telegram answer or an experiment decision; consumer
-integration is Iteration 2.6. Callers resolve the owner at their authenticated
+Iteration 2.6 connects Telegram answers, Experiment Decisions and optional AI drafts.
+Callers resolve the owner at their authenticated
 boundary, never from AI output or a client-supplied owner field.
 
 ## Slices and ownership
@@ -37,9 +37,12 @@ effect, coverage/adherence, reason codes and timestamp.
 - Only `SUPPORTED` claims enter canonical facts. Supported predicates beginning
   with normalized `constraint.` enter the separate verified-constraints slice.
   This is an explicit namespace convention, not free-text classification.
-- Open persisted conflicts exclude both claim IDs. `DISPUTED`, `REFUTED`,
+- Current canonical contradictions exclude both claim IDs regardless of notification status. `DISPUTED`, `REFUTED`,
   expired, superseded, not-yet-valid and future-observed claims are excluded with
-  stable reasons. Conflict detection itself arrives in Iteration 2.5.
+  stable reasons. Deleted or older-than-known sources are excluded as `SOURCE_DELETED` /
+  `SOURCE_STALE` using local source-progress receipts. Their old values cannot create
+  spurious conflicts with current sources. AI-origin supported Claims additionally need
+  explicit user confirmation; other confidence bases yield `UNCONFIRMED_AI`.
 - Claims must overlap the requested period and remain valid at assembly time.
   This is current decision context, not a historical time-travel reconstruction.
   Unknown validity bounds stay unknown.
@@ -58,10 +61,12 @@ effect, coverage/adherence, reason codes and timestamp.
 
 ## Optional search and budget
 
-Canonical SQL reads run first. The assembler suspends any surrounding
-transaction; the experiment read is a short read-only repeatable-read
-transaction. Optional search runs after these reads, outside their transactions.
-There is no network call in the canonical path.
+Canonical SQL first validates owned targets. The assembler suspends any surrounding
+transaction; each experiment read is a short read-only repeatable-read transaction.
+Optional search runs outside those transactions. Afterwards canonical slices are refreshed,
+and Claims, source progress and contradictions are read before accepting any search identity.
+This also happens after search failure, so old goals or forgotten Claims cannot survive a
+long lookup merely because they were read before it. There is no network call in the SQL path.
 
 `ContextNarrativeSearch` is an optional projection SPI, implemented by the memory
 adapter since Iteration 2.4. Its absence or failure produces a valid canonical result with

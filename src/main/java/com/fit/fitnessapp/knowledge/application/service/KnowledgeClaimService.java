@@ -110,7 +110,7 @@ public class KnowledgeClaimService implements KnowledgeClaimCommandUseCase, Know
                 userId, idempotencyKey, fingerprint, outcome, inserted.id(), inserted.aggregateVersion(),
                 source, clock.instant()));
         publish(inserted, KnowledgeClaimChangedEvent.ChangeType.UPSERT);
-        metrics.claimCreated(inserted.origin(), inserted.verification());
+        metrics.claimCreated(inserted);
         return Optional.of(inserted);
     }
 
@@ -167,7 +167,7 @@ public class KnowledgeClaimService implements KnowledgeClaimCommandUseCase, Know
                 inserted.id(), inserted.aggregateVersion(), replacement.source(), clock.instant()));
         publish(superseded, KnowledgeClaimChangedEvent.ChangeType.UPSERT);
         publish(inserted, KnowledgeClaimChangedEvent.ChangeType.UPSERT);
-        metrics.claimCreated(inserted.origin(), inserted.verification());
+        metrics.claimCreated(inserted);
         return inserted;
     }
 

@@ -116,7 +116,8 @@ class KnowledgeClaimServiceTest {
                 .map(component -> component.getName()))
                 .doesNotContain("subject", "predicate", "value", "evidence", "username", "email");
         assertThat(meterRegistry.get("fitnessapp.knowledge.claim.created").counter().count()).isEqualTo(1);
-        assertThat(meterRegistry.getMeters().getFirst().getId().getTags())
+        assertThat(meterRegistry.get("fitnessapp.knowledge.claim.provenance").tag("coverage", "EVIDENCE_LINKED").counter().count()).isOne();
+        assertThat(meterRegistry.get("fitnessapp.knowledge.claim.created").counter().getId().getTags())
                 .extracting(tag -> tag.getKey())
                 .containsExactlyInAnyOrder("origin", "verification")
                 .doesNotContain("userId", "user_id", "username", "email", "content");

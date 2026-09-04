@@ -29,12 +29,14 @@ public class MemoryProjectionRebuildService implements MemoryProjectionRebuildUs
     private final DurableJobUseCase jobs;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final KnowledgeMetrics metrics;
 
     public MemoryProjectionRebuildService(KnowledgeClaimRepositoryPort claims, ProjectionGenerationRepositoryPort generations,
                                            MemoryProjectionPort projection, DurableJobUseCase jobs,
-                                           PlatformTransactionManager manager, Clock clock) {
+                                           PlatformTransactionManager manager, Clock clock, KnowledgeMetrics metrics) {
         this.claims = claims; this.generations = generations; this.projection = projection; this.jobs = jobs;
         this.transaction = new TransactionTemplate(manager); this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Override public Long request(Long userId, String idempotencyKey) {
@@ -64,17 +66,23 @@ public class MemoryProjectionRebuildService implements MemoryProjectionRebuildUs
                 if (!jobs.lockClaim(execution) || !generations.activate(generation)) throw rejected();
                 projection.deleteGeneration(owner, generation.baseGeneration());
             });
-            return generation.id();
         } catch (RuntimeException failure) {
             var code = failure instanceof ProjectionFailureException typed ? typed.code() : ProjectionFailureException.Code.WRITE_FAILED;
-            transaction.executeWithoutResult(status -> {
-                if (claims.lockOwner(owner)) {
-                    generations.fail(generation, code.name());
-                    projection.deleteGeneration(owner, generation.id());
-                }
-            });
+            try {
+                transaction.executeWithoutResult(status -> {
+                    if (claims.lockOwner(owner)) {
+                        generations.fail(generation, code.name());
+                        projection.deleteGeneration(owner, generation.id());
+                    }
+                });
+            } finally {
+                metrics.rebuildFailed(code);
+            }
             throw new ProjectionFailureException(code);
         }
+        // Activation already committed; a telemetry failure must not enter cleanup of the active generation.
+        metrics.rebuildConverged();
+        return generation.id();
     }
 
     private List<ClaimProjection> allowed(Long userId) {
